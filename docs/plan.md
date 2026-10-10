@@ -204,6 +204,10 @@ defaults; #3 comments) → 4f per-space design versions / preview (rest of #10).
   same e-mail is linked automatically. Google-only accounts must set a password (reset e-mail, or within 10 min of a
   Google login) before password-requiring actions; unlink needs a password. TOTP and the space policy apply as for
   password login. Contract: [`docs/api/google.md`](api/google.md).
+- 4e grill: the accounting currency stays CZK for every space (a non-CZK space means another country's VAT law —
+  a separate epic when needed). `roundTotal` is replaced by `roundingMode` none / half (0.50) / unit for every
+  currency; the company profile (= the space) gains document defaults: rounding for cash and for other payment
+  methods, payment method, currency, header / footer notes per locale. Contract: [`docs/api/defaults.md`](api/defaults.md).
 - As implemented (4a): migration `m20261016_000001_spaces` (refuses existing data), modules `src/auth/` (hosts,
   sessions, tokens, CSRF, rate limits) and `src/space/` (`SpaceId`, roles, per-space seeds), storage scoped to
   `spaces/{id}/`; details in the Clarifications of [spaces.md](api/spaces.md) and [auth.md](api/auth.md).

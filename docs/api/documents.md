@@ -78,6 +78,8 @@ Payment { id, date, amount: string /* >0, doc currency */, note: string|null, cr
   totals }` — no DB writes; the editor uses it for live totals (debounced). Same 422s as save.
 
 ## Defaults on create (fields omitted or null in the POST body)
+**Since 4e** `paymentMethod`, `currency`, the rounding mode and the notes come from the company defaults and
+`roundTotal` is replaced by `roundingMode` — see [defaults.md](defaults.md).
 `issueDate` = today; `taxPointDate` = issueDate; `dueDate` = issueDate + (contact.defaultDueDays ?? company.defaultDueDays);
 `locale` = contact.defaultLocale ?? company.defaultLocale; `currency` = contact.defaultCurrency ?? "CZK";
 `bankAccountId` = default account for the currency; `vatMode` = company.vatPayer ? "standard" : "non_payer";
