@@ -28,7 +28,7 @@ async fn register_verify_login_create_space_and_log_in_on_its_host() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(
         ctx,
-        json!({ "kind": "base", "space": null, "registration": true, "baseUrl": "http://localhost:3000" })
+        json!({ "kind": "base", "space": null, "registration": true, "baseUrl": "http://localhost:3000", "google": false })
     );
 
     let body = register_body(" Jana@Example.com ");

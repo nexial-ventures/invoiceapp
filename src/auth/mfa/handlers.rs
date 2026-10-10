@@ -74,7 +74,7 @@ pub struct Setup {
         (status = 200, description = "A pending secret (10 min); a new setup replaces it", body = Setup),
         (status = 403, description = "`forbidden` with a token", body = ErrorBody),
         (status = 409, description = "`mfa_enabled`", body = ErrorBody),
-        (status = 422, description = "`password: invalid`", body = ErrorBody),
+        (status = 422, description = "`password: invalid | not_set`", body = ErrorBody),
         (status = 429, description = "`rate_limited` (login bucket)", body = ErrorBody),
     )
 )]
@@ -88,8 +88,8 @@ pub async fn setup(
     if authed.mfa_enabled {
         return Err(AppError::MfaEnabled);
     }
-    if !check_password(&state, user, input.password).await? {
-        return Err(AppError::field("password", "invalid"));
+    if let Err(reason) = check_password(&state, user, input.password).await? {
+        return Err(AppError::field("password", reason));
     }
     let secret = crypto::random_bytes::<{ totp::SECRET_LEN }>()?;
     let sealed = seal::seal(&state.secret_key, user.id, &secret)?;
@@ -183,8 +183,8 @@ pub struct ConfirmInput {
 /// Password, then (only when it and everything else is right) the code.
 async fn confirm(state: &AppState, authed: &Authed, input: ConfirmInput) -> Result<(), AppError> {
     let mut e = FieldErrors::new();
-    if !check_password(state, &authed.user, input.password).await? {
-        e.add("password", "invalid");
+    if let Err(reason) = check_password(state, &authed.user, input.password).await? {
+        e.add("password", reason);
     }
     verify::step_up(
         state,
@@ -206,7 +206,7 @@ async fn confirm(state: &AppState, authed: &Authed, input: ConfirmInput) -> Resu
     responses(
         (status = 204, description = "TOTP off; sessions and tokens in spaces that require it are deleted"),
         (status = 403, description = "`forbidden` with a token", body = ErrorBody),
-        (status = 422, description = "`password: invalid`, `code: required | invalid`", body = ErrorBody),
+        (status = 422, description = "`password: invalid | not_set`, `code: required | invalid`", body = ErrorBody),
         (status = 429, description = "`rate_limited` (login bucket)", body = ErrorBody),
     )
 )]
@@ -234,7 +234,7 @@ pub async fn disable(
         (status = 200, description = "New codes; the old ones stop working", body = RecoveryCodes),
         (status = 403, description = "`forbidden` with a token", body = ErrorBody),
         (status = 409, description = "`conflict`: TOTP is off", body = ErrorBody),
-        (status = 422, description = "`password: invalid`, `code: required | invalid`", body = ErrorBody),
+        (status = 422, description = "`password: invalid | not_set`, `code: required | invalid`", body = ErrorBody),
         (status = 429, description = "`rate_limited` (login bucket)", body = ErrorBody),
     )
 )]

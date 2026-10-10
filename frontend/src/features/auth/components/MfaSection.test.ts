@@ -84,12 +84,15 @@ describe("Account → two-factor authentication", () => {
       for (const c of CODES) expect(text).toContain(c);
     });
 
-    it("shows a wrong password at its field", async () => {
-      mockFetchRoutes({ "GET /api/account/mfa": MFA_OFF, "POST /api/account/mfa/setup": reply(422, { code: "validation", fields: { password: "invalid" } }) });
+    it.each([
+      ["invalid", "Wrong password."],
+      ["not_set", "The account has no password set."],
+    ])("shows 422 password: %s at its field", async (reason, text) => {
+      mockFetchRoutes({ "GET /api/account/mfa": MFA_OFF, "POST /api/account/mfa/setup": reply(422, { code: "validation", fields: { password: reason } }) });
       const { w } = await mountAccount();
       await find(w, "mfa-open-enable").trigger("click");
       await fill(w, { "mfa-setup-password": "wrong" }, '[data-test="mfa-enable"] form');
-      expect(w.find("#mfa-setup-password-error").text()).toBe("Wrong password.");
+      expect(w.find("#mfa-setup-password-error").text()).toBe(text);
     });
 
     it("keeps the code step on a wrong code and restarts from the password when the setup expired", async () => {
@@ -146,6 +149,20 @@ describe("Account → two-factor authentication", () => {
       await fill(w, { "mfa-disable-password": "my password!", "mfa-disable-code": "000000" }, '[data-test="mfa-disable"]');
       expect(w.find("#mfa-disable-code-error").text()).toBe("Wrong code.");
       expect(session.mfaEnabled).toBe(true);
+    });
+
+    it("maps password: not_set on disable and hides the actions for an account without a password", async () => {
+      mockFetchRoutes({ "GET /api/account/mfa": ON, "POST /api/account/mfa/disable": reply(422, { code: "validation", fields: { password: "not_set" } }) });
+      const { w, session } = await mountAccount(true);
+      await find(w, "mfa-open-disable").trigger("click");
+      await fill(w, { "mfa-disable-password": "x", "mfa-disable-code": "000000" }, '[data-test="mfa-disable"]');
+      expect(w.find("#mfa-disable-password-error").text()).toBe("The account has no password set.");
+      await w.find('[data-test="mfa-disable"] button[type="button"]').trigger("click");
+      session.patchUser({ hasPassword: false });
+      await flushPromises();
+      expect(find(w, "mfa-open-disable").exists()).toBe(false);
+      expect(find(w, "mfa-open-regenerate").exists()).toBe(false);
+      expect(w.find('[data-test="mfa-section"] [data-test="no-password-hint"]').exists()).toBe(true);
     });
 
     it("disables after listing the spaces that require it", async () => {

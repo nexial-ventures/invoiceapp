@@ -198,6 +198,12 @@ defaults; #3 comments) → 4f per-space design versions / preview (rest of #10).
   the user's sessions and tokens in requiring spaces at once. Invitations into such a space need TOTP enabled
   first. Step-up code for password change, space delete, token create, invite accept, MFA management. No "trust
   this browser". Contract: [`docs/api/mfa.md`](api/mfa.md).
+- 4d grill: Google OIDC (code + PKCE); the only redirect URI is on the base host, so a Google login for a space goes
+  through a one-time 60 s handoff token to the space host (password login still never crosses hosts). Unknown
+  e-mail → new verified account when registration is on, or via a matching invitation; an existing account with the
+  same e-mail is linked automatically. Google-only accounts must set a password (reset e-mail, or within 10 min of a
+  Google login) before password-requiring actions; unlink needs a password. TOTP and the space policy apply as for
+  password login. Contract: [`docs/api/google.md`](api/google.md).
 - As implemented (4a): migration `m20261016_000001_spaces` (refuses existing data), modules `src/auth/` (hosts,
   sessions, tokens, CSRF, rate limits) and `src/space/` (`SpaceId`, roles, per-space seeds), storage scoped to
   `spaces/{id}/`; details in the Clarifications of [spaces.md](api/spaces.md) and [auth.md](api/auth.md).

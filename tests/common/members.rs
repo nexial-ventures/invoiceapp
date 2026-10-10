@@ -46,7 +46,7 @@ pub async fn token(conn: &DatabaseConnection, space: SpaceId, user: Uuid, role: 
 
 /// A session of `user` on `space`'s host (no login, no rate limit).
 pub async fn session_on(conn: &DatabaseConnection, space: SpaceId, user: Uuid) -> String {
-    session::create(conn, user, Some(space), None)
+    session::create(conn, user, Some(space), None, session::Method::Password)
         .await
         .expect("create session")
 }

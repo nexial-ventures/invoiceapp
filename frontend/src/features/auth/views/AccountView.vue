@@ -1,42 +1,18 @@
 <script setup lang="ts">
-import { reactive } from "vue";
 import { useI18n } from "vue-i18n";
-import FormField from "@/components/form/FormField.vue";
 import { useAction } from "@/composables/useAction";
-import { useFormSubmit } from "@/composables/useFormSubmit";
 import LeaveSpaceSection from "@/features/members/components/LeaveSpaceSection.vue";
-import { collectErrors } from "@/lib/formErrors";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { authApi } from "../api";
-import CodeField from "../components/CodeField.vue";
+import GoogleSection from "../components/GoogleSection.vue";
 import MfaSection from "../components/MfaSection.vue";
-import { codeRule, passwordFieldReason, passwordRule } from "../validation";
+import PasswordSection from "../components/PasswordSection.vue";
 
 const { t } = useI18n();
 const session = useSessionStore();
 const toast = useToastStore();
-const form = reactive({ currentPassword: "", newPassword: "", code: "" });
-const { fieldErrors, error, submitting, submit } = useFormSubmit();
 const revoke = useAction();
-
-async function changePassword() {
-  const mfa = session.mfaEnabled;
-  const ok = await submit(
-    () =>
-      collectErrors({
-        currentPassword: form.currentPassword === "" && "required",
-        newPassword: passwordRule(form.newPassword),
-        code: mfa && codeRule(form.code),
-      }),
-    () => authApi.changePassword({ currentPassword: form.currentPassword, newPassword: form.newPassword, ...(mfa ? { code: form.code.trim() } : {}) }),
-  );
-  if (!ok) return;
-  form.currentPassword = "";
-  form.newPassword = "";
-  form.code = "";
-  toast.show(t("account.password.changed"));
-}
 
 async function revokeOthers() {
   if (!window.confirm(t("account.sessions.confirm"))) return;
@@ -55,20 +31,9 @@ async function revokeOthers() {
       <dd data-test="account-email">{{ session.me.user.email }}</dd>
     </dl>
 
-    <form class="card space-y-4" novalidate data-test="password-form" @submit.prevent="changePassword">
-      <h2 class="text-lg font-semibold">{{ t("account.password.title") }}</h2>
-      <!-- Hidden username lets password managers pair the new password with the account. -->
-      <input type="email" autocomplete="username" :value="session.me?.user.email" class="hidden" readonly />
-      <FormField :label="t('account.password.current')" for="account-current" :error="passwordFieldReason(fieldErrors.currentPassword)">
-        <input id="account-current" v-model="form.currentPassword" type="password" autocomplete="current-password" class="input" :class="{ 'input-error': fieldErrors.currentPassword }" data-test="current-password" />
-      </FormField>
-      <FormField :label="t('account.password.new')" for="account-new" :error="fieldErrors.newPassword" :hint="t('auth.passwordHint')">
-        <input id="account-new" v-model="form.newPassword" type="password" autocomplete="new-password" class="input" :class="{ 'input-error': fieldErrors.newPassword }" data-test="new-password" />
-      </FormField>
-      <CodeField v-if="session.mfaEnabled" id="account-code" v-model="form.code" :error="fieldErrors.code" />
-      <p v-if="error" role="alert" class="alert-error" data-test="password-error">{{ error }}</p>
-      <button type="submit" class="btn btn-primary" :disabled="submitting" data-test="change-password">{{ t("account.password.submit") }}</button>
-    </form>
+    <PasswordSection />
+
+    <GoogleSection />
 
     <MfaSection />
 

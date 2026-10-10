@@ -157,7 +157,11 @@ async fn by_token(state: &AppState, host: &HostCtx, token: &str) -> Result<Authe
     })
 }
 
-async fn by_session(state: &AppState, host: &HostCtx, cookie: &str) -> Result<Authed, AppError> {
+pub(crate) async fn by_session(
+    state: &AppState,
+    host: &HostCtx,
+    cookie: &str,
+) -> Result<Authed, AppError> {
     let found = resolve::session(&state.db, cookie, host.space_id())
         .await?
         .ok_or(AppError::Unauthorized)?;

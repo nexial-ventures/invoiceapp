@@ -189,7 +189,7 @@ pub struct DeleteInput {
     responses(
         (status = 204, description = "The space, all its data and files are deleted"),
         (status = 403, description = "`forbidden`: not the owner, or a token", body = ErrorBody),
-        (status = 422, description = "`slug: mismatch`, `password: invalid`, `code: required | invalid` (users with TOTP)", body = ErrorBody),
+        (status = 422, description = "`slug: mismatch`, `password: invalid | not_set`, `code: required | invalid` (users with TOTP)", body = ErrorBody),
         (status = 429, description = "`rate_limited` (login bucket)", body = ErrorBody),
     )
 )]
@@ -205,8 +205,8 @@ pub async fn delete(
     if input.slug.trim() != space.slug {
         e.add("slug", "mismatch");
     }
-    if !check_password(&state, &authed.user, input.password).await? {
-        e.add("password", "invalid");
+    if let Err(reason) = check_password(&state, &authed.user, input.password).await? {
+        e.add("password", reason);
     }
     let code = input.code.as_deref();
     mfa::step_up(&state, &authed.user, authed.mfa_enabled, code, &mut e).await?;

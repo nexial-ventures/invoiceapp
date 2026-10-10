@@ -19,7 +19,7 @@ pub async fn user(conn: &DatabaseConnection, email: &str) -> Uuid {
     let hash = crypto::hash_password(OWNER_PASSWORD.into())
         .await
         .expect("hash password");
-    let u = users::create(conn, email, "Test User", hash)
+    let u = users::create(conn, email, "Test User", Some(hash))
         .await
         .expect("create user")
         .expect("a new e-mail");

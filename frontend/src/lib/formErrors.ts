@@ -24,6 +24,8 @@ export const REASON_CODES = [
   "last_owner",
   "wrong_code",
   "expired",
+  // A password-confirmed action by an account that has none (signed up through Google).
+  "not_set",
 ] as const;
 
 /** Field errors of a 422 `validation` response, or null for any other failure. */

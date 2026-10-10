@@ -20,6 +20,8 @@ export const useSessionStore = defineStore("session", () => {
   const baseUrl = computed(() => context.value?.baseUrl ?? "/");
   /** Step-up forms ask for a TOTP / recovery code next to the password. */
   const mfaEnabled = computed(() => me.value?.user.mfaEnabled ?? false);
+  /** Forms asking for the user's password are replaced by a hint while false (Google-only account). */
+  const hasPassword = computed(() => me.value?.user.hasPassword ?? true);
 
   function can(action: Action): boolean {
     return roleCan(role.value, action);
@@ -54,6 +56,11 @@ export const useSessionStore = defineStore("session", () => {
 
   function setMfaEnabled(enabled: boolean): void {
     if (me.value) me.value.user.mfaEnabled = enabled;
+  }
+
+  /** After setting a password / unlinking Google: reflect it without reloading `me`. */
+  function patchUser(patch: Partial<Pick<Me["user"], "hasPassword" | "googleLinked">>): void {
+    if (me.value) Object.assign(me.value.user, patch);
   }
 
   function clear(): void {
@@ -93,11 +100,13 @@ export const useSessionStore = defineStore("session", () => {
     isSpace,
     baseUrl,
     mfaEnabled,
+    hasPassword,
     can,
     loadMe,
     login,
     loginMfa,
     setMfaEnabled,
+    patchUser,
     logout,
     clear,
     renameSpace,

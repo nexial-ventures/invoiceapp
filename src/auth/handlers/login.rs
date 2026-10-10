@@ -14,7 +14,9 @@ use crate::app::AppState;
 use crate::auth::ctx::Authed;
 use crate::auth::entity::user;
 use crate::auth::host::HostCtx;
+use crate::auth::mfa::repo::Pending;
 use crate::auth::ratelimit::{LOGIN_EMAIL, LOGIN_IP};
+use crate::auth::session::Method;
 use crate::auth::{crypto, mfa, session, users};
 use crate::error::{AppError, ErrorBody};
 use crate::extract::ApiJson;
@@ -97,9 +99,11 @@ pub async fn login(
     } else {
         users::find_by_email(&state.db, &email).await?
     };
+    // An account without a password (Google only) runs the dummy
+    // verification: refused like a wrong password.
     let ok = crypto::verify_password(
         input.password,
-        user.as_ref().map(|u| u.password_hash.clone()),
+        user.as_ref().and_then(|u| u.password_hash.clone()),
     )
     .await?;
     let space = host.space_id();
@@ -109,21 +113,42 @@ pub async fn login(
     };
     state.limiter.refund(&buckets);
     let ua = session::user_agent(&headers);
-    if mfa::repo::mfa_enabled(&state.db, user.id).await? {
-        let value = mfa::repo::start_login(&state.db, user.id, space, ua).await?;
+    let pending = Pending::login(Method::Password);
+    if let Some(value) = second_factor(&state, &host, user.id, ua.clone(), pending).await? {
         let resp = Json(MfaChallenge { mfa: "required" }).into_response();
         return with_cookies(resp, &[&mfa::pending_cookie(&value, state.public.https)]);
+    }
+    let value = session::create(&state.db, user.id, space, ua, Method::Password).await?;
+    with_cookie(
+        StatusCode::NO_CONTENT,
+        &session::set_cookie(&value, state.public.https),
+    )
+}
+
+/// The TOTP rule after a correct first factor (password or Google), the
+/// same for both: a user with TOTP gets a pending login (`Some(cookie
+/// value)`, the code step comes next) on every host; a user without TOTP on
+/// a space that requires it → 403 `mfa_required`; otherwise `None` — the
+/// caller starts the session.
+pub(crate) async fn second_factor(
+    state: &AppState,
+    host: &HostCtx,
+    user_id: Uuid,
+    ua: Option<String>,
+    pending: Pending,
+) -> Result<Option<String>, AppError> {
+    if mfa::repo::mfa_enabled(&state.db, user_id).await? {
+        let space = host.space_id();
+        return mfa::repo::start_login(&state.db, user_id, space, ua, pending)
+            .await
+            .map(Some);
     }
     if host.requires_mfa() {
         return Err(AppError::MfaRequired {
             account_created: false,
         });
     }
-    let value = session::create(&state.db, user.id, space, ua).await?;
-    with_cookie(
-        StatusCode::NO_CONTENT,
-        &session::set_cookie(&value, state.public.https),
-    )
+    Ok(None)
 }
 
 /// End this session (a token request has none: 204 all the same).
@@ -169,6 +194,11 @@ pub struct MeUser {
     pub display_name: String,
     pub email_verified: bool,
     pub mfa_enabled: bool,
+    /// `false`: an account created through Google that has not set a
+    /// password yet (password-requiring actions answer `password: not_set`).
+    pub has_password: bool,
+    /// A Google account is linked (`docs/api/google.md`).
+    pub google_linked: bool,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -200,6 +230,8 @@ pub async fn me(authed: Authed) -> Json<Me> {
             display_name: authed.user.display_name,
             email_verified: authed.user.email_verified_at.is_some(),
             mfa_enabled,
+            has_password: authed.user.password_hash.is_some(),
+            google_linked: authed.user.google_sub.is_some(),
         },
         space: authed.space.map(|m| MeSpace {
             slug: m.slug,

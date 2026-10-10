@@ -76,6 +76,13 @@ pub const INVITE_IP: Limit = Limit {
     window: FIFTEEN_MIN,
 };
 
+/// Google sign-in starts per IP (every request counts).
+pub const GOOGLE_IP: Limit = Limit {
+    name: "google-ip",
+    max: 20,
+    window: FIFTEEN_MIN,
+};
+
 /// Invitation e-mails (create + resend) per inviting user and per space.
 pub const INVITE_USER: Limit = Limit {
     name: "invite-user",

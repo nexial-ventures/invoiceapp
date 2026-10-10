@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import FormField from "@/components/form/FormField.vue";
 import { useFormSubmit } from "@/composables/useFormSubmit";
 import CodeField from "@/features/auth/components/CodeField.vue";
+import NoPasswordHint from "@/features/auth/components/NoPasswordHint.vue";
 import { codeRule, passwordFieldReason } from "@/features/auth/validation";
 import AccountantExportButton from "@/features/csvExport/components/AccountantExportButton.vue";
 import { collectErrors } from "@/lib/formErrors";
@@ -42,7 +43,8 @@ async function onSubmit() {
       <span>{{ t("spaces.delete.exportHint") }}</span>
       <AccountantExportButton />
     </div>
-    <form class="space-y-4" novalidate @submit.prevent="onSubmit">
+    <NoPasswordHint v-if="!session.hasPassword" />
+    <form v-else class="space-y-4" novalidate @submit.prevent="onSubmit">
       <FormField :label="t('spaces.delete.confirmSlug', { slug })" for="delete-slug" :error="fieldErrors.slug">
         <input id="delete-slug" v-model="form.slug" autocomplete="off" spellcheck="false" class="input font-mono" :class="{ 'input-error': fieldErrors.slug }" data-test="delete-slug" />
       </FormField>

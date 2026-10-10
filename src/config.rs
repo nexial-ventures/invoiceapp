@@ -6,6 +6,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 
 use crate::ares::DEFAULT_ARES_URL;
+use crate::auth::google::GoogleConfig;
 use crate::auth::host::PublicUrl;
 use crate::cnb::DEFAULT_CNB_URL;
 use crate::email::SmtpConfig;
@@ -55,6 +56,9 @@ pub struct Config {
     /// `INVOICE__SMTP__*`; `None` → e-mail not configured.
     #[serde(skip)]
     pub smtp: Option<SmtpConfig>,
+    /// `INVOICE__GOOGLE__*`; `None` → Sign in with Google disabled.
+    #[serde(skip)]
+    pub google: Option<GoogleConfig>,
     /// Removed setting, read only to refuse a start that would silently fall
     /// back to the default design (archives are immutable).
     #[serde(default, rename = "design_dir")]
@@ -79,6 +83,7 @@ impl Config {
             "invalid configuration (INVOICE__DATABASE_URL and INVOICE__PUBLIC_URL are required)",
         )?;
         cfg.storage = StorageConfig::from_config(raw.clone())?;
+        cfg.google = GoogleConfig::from_config(raw.clone())?;
         cfg.smtp = SmtpConfig::from_config(raw)?;
         cfg.public = PublicUrl::parse(&cfg.raw_public_url)?;
         cfg.registration = flag("INVOICE__REGISTRATION", cfg.raw_registration.as_deref())?;

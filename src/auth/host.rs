@@ -212,6 +212,8 @@ pub struct Context {
     pub space: Option<ContextSpace>,
     pub registration: bool,
     pub base_url: String,
+    /// Sign in with Google is configured.
+    pub google: bool,
 }
 
 /// Which app the SPA shows on this host.
@@ -240,6 +242,7 @@ pub async fn context(
         }),
         registration: state.registration,
         base_url: state.public.base_url(),
+        google: state.google.is_some(),
     })
 }
 

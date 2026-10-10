@@ -20,5 +20,6 @@
   "already_member": "Tento uživatel už je členem space.",
   "last_owner": "Poslední vlastník musí zůstat vlastníkem.",
   "wrong_code": "Nesprávný kód.",
-  "expired": "Platnost vypršela."
+  "expired": "Platnost vypršela.",
+  "not_set": "Účet nemá nastavené heslo."
 }

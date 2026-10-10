@@ -69,9 +69,9 @@ describe("auth views", () => {
       mockFetchRoutes({});
       let { w } = await mountView(LoginView, { path: "/login" });
       expect(w.find('[data-test="register-link"]').exists()).toBe(true);
-      ({ w } = await mountView(LoginView, { path: "/login", context: { kind: "base", space: null, registration: false, baseUrl: "http://localhost:3000" } }));
+      ({ w } = await mountView(LoginView, { path: "/login", context: { kind: "base", space: null, registration: false, google: false, baseUrl: "http://localhost:3000" } }));
       expect(w.find('[data-test="register-link"]').exists()).toBe(false);
-      ({ w } = await mountView(LoginView, { path: "/login", context: { kind: "space", space: { slug: "firma", name: "Firma" }, registration: true, baseUrl: "http://x" } }));
+      ({ w } = await mountView(LoginView, { path: "/login", context: { kind: "space", space: { slug: "firma", name: "Firma" }, registration: true, google: false, baseUrl: "http://x" } }));
       expect(w.find("h1").text()).toBe("Sign in – Firma");
       expect(w.find('[data-test="register-link"]').exists()).toBe(false);
     });

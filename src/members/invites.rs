@@ -193,23 +193,33 @@ pub async fn by_token(
     if token.is_empty() {
         return Ok(None);
     }
+    by_hash(db, space, &crypto::digest(token)).await
+}
+
+/// The live invitation of `space` whose token has sha256 `token_hash`.
+pub async fn by_hash(
+    db: &impl ConnectionTrait,
+    space: SpaceId,
+    token_hash: &str,
+) -> Result<Option<space_invite::Model>, AppError> {
     Ok(Entity::find()
-        .filter(Column::TokenHash.eq(crypto::digest(token)))
+        .filter(Column::TokenHash.eq(token_hash))
         .filter(Column::SpaceId.eq(space.uuid()))
         .filter(Column::ExpiresAt.gt(Utc::now()))
         .one(db)
         .await?)
 }
 
-/// Delete (= use up) the live invitation behind `token`; `None` when it is
-/// gone meanwhile. The delete row-locks it: one of two parallel accepts wins.
+/// Delete (= use up) the live invitation whose token has sha256
+/// `token_hash`; `None` when it is gone meanwhile. The delete row-locks it:
+/// one of two parallel accepts wins.
 pub async fn consume(
     txn: &DatabaseTransaction,
     space: SpaceId,
-    token: &str,
+    token_hash: &str,
 ) -> Result<Option<space_invite::Model>, AppError> {
     let gone = Entity::delete_many()
-        .filter(Column::TokenHash.eq(crypto::digest(token)))
+        .filter(Column::TokenHash.eq(token_hash))
         .filter(Column::SpaceId.eq(space.uuid()))
         .filter(Column::ExpiresAt.gt(Utc::now()))
         .exec_with_returning(txn)

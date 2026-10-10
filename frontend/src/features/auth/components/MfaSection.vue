@@ -8,6 +8,7 @@ import { useToastStore } from "@/stores/toast";
 import { useMfaStore } from "../mfaStore";
 import MfaConfirmForm from "./MfaConfirmForm.vue";
 import MfaEnableFlow from "./MfaEnableFlow.vue";
+import NoPasswordHint from "./NoPasswordHint.vue";
 import RecoveryCodesPanel from "./RecoveryCodesPanel.vue";
 
 /** Account → "Dvoufázové ověření": status, enrolment, recovery codes, turning it off. */
@@ -53,7 +54,8 @@ async function onDisabled() {
     <template v-else-if="store.status.enabled">
       <p class="text-sm" data-test="mfa-status">{{ t("mfa.on", { count: store.status.recoveryCodesLeft }) }}</p>
       <p v-if="store.status.recoveryCodesLeft <= 3" class="text-sm text-amber-700 dark:text-amber-400" data-test="mfa-codes-low">{{ t("mfa.codesLow") }}</p>
-      <div class="flex flex-wrap gap-2">
+      <NoPasswordHint v-if="!session.hasPassword" />
+      <div v-else class="flex flex-wrap gap-2">
         <button type="button" class="btn" data-test="mfa-open-regenerate" @click="panel = 'regenerate'">{{ t("mfa.regenerate.open") }}</button>
         <button type="button" class="btn btn-danger" data-test="mfa-open-disable" @click="panel = 'disable'">{{ t("mfa.disable.open") }}</button>
       </div>
@@ -63,7 +65,8 @@ async function onDisabled() {
       <p v-if="store.status.requiredBy.length" class="text-sm text-amber-700 dark:text-amber-400" data-test="mfa-required-hint">
         {{ t("mfa.requiredHint", { spaces: store.status.requiredBy.map((s) => s.name).join(", ") }) }}
       </p>
-      <button type="button" class="btn btn-primary" data-test="mfa-open-enable" @click="panel = 'enable'">{{ t("mfa.enable.open") }}</button>
+      <NoPasswordHint v-if="!session.hasPassword" />
+      <button v-else type="button" class="btn btn-primary" data-test="mfa-open-enable" @click="panel = 'enable'">{{ t("mfa.enable.open") }}</button>
     </template>
   </section>
 </template>

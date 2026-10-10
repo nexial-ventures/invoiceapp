@@ -33,12 +33,14 @@ pub mod auth;
 pub mod csv_export;
 pub mod csvio;
 pub mod documents;
+pub mod google;
 pub mod isdoc;
 pub mod mcp;
 pub mod mdcast;
 pub mod members;
 pub mod mfa;
 pub mod money;
+pub mod oidc;
 pub mod pohoda;
 pub mod received;
 pub mod smtp;
@@ -229,6 +231,7 @@ pub fn state(db: DatabaseConnection, ares_url: &str, cnb_url: &str, pdf: PdfRoot
         trust_forwarded: false,
         secret_key: test_secret_key(),
         limiter: RateLimiter::default(),
+        google: None,
     }
 }
 

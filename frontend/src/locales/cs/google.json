@@ -1,0 +1,53 @@
+{
+  "or": "nebo",
+  "button": {
+    "login": "Přihlásit přes Google",
+    "register": "Registrovat přes Google",
+    "invite": "Přijmout přes Google"
+  },
+  "errors": {
+    "cancelled": "Přihlášení přes Google bylo zrušeno.",
+    "expired": "Přihlášení přes Google vypršelo. Zkuste to znovu.",
+    "invalid": "Přihlášení přes Google se nepodařilo ověřit. Zkuste to znovu.",
+    "unverified_email": "Google účet nemá ověřený e-mail.",
+    "not_allowed": "K tomuto Google účtu neexistuje účet a registrace je vypnutá.",
+    "disabled": "Účet je zablokovaný.",
+    "not_member": "Nejste členem tohoto space.",
+    "mfa_required": "Tento space vyžaduje dvoufázové ověření. Zapněte si ho na stránce Účet a přihlaste se znovu.",
+    "already_linked": "Tento Google účet je už propojený s jiným účtem.",
+    "email_mismatch": "E-mail Google účtu neodpovídá e-mailu pozvánky.",
+    "unavailable": "Google je teď nedostupný. Zkuste to později.",
+    "unknown": "Přihlášení přes Google se nezdařilo."
+  },
+  "account": {
+    "title": "Google",
+    "linked": "Účet je propojený s Googlem. Můžete se přihlašovat přes Google.",
+    "notLinked": "Účet není propojený s Googlem.",
+    "link": {
+      "open": "Propojit s Googlem",
+      "intro": "Pro propojení potvrďte své heslo. Pak vás přesměrujeme na Google.",
+      "submit": "Pokračovat na Google"
+    },
+    "linkedNow": "Google účet je propojený.",
+    "unlink": {
+      "open": "Odpojit",
+      "intro": "Po odpojení se budete přihlašovat jen heslem.",
+      "submit": "Odpojit Google",
+      "done": "Google účet je odpojený."
+    }
+  },
+  "noPassword": {
+    "hint": "Váš účet zatím nemá heslo (přihlašujete se přes Google). Tato akce ho vyžaduje.",
+    "howTo": "Heslo si nastavíte v sekci „Nastavit heslo“ do 10 minut od přihlášení přes Google, nebo odkazem z e-mailu.",
+    "sendLink": "Poslat odkaz pro nastavení hesla",
+    "sent": "Odkaz pro nastavení hesla je na cestě do vaší schránky.",
+    "guest": "Účet zatím nemá heslo. Použijte přihlášení přes Google, nebo si heslo nastavte přes „Zapomenuté heslo“."
+  },
+  "setPassword": {
+    "title": "Nastavit heslo",
+    "intro": "Účet zatím nemá heslo. Nastavte si ho, abyste se mohli přihlásit i bez Googlu.",
+    "submit": "Nastavit heslo",
+    "done": "Heslo je nastavené.",
+    "expired": "Heslo lze takto nastavit jen do 10 minut od přihlášení přes Google. Přihlaste se přes Google znovu, nebo použijte odkaz z e-mailu („Zapomenuté heslo“)."
+  }
+}

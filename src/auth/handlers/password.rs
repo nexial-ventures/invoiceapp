@@ -19,6 +19,8 @@ use crate::extract::ApiJson;
 #[derive(Debug, Default, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ChangeInput {
+    /// Not needed (ignored) for an account without a password within 10 min
+    /// of a Google login.
     pub current_password: String,
     pub new_password: String,
     /// Users with TOTP: a TOTP or recovery code.
@@ -32,9 +34,9 @@ pub struct ChangeInput {
     security(("cookie" = [])),
     request_body = ChangeInput,
     responses(
-        (status = 204, description = "Changed; the user's other sessions are revoked"),
+        (status = 204, description = "Changed (or set: an account without a password, within 10 min of a Google login); the user's other sessions are revoked"),
         (status = 403, description = "`forbidden` with a token", body = ErrorBody),
-        (status = 422, description = "`currentPassword: invalid`, `newPassword: too_short | too_long`, `code: required | invalid` (users with TOTP)", body = ErrorBody),
+        (status = 422, description = "`currentPassword: invalid | required` (`required`: no password yet and no Google login within 10 min), `newPassword: too_short | too_long`, `code: required | invalid` (users with TOTP)", body = ErrorBody),
         (status = 429, description = "`rate_limited` (login bucket)", body = ErrorBody),
     )
 )]
@@ -46,8 +48,15 @@ pub async fn change(
     let current = authed.require_session()?;
     let mut e = FieldErrors::new();
     e.check("newPassword", super::password(&input.new_password));
-    if !super::check_password(&state, &authed.user, input.current_password).await? {
-        e.add("currentPassword", "invalid");
+    if authed.user.password_hash.is_none() {
+        // Setting a first password: the fresh Google login is the proof.
+        if !fresh_google(&state, current).await? {
+            e.add("currentPassword", "required");
+        }
+    } else if let Err(reason) =
+        super::check_password(&state, &authed.user, input.current_password).await?
+    {
+        e.add("currentPassword", reason);
     }
     let code = input.code.as_deref();
     mfa::step_up(&state, &authed.user, authed.mfa_enabled, code, &mut e).await?;
@@ -56,6 +65,18 @@ pub async fn change(
     users::set_password(&state.db, authed.user.id, hash).await?;
     session::delete_others(&state.db, authed.user.id, Some(current)).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// How long after a Google login an account without a password may set
+/// one without `currentPassword`.
+pub const SET_WINDOW: chrono::Duration = chrono::Duration::minutes(10);
+
+/// Was session `id` signed in through Google less than [`SET_WINDOW`] ago?
+async fn fresh_google(state: &AppState, id: uuid::Uuid) -> Result<bool, AppError> {
+    Ok(session::find(&state.db, id).await?.is_some_and(|s| {
+        s.login_method == session::Method::Google.as_str()
+            && chrono::Utc::now() - s.created_at.to_utc() < SET_WINDOW
+    }))
 }
 
 #[utoipa::path(
