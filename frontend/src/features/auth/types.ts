@@ -2,7 +2,16 @@ import type { Role } from "@/features/spaces/types";
 
 /** `GET /api/auth/me` */
 export interface Me {
-  user: { id: string; email: string; displayName: string; emailVerified: boolean; mfaEnabled: boolean };
+  user: {
+    id: string;
+    email: string;
+    displayName: string;
+    emailVerified: boolean;
+    mfaEnabled: boolean;
+    /** False for an account created through Google that has not set a password yet. */
+    hasPassword: boolean;
+    googleLinked: boolean;
+  };
   /** Null on the base host. */
   space: { slug: string; name: string; role: Role } | null;
 }
@@ -26,7 +35,8 @@ export interface LoginMfaRequired {
 }
 
 export interface ChangePasswordBody {
-  currentPassword: string;
+  /** Omitted only to set the first password of a Google-only account (within 10 min of a Google login). */
+  currentPassword?: string;
   newPassword: string;
   /** Step-up, only for a user with TOTP. */
   code?: string;
@@ -56,4 +66,16 @@ export interface RecoveryCodes {
 export interface MfaConfirmBody {
   password: string;
   code: string;
+}
+
+/** `POST /api/account/google/link` 200: the Google start URL to navigate to. */
+export interface GoogleLinkStart {
+  url: string;
+}
+
+/** `DELETE /api/account/google` and `POST /api/account/google/link` (password re-confirmation). */
+export interface UnlinkGoogleBody {
+  password: string;
+  /** Step-up, only for a user with TOTP. */
+  code?: string;
 }

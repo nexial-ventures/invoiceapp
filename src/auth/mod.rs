@@ -1,9 +1,11 @@
 //! Users, sessions, personal API tokens and the per-request auth context.
-//! Contracts: `docs/api/auth.md`, `docs/api/spaces.md`, `docs/api/mfa.md`.
+//! Contracts: `docs/api/auth.md`, `docs/api/spaces.md`, `docs/api/mfa.md`,
+//! `docs/api/google.md`.
 
 pub mod crypto;
 pub mod ctx;
 pub mod entity;
+pub mod google;
 pub mod handlers;
 pub mod host;
 pub mod mail;
@@ -46,6 +48,8 @@ pub fn public_router() -> Router<AppState> {
         )
         .merge(base_only)
         .layer(middleware::from_fn(origin_if_present))
+        // Browser navigations (Google, back from Google): no `Origin` rule.
+        .merge(google::public_router())
         .route("/context", get(host::context))
 }
 
@@ -57,6 +61,7 @@ pub fn account_router() -> Router<AppState> {
         .route("/auth/sessions/revoke-others", post(login::revoke_others))
         .route("/account/password", post(password::change))
         .merge(mfa::account_router())
+        .merge(google::account_router())
 }
 
 pub async fn origin_if_present(req: Request, next: Next) -> Result<Response, AppError> {

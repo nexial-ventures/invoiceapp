@@ -8,6 +8,8 @@ export interface AppContext {
   space: { slug: string; name: string } | null;
   /** Public registration is enabled on the base host. */
   registration: boolean;
+  /** Sign in with Google is configured (the Google buttons are shown). */
+  google: boolean;
   /** `INVOICE__PUBLIC_URL`, e.g. `https://invoiceapp.cz`. */
   baseUrl: string;
 }

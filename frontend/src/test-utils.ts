@@ -92,11 +92,12 @@ export const pdfReply = (filename?: string, disposition = "inline") =>
     },
   });
 
-export const BASE_CONTEXT: AppContext = { kind: "base", space: null, registration: true, baseUrl: "http://localhost:3000" };
+export const BASE_CONTEXT: AppContext = { kind: "base", space: null, registration: true, google: false, baseUrl: "http://localhost:3000" };
 export const SPACE_CONTEXT: AppContext = {
   kind: "space",
   space: { slug: "firma", name: "Firma s.r.o." },
   registration: false,
+  google: false,
   baseUrl: "http://localhost:3000",
 };
 
@@ -106,7 +107,7 @@ export const MFA_OFF: MfaStatus = { enabled: false, recoveryCodesLeft: 0, requir
 /** `GET /api/auth/me` body; `role` null = a base-host session. */
 export function meFixture(role: Role | null = "owner", emailVerified = true, mfaEnabled = false): Me {
   return {
-    user: { id: "u1", email: "jana@example.cz", displayName: "Jana", emailVerified, mfaEnabled },
+    user: { id: "u1", email: "jana@example.cz", displayName: "Jana", emailVerified, mfaEnabled, hasPassword: true, googleLinked: false },
     space: role ? { slug: "firma", name: "Firma s.r.o.", role } : null,
   };
 }

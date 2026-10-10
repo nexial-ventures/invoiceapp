@@ -8,6 +8,8 @@ import { collectErrors, isApiError } from "@/lib/formErrors";
 import { safeReturnPath } from "@/lib/returnPath";
 import { useSessionStore } from "@/stores/session";
 import AuthCard from "../components/AuthCard.vue";
+import GoogleButton from "../components/GoogleButton.vue";
+import GoogleError from "../components/GoogleError.vue";
 import LoginCodeStep from "../components/LoginCodeStep.vue";
 import { emailRule } from "../validation";
 
@@ -17,7 +19,8 @@ const router = useRouter();
 const session = useSessionStore();
 const form = reactive({ email: "", password: "" });
 const { fieldErrors, error, submitting, submit } = useFormSubmit();
-const step = ref<"password" | "code">("password");
+// `?mfa=1`: a Google sign-in of a user with TOTP; the server already set the pending-login cookie.
+const step = ref<"password" | "code">(route.query.mfa === "1" ? "code" : "password");
 /** 403 `mfa_required`: this space requires TOTP and the account has none. */
 const mfaRequired = ref(false);
 const accountUrl = computed(() => `${session.baseUrl.replace(/\/$/, "")}/account`);
@@ -28,7 +31,8 @@ const title = computed(() => {
 });
 const canRegister = computed(() => session.context?.kind === "base" && session.context.registration);
 
-const finish = () => router.replace(safeReturnPath(route.query.return));
+const returnTo = computed(() => safeReturnPath(route.query.return));
+const finish = () => router.replace(returnTo.value);
 
 async function onSubmit() {
   mfaRequired.value = false;
@@ -59,6 +63,7 @@ function onExpired() {
 
 <template>
   <AuthCard :title="title">
+    <GoogleError v-if="step === 'password'" />
     <LoginCodeStep v-if="step === 'code'" @done="finish" @expired="onExpired" />
     <form v-else class="space-y-4" novalidate @submit.prevent="onSubmit">
       <FormField :label="t('auth.email')" for="login-email" :error="fieldErrors.email">
@@ -75,6 +80,7 @@ function onExpired() {
         {{ submitting ? t("auth.login.submitting") : t("auth.login.submit") }}
       </button>
     </form>
+    <GoogleButton v-if="step === 'password'" purpose="login" :label="t('google.button.login')" :return-to="returnTo" divider />
     <div class="flex flex-col gap-1 text-sm">
       <RouterLink :to="{ name: 'forgot' }" class="text-blue-600 hover:underline dark:text-blue-400">{{ t("auth.login.forgot") }}</RouterLink>
       <RouterLink v-if="canRegister" :to="{ name: 'register' }" class="text-blue-600 hover:underline dark:text-blue-400" data-test="register-link">

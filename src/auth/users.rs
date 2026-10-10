@@ -17,6 +17,8 @@ use crate::error::AppError;
 pub enum TokenKind {
     Verify,
     Reset,
+    /// `POST /api/account/google/link` → `start` (single use, 5 min).
+    GoogleLink,
 }
 
 impl TokenKind {
@@ -24,6 +26,7 @@ impl TokenKind {
         match self {
             Self::Verify => "verify",
             Self::Reset => "reset",
+            Self::GoogleLink => "google_link",
         }
     }
 
@@ -31,6 +34,7 @@ impl TokenKind {
         match self {
             Self::Verify => Duration::hours(24),
             Self::Reset => Duration::hours(1),
+            Self::GoogleLink => Duration::minutes(5),
         }
     }
 }
@@ -54,13 +58,14 @@ pub async fn find_by_email(
         .await?)
 }
 
-/// A new unverified user; `None` when the e-mail is taken (a concurrent
+/// A new unverified user (`password_hash` `None`: an account created
+/// through Google); `None` when the e-mail is taken (a concurrent
 /// registration lost the race).
 pub async fn create(
     db: &impl ConnectionTrait,
     email: &str,
     display_name: &str,
-    password_hash: String,
+    password_hash: Option<String>,
 ) -> Result<Option<user::Model>, AppError> {
     let row = user::ActiveModel {
         id: Set(Uuid::new_v4()),
@@ -70,6 +75,7 @@ pub async fn create(
         email_verified_at: Set(None),
         disabled: Set(false),
         created_at: Set(Utc::now().into()),
+        google_sub: Set(None),
     }
     .insert(db)
     .await;
@@ -95,9 +101,13 @@ pub async fn set_password(
     Ok(())
 }
 
+/// Mark the e-mail verified (verify link, password reset, invitation,
+/// Google). A Google account linked while the address was unproven is
+/// dropped: whoever linked it was not shown to own the address.
 pub async fn mark_verified(db: &impl ConnectionTrait, user_id: Uuid) -> Result<(), AppError> {
     user::Entity::update_many()
         .col_expr(user::Column::EmailVerifiedAt, Expr::value(Utc::now()))
+        .col_expr(user::Column::GoogleSub, Expr::value(None::<String>))
         .filter(user::Column::Id.eq(user_id))
         .filter(user::Column::EmailVerifiedAt.is_null())
         .exec(db)
@@ -174,5 +184,6 @@ mod tests {
     fn token_lifetimes() {
         assert_eq!(TokenKind::Verify.lifetime(), Duration::hours(24));
         assert_eq!(TokenKind::Reset.lifetime(), Duration::hours(1));
+        assert_eq!(TokenKind::GoogleLink.lifetime(), Duration::minutes(5));
     }
 }

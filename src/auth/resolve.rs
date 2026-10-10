@@ -19,7 +19,7 @@ use crate::space::{Role, SpaceId};
 const TOUCH_EVERY: Duration = Duration::minutes(1);
 
 const USER_COLUMNS: &str = "u.id AS u_id, u.email, u.display_name, u.password_hash, \
-     u.email_verified_at, u.disabled, u.created_at AS u_created, \
+     u.email_verified_at, u.disabled, u.created_at AS u_created, u.google_sub, \
      u.totp_secret IS NOT NULL AS mfa_enabled, m.role AS member_role";
 
 #[derive(Debug, FromQueryResult)]
@@ -36,10 +36,11 @@ struct Row {
     u_id: Uuid,
     email: String,
     display_name: String,
-    password_hash: String,
+    password_hash: Option<String>,
     email_verified_at: Option<DateTime<FixedOffset>>,
     disabled: bool,
     u_created: DateTime<FixedOffset>,
+    google_sub: Option<String>,
     mfa_enabled: bool,
 }
 
@@ -72,6 +73,7 @@ impl Row {
                 email_verified_at: self.email_verified_at,
                 disabled: self.disabled,
                 created_at: self.u_created,
+                google_sub: self.google_sub,
             },
         }
     }

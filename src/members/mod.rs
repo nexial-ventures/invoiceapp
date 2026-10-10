@@ -6,6 +6,7 @@ pub mod entity;
 pub mod handlers;
 pub mod invite_handlers;
 pub mod invites;
+pub mod join;
 pub mod repo;
 pub mod rules;
 

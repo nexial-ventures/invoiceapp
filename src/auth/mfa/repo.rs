@@ -15,6 +15,7 @@ use uuid::Uuid;
 
 use crate::auth::crypto;
 use crate::auth::entity::{api_token, mfa_login, recovery_code, session, user_totp as user};
+use crate::auth::session::Method;
 use crate::error::AppError;
 use crate::space::SpaceId;
 use crate::space::entity::space;
@@ -235,6 +236,25 @@ pub async fn disable(db: &DatabaseConnection, user_id: Uuid) -> Result<(), AppEr
     Ok(())
 }
 
+/// What a pending login becomes once its code is right.
+#[derive(Debug, Clone)]
+pub struct Pending {
+    /// What the session records.
+    pub method: Method,
+    /// A Google invitation accept: sha256 of the invitation token (the
+    /// membership is created together with the session).
+    pub invite_hash: Option<String>,
+}
+
+impl Pending {
+    pub fn login(method: Method) -> Self {
+        Self {
+            method,
+            invite_hash: None,
+        }
+    }
+}
+
 /// Start a pending login; returns the cookie value. Expired rows of
 /// anyone are purged on the way.
 pub async fn start_login(
@@ -242,6 +262,7 @@ pub async fn start_login(
     user_id: Uuid,
     space: Option<SpaceId>,
     user_agent: Option<String>,
+    pending: Pending,
 ) -> Result<String, AppError> {
     mfa_login::Entity::delete_many()
         .filter(mfa_login::Column::ExpiresAt.lte(Utc::now()))
@@ -258,6 +279,8 @@ pub async fn start_login(
         failures: Set(0),
         created_at: Set(now),
         expires_at: Set(now + PENDING_LOGIN),
+        login_method: Set(pending.method.as_str().to_string()),
+        invite_hash: Set(pending.invite_hash),
     }
     .insert(db)
     .await?;

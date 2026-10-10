@@ -10,7 +10,7 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, Query
 use uuid::Uuid;
 
 use super::crypto;
-use super::entity::session::{ActiveModel, Column, Entity};
+use super::entity::session::{ActiveModel, Column, Entity, Model};
 use crate::error::AppError;
 use crate::space::SpaceId;
 
@@ -18,6 +18,30 @@ pub const COOKIE: &str = "invoice_session";
 pub const IDLE: Duration = Duration::days(14);
 pub const ABSOLUTE: Duration = Duration::days(90);
 const USER_AGENT_MAX: usize = 200;
+
+/// How a session (or a pending TOTP login) was signed in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Method {
+    Password,
+    Google,
+}
+
+impl Method {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Password => "password",
+            Self::Google => "google",
+        }
+    }
+
+    pub fn parse(raw: &str) -> Option<Self> {
+        match raw {
+            "password" => Some(Self::Password),
+            "google" => Some(Self::Google),
+            _ => None,
+        }
+    }
+}
 
 /// A host-only `Set-Cookie` (`HttpOnly`, `SameSite=Lax`, `Path=/`, `Secure`
 /// on https); `max_age` 0 with an empty value removes the cookie.
@@ -72,6 +96,7 @@ pub async fn create(
     user_id: Uuid,
     space: Option<SpaceId>,
     user_agent: Option<String>,
+    method: Method,
 ) -> Result<String, AppError> {
     let value = crypto::random_token()?;
     let now: DateTime<FixedOffset> = Utc::now().into();
@@ -84,10 +109,15 @@ pub async fn create(
         last_seen_at: Set(now),
         expires_at: Set(now + ABSOLUTE),
         user_agent: Set(user_agent),
+        login_method: Set(method.as_str().to_string()),
     }
     .insert(db)
     .await?;
     Ok(value)
+}
+
+pub async fn find(db: &impl ConnectionTrait, id: Uuid) -> Result<Option<Model>, AppError> {
+    Ok(Entity::find_by_id(id).one(db).await?)
 }
 
 pub async fn delete(db: &impl ConnectionTrait, id: Uuid) -> Result<(), AppError> {
@@ -153,6 +183,14 @@ mod tests {
             "invoice_sessionx=1; invoice_session=".parse().unwrap(),
         );
         assert_eq!(cookie_value(&h), None);
+    }
+
+    #[test]
+    fn methods() {
+        for m in [Method::Password, Method::Google] {
+            assert_eq!(Method::parse(m.as_str()), Some(m));
+        }
+        assert_eq!(Method::parse("sso"), None);
     }
 
     #[test]

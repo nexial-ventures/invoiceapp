@@ -10,7 +10,8 @@ use sea_orm::TransactionTrait;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use super::{invites, repo};
+use super::invites;
+use super::join::{Code, Joined, Joiner, join};
 use crate::app::AppState;
 use crate::auth::entity::user;
 use crate::auth::handlers::ClientIp;
@@ -18,6 +19,7 @@ use crate::auth::handlers::login::with_cookie;
 use crate::auth::host::{ContextSpace, HostCtx};
 use crate::auth::mfa::verify::Verifier;
 use crate::auth::ratelimit::{INVITE_IP, LOGIN_EMAIL, LOGIN_IP};
+use crate::auth::session::Method;
 use crate::auth::{crypto, mfa, session, users};
 use crate::error::{AppError, ErrorBody, FieldErrors};
 use crate::extract::{ApiJson, ApiQuery};
@@ -106,9 +108,13 @@ async fn sign_in(
     user: user::Model,
     password: String,
 ) -> Result<user::Model, AppError> {
+    // An account created through Google has no password to prove.
+    let Some(hash) = user.password_hash.clone() else {
+        return Err(AppError::field("password", "not_set"));
+    };
     let buckets = [(LOGIN_EMAIL, user.email.as_str()), (LOGIN_IP, ip)];
     state.limiter.reserve(&buckets)?;
-    let ok = crypto::verify_password(password, Some(user.password_hash.clone())).await?;
+    let ok = crypto::verify_password(password, Some(hash)).await?;
     if !ok || user.disabled {
         return Err(AppError::InvalidCredentials);
     }
@@ -139,7 +145,7 @@ async fn create_detached(
     hash: String,
 ) -> Result<(), AppError> {
     let txn = state.db.begin().await?;
-    let user = users::create(&txn, email, &name, hash)
+    let user = users::create(&txn, email, &name, Some(hash))
         .await?
         .ok_or_else(|| AppError::Conflict("users_email_key".into()))?;
     users::mark_verified(&txn, user.id).await?;
@@ -147,17 +153,15 @@ async fn create_detached(
     Ok(())
 }
 
+/// An existing account and its step-up code still to check (TOTP
+/// accounts), or a new account.
 enum Who {
-    /// `code`: the step-up code still to check (TOTP accounts).
     Existing {
         id: uuid::Uuid,
         email: String,
         code: Option<String>,
     },
-    New {
-        name: String,
-        hash: String,
-    },
+    New(Joiner),
 }
 
 #[utoipa::path(
@@ -170,7 +174,7 @@ enum Who {
         (status = 401, description = "`invalid_credentials` (existing account: wrong password, disabled)", body = ErrorBody),
         (status = 403, description = "`mfa_required`: the space requires TOTP — an existing account without it, or a new account (`detail: account_created`: created, not joined); the invitation stays valid", body = ErrorBody),
         (status = 409, description = "`conflict`: the address was registered meanwhile", body = ErrorBody),
-        (status = 422, description = "`token: invalid`; new account: `displayName: required | too_long`, `password: too_short | too_long`; existing account with TOTP: `code: required | invalid`", body = ErrorBody),
+        (status = 422, description = "`token: invalid`; new account: `displayName: required | too_long`, `password: too_short | too_long`; existing account: `password: not_set` (no password yet), with TOTP `code: required | invalid`", body = ErrorBody),
         (status = 429, description = "`rate_limited`", body = ErrorBody),
     )
 )]
@@ -217,56 +221,41 @@ pub async fn accept(
                     account_created: true,
                 });
             }
-            Who::New { name, hash }
+            Who::New(Joiner::New { name, hash })
         }
     };
     let ua = session::user_agent(&headers);
     let previous = session::cookie_value(&headers);
     let v = Verifier::of(&state);
+    let token_hash = crypto::digest(&token);
     let cookie = state
         .db
         .transaction::<_, Option<String>, AppError>(|txn| {
             Box::pin(async move {
-                // Under the membership lock: a removal / demotion of the
-                // inviter cannot interleave with the accept.
-                repo::lock(txn, space).await?;
-                let invite = invites::consume(txn, space, &token)
-                    .await?
-                    .ok_or_else(|| AppError::field("token", "invalid"))?;
-                let role =
-                    Role::parse(&invite.role).ok_or_else(|| AppError::field("token", "invalid"))?;
-                if !repo::may_grant(txn, space, invite.invited_by, role).await? {
-                    // Commit the consumed invitation: the link stays dead.
-                    return Ok(None);
-                }
-                let user_id = match who {
-                    // The code last, after every other check of the
-                    // transaction: a refused accept rolls it back unspent.
+                let joined = match who {
                     Who::Existing { id, email, code } => {
-                        if let Some(code) = code {
-                            let buckets = [(LOGIN_EMAIL, email.as_str()), (LOGIN_IP, ip.as_str())];
-                            if !mfa::verify::check(txn, &v, id, &code, &buckets).await? {
-                                return Err(AppError::field("code", "invalid"));
-                            }
-                        }
-                        id
+                        let buckets = [(LOGIN_EMAIL, email.as_str()), (LOGIN_IP, ip.as_str())];
+                        let code = code.as_deref().map(|code| Code {
+                            verifier: &v,
+                            code,
+                            buckets: &buckets,
+                        });
+                        join(txn, space, &token_hash, Joiner::Existing(id), code).await?
                     }
-                    // A parallel registration of the address wins: 409.
-                    Who::New { name, hash } => {
-                        users::create(txn, &invite.email, &name, hash)
-                            .await?
-                            .ok_or_else(|| AppError::Conflict("users_email_key".into()))?
-                            .id
-                    }
+                    Who::New(joiner) => join(txn, space, &token_hash, joiner, None).await?,
                 };
-                // The link proved the address.
-                users::mark_verified(txn, user_id).await?;
-                repo::join(txn, space, user_id, &invite.role).await?;
+                let user_id = match joined {
+                    Joined::Member(id) => id,
+                    // Commit: an inviter re-check failure keeps the link dead.
+                    Joined::Refused => return Ok(None),
+                    // Rolled back: the invitation stays usable.
+                    Joined::WrongCode => return Err(AppError::field("code", "invalid")),
+                };
                 // Signed in as someone else on this host: that session ends.
                 if let Some(old) = previous {
                     session::delete_by_cookie(txn, &old).await?;
                 }
-                session::create(txn, user_id, Some(space), ua)
+                session::create(txn, user_id, Some(space), ua, Method::Password)
                     .await
                     .map(Some)
             })

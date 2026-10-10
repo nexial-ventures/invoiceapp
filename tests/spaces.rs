@@ -38,7 +38,7 @@ async fn hosts_are_classified() {
     assert_eq!(
         ctx,
         json!({ "kind": "space", "space": { "slug": "acme", "name": "Space acme" },
-                "registration": false, "baseUrl": "http://localhost:3000" })
+                "registration": false, "baseUrl": "http://localhost:3000", "google": false })
     );
     for host in [
         "nope.localhost:3000",

@@ -1,5 +1,5 @@
 import { request } from "@/api/client";
-import type { ChangePasswordBody, LoginBody, LoginMfaRequired, Me, MfaConfirmBody, MfaSetup, MfaStatus, RecoveryCodes, RegisterBody } from "./types";
+import type { ChangePasswordBody, GoogleLinkStart, LoginBody, LoginMfaRequired, Me, MfaConfirmBody, MfaSetup, MfaStatus, RecoveryCodes, RegisterBody, UnlinkGoogleBody } from "./types";
 
 export const authApi = {
   // A 401 is the expected "not signed in" / "wrong credentials" / "wrong code" answer for these.
@@ -18,6 +18,8 @@ export const authApi = {
   confirmReset: (token: string, password: string) =>
     request<void>("/api/auth/password-reset/confirm", { method: "POST", body: { token, password } }),
   changePassword: (body: ChangePasswordBody) => request<void>("/api/account/password", { method: "POST", body }),
+  linkGoogle: (body: UnlinkGoogleBody) => request<GoogleLinkStart>("/api/account/google/link", { method: "POST", body }),
+  unlinkGoogle: (body: UnlinkGoogleBody) => request<void>("/api/account/google", { method: "DELETE", body }),
 };
 
 export const mfaApi = {

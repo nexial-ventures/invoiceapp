@@ -5,6 +5,7 @@ use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use invoice::app::{self, AppState};
 use invoice::ares::AresClient;
+use invoice::auth::google::Google;
 use invoice::auth::ratelimit::RateLimiter;
 use invoice::cnb::CnbClient;
 use invoice::config::{Config, DbConfig};
@@ -163,6 +164,7 @@ async fn serve() -> Result<()> {
         trust_forwarded: cfg.trust_forwarded,
         secret_key: cfg.secret_key.clone(),
         limiter: RateLimiter::default(),
+        google: cfg.google.clone().map(Google::new).transpose()?,
     };
     let listener = tokio::net::TcpListener::bind(&cfg.bind)
         .await

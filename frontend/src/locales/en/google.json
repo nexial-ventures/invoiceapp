@@ -1,0 +1,53 @@
+{
+  "or": "or",
+  "button": {
+    "login": "Sign in with Google",
+    "register": "Sign up with Google",
+    "invite": "Accept with Google"
+  },
+  "errors": {
+    "cancelled": "Signing in with Google was cancelled.",
+    "expired": "Signing in with Google has expired. Please try again.",
+    "invalid": "Signing in with Google could not be verified. Please try again.",
+    "unverified_email": "The Google account has no verified e-mail.",
+    "not_allowed": "There is no account for this Google account and registration is closed.",
+    "disabled": "The account is disabled.",
+    "not_member": "You are not a member of this space.",
+    "mfa_required": "This space requires two-factor authentication. Turn it on in your account and sign in again.",
+    "already_linked": "This Google account is already linked to another account.",
+    "email_mismatch": "The Google account's e-mail does not match the invitation.",
+    "unavailable": "Google is unreachable right now. Please try again later.",
+    "unknown": "Signing in with Google failed."
+  },
+  "account": {
+    "title": "Google",
+    "linked": "The account is linked to Google. You can sign in with Google.",
+    "notLinked": "The account is not linked to Google.",
+    "link": {
+      "open": "Link with Google",
+      "intro": "Confirm your password to link. You will then be redirected to Google.",
+      "submit": "Continue to Google"
+    },
+    "linkedNow": "The Google account is linked.",
+    "unlink": {
+      "open": "Unlink",
+      "intro": "After unlinking you will sign in with your password only.",
+      "submit": "Unlink Google",
+      "done": "The Google account is unlinked."
+    }
+  },
+  "noPassword": {
+    "hint": "Your account has no password yet (you sign in with Google). This action requires one.",
+    "howTo": "Set it under “Set password” within 10 minutes of signing in with Google, or through a link sent by e-mail.",
+    "sendLink": "Send a link to set a password",
+    "sent": "A link to set your password is on its way to your inbox.",
+    "guest": "The account has no password yet. Use Google, or set a password through “Forgot password”."
+  },
+  "setPassword": {
+    "title": "Set password",
+    "intro": "The account has no password yet. Set one to be able to sign in without Google.",
+    "submit": "Set password",
+    "done": "The password is set.",
+    "expired": "A password can be set this way only within 10 minutes of signing in with Google. Sign in with Google again, or use the e-mail link (“Forgot password”)."
+  }
+}

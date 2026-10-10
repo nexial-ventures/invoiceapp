@@ -35,6 +35,7 @@ describe("reasonKey", () => {
     expect(reasonKey("invalid_ico")).toBe("validation.invalid_ico");
     expect(reasonKey("too_long")).toBe("validation.too_long");
     expect(reasonKey("below_issued")).toBe("validation.below_issued");
+    expect(reasonKey("not_set")).toBe("validation.not_set");
     expect(reasonKey("something_new")).toBe("validation.invalid");
   });
 });

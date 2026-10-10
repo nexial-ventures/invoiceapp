@@ -5,6 +5,7 @@ import FormField from "@/components/form/FormField.vue";
 import { useFormSubmit } from "@/composables/useFormSubmit";
 import { authApi } from "../api";
 import AuthCard from "../components/AuthCard.vue";
+import GoogleButton from "../components/GoogleButton.vue";
 import { validateRegistration } from "../validation";
 
 const { t, locale } = useI18n();
@@ -39,6 +40,8 @@ async function onSubmit() {
         {{ submitting ? t("auth.register.submitting") : t("auth.register.submit") }}
       </button>
     </form>
+    <!-- The route is reachable only with registration on; Google sign-up is a "login" that creates the account. -->
+    <GoogleButton v-if="!done" purpose="login" :label="t('google.button.register')" return-to="/" divider />
     <RouterLink :to="{ name: 'login' }" class="block text-sm text-blue-600 hover:underline dark:text-blue-400">
       {{ done ? t("auth.toLogin") : t("auth.register.haveAccount") }}
     </RouterLink>

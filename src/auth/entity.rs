@@ -11,10 +11,13 @@ pub mod user {
         pub id: Uuid,
         pub email: String,
         pub display_name: String,
-        pub password_hash: String,
+        /// `None`: an account created through Google that has no password yet.
+        pub password_hash: Option<String>,
         pub email_verified_at: Option<DateTimeWithTimeZone>,
         pub disabled: bool,
         pub created_at: DateTimeWithTimeZone,
+        /// The linked Google account's OpenID Connect subject.
+        pub google_sub: Option<String>,
     }
 
     #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -65,6 +68,8 @@ pub mod session {
         pub last_seen_at: DateTimeWithTimeZone,
         pub expires_at: DateTimeWithTimeZone,
         pub user_agent: Option<String>,
+        /// `password` | `google` (`created_at` is the login time).
+        pub login_method: String,
     }
 
     #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -158,6 +163,11 @@ pub mod mfa_login {
         pub failures: i32,
         pub created_at: DateTimeWithTimeZone,
         pub expires_at: DateTimeWithTimeZone,
+        /// `password` | `google`: what the session will record.
+        pub login_method: String,
+        /// A Google invitation accept waiting for the code: sha256 of the
+        /// invitation token (the membership is created with the session).
+        pub invite_hash: Option<String>,
     }
 
     #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

@@ -1,7 +1,8 @@
 # Users, registration, login and sessions (4a)
 
 Password accounts with server-side sessions; hosts and spaces are in [spaces.md](spaces.md). TOTP (#5, 4c): the
-login code step, step-up codes and `user.mfaEnabled` in [mfa.md](mfa.md). Google (#6) comes later.
+login code step, step-up codes and `user.mfaEnabled` in [mfa.md](mfa.md). Sign in with Google (#6, 4d), accounts
+without a password, `user.hasPassword` / `googleLinked`: [google.md](google.md).
 
 ## Config
 - `INVOICE__REGISTRATION` (`true` / `false`, default `false`): public registration on the base host. `true` requires
@@ -14,8 +15,8 @@ login code step, step-up codes and `user.mfaEnabled` in [mfa.md](mfa.md). Google
   (enable registration, register, disable it if wanted).
 
 ## Users
-Table `users` (id, email unique lowercased + trimmed, display_name, password_hash argon2id, email_verified_at,
-disabled, created_at). Password: 12–200 chars (no other rule). `displayName` 1–100.
+Table `users` (id, email unique lowercased + trimmed, display_name, password_hash argon2id — `NULL` for an account
+created through Google that has not set one (4d) —, email_verified_at, disabled, created_at, google_sub (4d)). Password: 12–200 chars (no other rule). `displayName` 1–100.
 
 ## Registration (base host, only when enabled)
 - `POST /api/auth/register { email, password, displayName }` → **202** always for a valid body (no account
@@ -130,3 +131,10 @@ Nothing secret (password, cookie, token, reset / verify token) is ever logged.
   pages); no password, cookie, token or verify / reset token is logged anywhere.
 - New error codes: 401 `invalid_credentials`, 403 `forbidden`, `email_unverified`, `csrf`, 429 `rate_limited`.
 - `GET /api/auth/check` (the old token check) is removed; the SPA uses `GET /api/auth/me`.
+- **4d** ([google.md](google.md)): `password_hash` is nullable. A password login of an account without a password
+  runs the dummy verification and answers 401 `invalid_credentials` (as a wrong password). Sessions record
+  `login_method` (`password` | `google`; `created_at` is the login time). `POST /api/account/password` without
+  `currentPassword` sets a first password within 10 min of a Google login (else `currentPassword: required`); every
+  own-password check (password change aside) answers 422 `password: not_set` for an account without one, and
+  counts nothing in the login bucket. `GET /api/context` gains `google`; `me.user` gains `hasPassword`,
+  `googleLinked`.

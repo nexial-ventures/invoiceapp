@@ -86,7 +86,7 @@ pub async fn register(
     let existing = users::find_by_email(&state.db, &reg.email).await?;
     let created = match existing {
         Some(_) => None,
-        None => users::create(&state.db, &reg.email, &reg.display_name, hash).await?,
+        None => users::create(&state.db, &reg.email, &reg.display_name, Some(hash)).await?,
     };
     let mail = match created {
         Some(user) => Mail::Verify(link(

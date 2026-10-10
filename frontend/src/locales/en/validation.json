@@ -20,5 +20,6 @@
   "already_member": "This user is already a member of the space.",
   "last_owner": "The last owner has to stay an owner.",
   "wrong_code": "Wrong code.",
-  "expired": "Expired."
+  "expired": "Expired.",
+  "not_set": "The account has no password set."
 }
