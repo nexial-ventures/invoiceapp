@@ -8,8 +8,9 @@ without a password, `user.hasPassword` / `googleLinked`: [google.md](google.md).
 - `INVOICE__REGISTRATION` (`true` / `false`, default `false`): public registration on the base host. `true` requires
   SMTP to be configured (startup fails otherwise) — verification and reset e-mails go through the instance SMTP
   (2a), `From` = the configured sender.
-- `INVOICE__TRUST_FORWARDED` (default `false`): take the client IP for rate limits from the first
-  `X-Forwarded-For` hop (behind the reverse proxy); otherwise the socket address.
+- `INVOICE__TRUST_FORWARDED` (default `false`): take the client IP for rate limits from the **last**
+  `X-Forwarded-For` hop (behind a reverse proxy that appends to the header — earlier hops are client-controlled);
+  otherwise the socket address.
 - `INVOICE__API_TOKEN` is removed (startup ignores it; `.env.example` and docs drop it).
 - **Bootstrap = registration.** There is no CLI user / space creation; the first user registers like anyone else
   (enable registration, register, disable it if wanted).
