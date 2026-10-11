@@ -121,6 +121,7 @@ snapshot has an IBAN, `payable > 0`. Generated server-side as SVG (crate `qrcode
   `draft: false`, number `{YYYY}0001`-style sample. `locale` missing → company `defaultLocale`; invalid → 422.
 - `GET /api/pdf/design` → `{ storage: "fs" | "s3", files: [ { path, source: "custom" | "default", size } ] }`
   (effective set, sorted by path; `custom` = from the storage's `design/`).
+  4f extends this response and adds draft / activation / version routes: [design.md](design.md).
 
 Fetch the PDF with the Bearer header (blob → object URL); a plain link cannot carry the token.
 

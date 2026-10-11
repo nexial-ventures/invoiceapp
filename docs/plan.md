@@ -208,6 +208,10 @@ defaults; #3 comments) → 4f per-space design versions / preview (rest of #10).
   a separate epic when needed). `roundTotal` is replaced by `roundingMode` none / half (0.50) / unit for every
   currency; the company profile (= the space) gains document defaults: rounding for cash and for other payment
   methods, payment method, currency, header / footer notes per locale. Contract: [`docs/api/defaults.md`](api/defaults.md).
+- 4f grill: design editing in Settings → Design through a draft (upload / replace / delete, preview) that is
+  validated by sample renders in both locales and then activated in one step; every activation / restore / reset is
+  a version of the whole live set (10 kept, restorable, "back to default"). Allowed file types, 10 MB per file,
+  50 MB per space incl. versions. Contract: [`docs/api/design.md`](api/design.md).
 - As implemented (4a): migration `m20261016_000001_spaces` (refuses existing data), modules `src/auth/` (hosts,
   sessions, tokens, CSRF, rate limits) and `src/space/` (`SpaceId`, roles, per-space seeds), storage scoped to
   `spaces/{id}/`; details in the Clarifications of [spaces.md](api/spaces.md) and [auth.md](api/auth.md).
