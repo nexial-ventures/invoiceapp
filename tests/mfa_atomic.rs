@@ -125,7 +125,9 @@ async fn an_undecryptable_secret_keeps_recovery_codes_usable() {
     let e = enrol(&app, OWNER_EMAIL).await;
     db.conn
         .execute_unprepared(
-            "UPDATE users SET totp_secret = overlay(totp_secret placing '\\xff'::bytea from 20) \
+            // XOR, not overwrite: an overwrite with 0xff is a no-op when the
+            // random ciphertext already has 0xff there (1 in 256 runs).
+            "UPDATE users SET totp_secret = set_byte(totp_secret, 19, get_byte(totp_secret, 19) # 255) \
              WHERE email = 'owner@example.com'",
         )
         .await
