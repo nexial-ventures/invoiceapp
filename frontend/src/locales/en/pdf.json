@@ -14,8 +14,8 @@
       "fs": "local directory",
       "s3": "S3 bucket"
     },
-    "help": "The default design is built into the application. Files stored under design/ in the file storage override it file by file (the same relative path wins): the invoice.typ template, fonts in fonts/, the logo logo.svg or logo.png, a stamp or signature signature.png. Upload them with `invoice design push <dir>` (or straight into the bucket); changes apply on the next render without a restart; already archived PDFs stay unchanged.",
-    "files": "Effective files",
+    "help": "The default design is built into the application. Custom files override it file by file (the same relative path wins): the invoice.typ template, fonts in fonts/, the logo logo.svg or logo.png, a stamp or signature signature.png. Upload them to the draft below, try it with a preview and activate it (an operator can also push them with `invoice design push`). Already archived PDFs stay unchanged.",
+    "files": "Live files",
     "path": "Path",
     "source": "Source",
     "size": "Size",

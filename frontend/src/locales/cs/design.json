@@ -1,0 +1,57 @@
+{
+  "quota": "Úložiště designu: {used} z {limit}",
+  "quotaHint": "Počítají se živé soubory, koncept a uchované verze.",
+  "download": "Stáhnout",
+  "replace": "Nahradit",
+  "delete": "Smazat",
+  "draft": {
+    "title": "Koncept",
+    "hint": "Nahrané soubory přepíší živé až aktivací. Před aktivací koncept vyzkoušejte náhledem; aktivace ho vykreslí v obou jazycích a při chybě nic nezmění.",
+    "file": "Soubor",
+    "path": "Cílová cesta",
+    "pathHint": "Malá písmena, číslice a . _ -, nejvýše jedna složka (např. fonts/inter.ttf). Přípony: .typ, .toml, .ttf, .otf, .woff2, .svg, .png, .jpg, .jpeg.",
+    "upload": "Nahrát do konceptu",
+    "uploading": "Nahrávám…",
+    "pathInvalid": "Neplatná cesta nebo přípona souboru.",
+    "tooLarge": "Soubor je větší než 10 MB.",
+    "changes": "Čekající změny",
+    "empty": "Koncept je prázdný.",
+    "updated": "Upraveno {date} ({by})",
+    "kinds": {
+      "added": "přidán",
+      "replaced": "nahrazen",
+      "deleted": "smazán"
+    },
+    "remove": "Odebrat z konceptu",
+    "previewCs": "Náhled konceptu CZ",
+    "previewEn": "Náhled konceptu EN",
+    "activate": "Aktivovat",
+    "activated": "Koncept je aktivní.",
+    "discard": "Zahodit koncept",
+    "confirmDiscard": "Opravdu zahodit všechny změny konceptu?",
+    "discarded": "Koncept zahozen."
+  },
+  "history": {
+    "title": "Historie verzí",
+    "hint": "Uchovává se 10 posledních verzí. Obnovení nahradí živé soubory obsahem verze; koncept zůstane beze změny.",
+    "number": "Verze",
+    "kind": "Typ",
+    "author": "Autor",
+    "time": "Čas",
+    "files": "Souborů",
+    "current": "aktuální",
+    "kinds": {
+      "activation": "aktivace",
+      "revert": "obnovení",
+      "default": "výchozí design"
+    },
+    "restore": "Obnovit",
+    "confirmRestore": "Obnovit verzi {number}? Živé soubory se nahradí jejím obsahem.",
+    "restored": "Verze {number} obnovena.",
+    "reset": "Vrátit na výchozí design",
+    "confirmReset": "Smazat všechny vlastní soubory a použít výchozí design? Vrátit to půjde obnovením verze.",
+    "resetDone": "Použit výchozí design.",
+    "empty": "Zatím žádné verze."
+  },
+  "deletedUser": "smazaný uživatel"
+}

@@ -32,6 +32,7 @@ use tower::ServiceExt;
 pub mod auth;
 pub mod csv_export;
 pub mod csvio;
+pub mod design;
 pub mod documents;
 pub mod google;
 pub mod isdoc;

@@ -31,5 +31,11 @@
   "lastOwner": "Jediného vlastníka nelze odebrat a nemůže space opustit. Nejprve udělejte vlastníkem dalšího člena.",
   "mfaInvalid": "Nesprávný kód.",
   "mfaRequired": "Tento space vyžaduje dvoufázové ověření, které váš účet nemá zapnuté. Zapněte si ho ve svém účtu na úvodní stránce a přihlaste se znovu.",
-  "mfaEnabled": "Dvoufázové ověření už je zapnuté."
+  "mfaEnabled": "Dvoufázové ověření už je zapnuté.",
+  "quotaExceeded": "Kvóta úložiště designu je vyčerpána.",
+  "designInvalid": "Design nelze vykreslit – nic se nezměnilo.",
+  "draftEmpty": "Koncept je prázdný – není co aktivovat.",
+  "designBusy": "Probíhá jiná změna designu. Zkuste to za chvíli znovu.",
+  "draftChanged": "Koncept se během aktivace změnil. Zkontrolujte ho a aktivujte znovu.",
+  "versionIncomplete": "Soubory této verze v úložišti chybí – verzi nelze obnovit."
 }

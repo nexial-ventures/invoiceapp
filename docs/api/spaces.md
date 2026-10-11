@@ -84,7 +84,8 @@ member management: [members.md](members.md) (4b).
 All keys move under `spaces/{space_id}/`: `…/documents/{year}/…` (issued-PDF archive, received originals) and
 `…/design/…`. **The mdcast design overlay is per space:** a render reads `spaces/{id}/design/` over the embedded
 default, file by file, exactly as 1d / #17 did instance-wide (Settings → Design works per space unchanged).
-`invoice design push|pull|ls` gain a required `--space <slug>`. No file migration (no existing data).
+`invoice design push|pull|ls` gain a required `--space <slug>`. 4f adds `…/design-draft/…` and
+`…/design-versions/{id}/…` ([design.md](design.md)). No file migration (no existing data).
 
 ## Personal API tokens
 For MCP and scripts. A token belongs to **one user in one space** and works only on that space's host.
@@ -132,7 +133,8 @@ For MCP and scripts. A token belongs to **one user in one space** and works only
   `accountant` (incl. PDFs, exports, ISDOC, `GET /api/pdf/preview`, `/api/pdf/design`, ARES, exchange rates, e-mail
   status / templates / history / prefill); every business mutation and read-only POST (`/compute`, imports
   preview, e-mail template preview) `member`; Settings mutations `admin`: company, bank accounts, VAT rates, number
-  series, categories, custom fields, accounting, e-mail templates PUT / DELETE and the test e-mail; `PUT /api/space`
+  series, categories, custom fields, accounting, e-mail templates PUT / DELETE and the test e-mail, every 4f design
+  editor route ([design.md](design.md)); `PUT /api/space`
   `admin`; `DELETE /api/space` `owner`. `/api/tokens` (all three) `accountant`: everyone manages own tokens.
 - MCP `tools/list` lists every tool whatever the role; a call below the tool's role is the tool error
   `{"code":"forbidden"}` (read tools `accountant`, write tools `member`).

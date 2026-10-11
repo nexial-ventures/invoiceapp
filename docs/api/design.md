@@ -10,18 +10,24 @@ are never re-rendered (1d). All routes are on a space host, **admin+** (Settings
 - `design/…` — live files (unchanged; also written by `invoice design push --space`).
 - `design-draft/…` — the draft: uploaded files that will override live ones on activation.
 - `design-versions/{versionId}/…` — a full copy of the live set right after an activation / revert.
-- Table `design_drafts` (space_id PK, deleted paths `text[]`, updated_at, updated_by) — draft deletions (a live file
-  to remove on activation). Table `design_versions` (id uuid, space_id, number per space 1.., kind `activation` |
+- Table `design_drafts` (space_id PK, deleted paths `text[]`, revision, updated_at, updated_by) — draft deletions (a
+  live file to remove on activation); `revision` grows with every draft change; the row is also the space's design
+  lock. Table `design_versions` (id uuid, space_id, number per space 1.., kind `activation` |
   `revert` | `default`, created_at, created_by, files `jsonb` [{ path, size, sha256 }]). The newest row is the live
   state.
 
 ## Files and limits
 - Allowed extensions: `.typ`, `.toml`, `.ttf`, `.otf`, `.woff2`, `.svg`, `.png`, `.jpg`, `.jpeg`. Path: lowercase
   `[a-z0-9._-]` segments, at most 2 levels (`logo.svg`, `fonts/inter.ttf`), no `..`, not `qr.svg` (reserved, 1d).
+  A path equal to an **existing** default, live or draft file may be uploaded whatever its name (replacing
+  `fonts/Inter-Regular.ttf`, `fonts/OFL.txt`, CLI-pushed files). A path that clashes with an existing one as file vs
+  directory (`logo.svg/x.png` while `logo.svg` exists, `img.png` while `img.png/a.png` exists) → `path: invalid`.
 - File ≤ 10 MB (as today). **Quota per space: 50 MB** over live + draft + kept versions (counted by stored object
   size). A file over 10 MB → 422 `{"code":"validation","fields":{"file":"too_large"}}`; over the quota → 422
   `{"code":"quota_exceeded","detail":"<used> / 50 MB"}`. Bad path / extension → 422 `path: invalid`.
 - `invoice.typ` must be UTF-8 (1d rule).
+- **Lock**: every draft change, activation, restore and reset takes the space's lock without waiting; held by another
+  change → 409 `{"code":"design_busy"}`, nothing changed (the UI retries or tells the user to try again).
 
 ## Routes
 - `GET /api/pdf/design` (extends 1d) → `{ storage, files: [ { path, source: "custom"|"default", size } ],
@@ -37,20 +43,23 @@ are never re-rendered (1d). All routes are on a space host, **admin+** (Settings
 - `DELETE /api/pdf/design/draft` → 204 discard the whole draft.
 - `GET /api/pdf/design/draft/preview?locale=cs|en` → `200 application/pdf`: the 1d sample invoice rendered with
   **embedded ∪ live ∪ draft (minus deletions)**; render errors as 1d (`502 pdf_render_failed` with `detail`).
-- `POST /api/pdf/design/activate` → `200 { version }`: under a per-space lock, (1) renders the sample with the
-  draft set in **both** locales — any failure → 422 `{"code":"design_invalid","detail":"<locale>: <mdcast
-  message>"}` and nothing changes; (2) writes the new live set: copies draft files to `design/`, deletes the draft
-  deletions; (3) copies the resulting live set to `design-versions/{id}/` and inserts the version row; (4) clears the
-  draft. Empty draft → 422 `{"code":"draft_empty"}`.
+- `POST /api/pdf/design/activate` → `200 { version }`: (1) renders the sample with the draft set in **both**
+  locales, **without** holding the lock — a template failure → 422 `{"code":"design_invalid","detail":"<locale>:
+  <mdcast message>"}` and nothing changes; then under the lock: (2) the draft must still be the one rendered (same
+  revision, deletions and stored draft files), else 409 `{"code":"draft_changed"}` and nothing changes; (3) writes
+  the new live set: deletes the draft deletions, copies draft files to `design/` (server-side copies); (4) copies the
+  resulting live set to `design-versions/{id}/` and inserts the version row; (5) clears the deletions and commits;
+  the draft files are deleted after the commit. Empty draft → 422 `{"code":"draft_empty"}`.
 - `GET /api/pdf/design/versions` → `[ { id, number, kind, createdAt, createdBy: { email, displayName }, files,
   current: boolean } ]`, newest first.
-- `POST /api/pdf/design/versions/{id}/restore` → `200 { version }`: validates that set like activation (both
-  locales), then replaces live with it (live files not in the version are deleted) and records a `revert` version.
+- `POST /api/pdf/design/versions/{id}/restore` → `200 { version }`: a version whose stored files are missing or
+  differ in size from its row → 409 `{"code":"version_incomplete"}` (checked before the renders and again under the
+  lock); validates that set like activation (both locales, outside the lock), then replaces live with it (live files not in the version are deleted) and records a `revert` version.
   The draft is untouched.
 - `POST /api/pdf/design/reset` → `200 { version }`: deletes every live custom file (the embedded default applies),
   records a `default` version (no files). No validation needed.
-- Keeping: the **10 newest versions**; older rows and their `design-versions/{id}/` objects are deleted after each
-  new version.
+- Keeping: the **10 newest versions**; older rows are deleted with each new version, their
+  `design-versions/{id}/` objects **after the commit** (a rolled-back transaction never leaves rows without files).
 - Failure handling: a storage failure in step (2)/(3) → 503 `storage_unavailable`; the version row is only written
   after the files, so a failed activation leaves no version claiming a set that is not live; the draft is kept so
   the user can retry. Restoring a version is the recovery path for a half-applied live set.
@@ -81,4 +90,54 @@ are never re-rendered (1d). All routes are on a space host, **admin+** (Settings
 - Frontend: draft panel actions, error display, history restore / reset confirms, quota bar.
 
 ## Clarifications (as implemented)
-(filled during the 4f implementation)
+- **Roles**: every new route is admin+ (`Manage`). `GET /api/pdf/design` and `GET /api/pdf/preview` stay readable by
+  every role as in 1d / spaces.md (the listing now also carries `draft` and `quota`); the UI shows the tab to admins
+  only.
+- **Lock**: the `design_drafts` row of the space, created by its own statement on first use, then
+  `SELECT … FOR UPDATE NOWAIT` in the transaction of the change (Postgres `55P03` → 409 `design_busy`). The locked
+  part does only storage copies / deletes and DB writes — never a render — and the transaction is rolled back
+  explicitly on any error. `draft` is `null` whenever there are no draft files and no deletions.
+- **Shapes**: `draft.updatedBy` and a version's `createdBy` are both `{ email, displayName }`, `null` when the account
+  is gone (or nothing was recorded yet); `updatedAt` likewise nullable. `PUT` / `DELETE …/draft/file` answer 200 with
+  the **whole** `GET /api/pdf/design` listing; activate / restore / reset answer `{ version }` = the new version as
+  listed by `GET …/versions` (`current: true`). The frontend ignores mutation bodies and re-GETs the listing.
+- **Draft changes**: `change` is `replaced` when the path exists in the current effective set (custom or default),
+  else `added`. A draft deletion is undone only by discarding the draft or uploading that path again (the upload
+  removes it from `deleted`); a second `DELETE` of an already deleted live path is a 200 no-op. Deleting a path that
+  is neither a draft file nor a live custom file (incl. default-only paths) → 404.
+- **Paths**: the strict rule applies to new paths; an existing default / live / draft path is accepted as is (it
+  must still be a safe relative path — no empty, `.`/`..`, hidden or control-character segment). The clash rule
+  compares against default, live and draft paths. Downloads and draft deletions accept any safe path (otherwise
+  404). A non-UTF-8 `invoice.typ` upload → 422 `file: invalid`.
+- **Upload order**: the path is checked (against a fresh listing) before the body is read; a declared
+  `Content-Length` over 10 MB is refused without reading, otherwise the body is read with a 10 MB cap (anything above
+  → `file: too_large`; exactly 10 MB is accepted). Path and quota are checked again under the lock.
+- **Quota**: `used` = the stored size of every object under `design/`, `design-draft/` and `design-versions/`
+  (hidden ones included; the three listings run concurrently and serve the whole request). An upload is refused
+  when `used − (draft file it replaces) + new size > 50 MB`; `detail` = the current `used` in MiB, one decimal
+  (`"46.0 / 50 MB"`). Activation, restore and reset are not quota-checked (recovery must stay possible; keeping 10
+  versions bounds the growth). On `fs` a copy is a hard link, so the disk use can be lower than `used`.
+- **Download**: `source` defaults to `live`; `live` is the effective file (custom, else default); an unknown
+  `source` → 422 `source: invalid`. `Content-Type` by extension, `Cache-Control: no-store`, filename = last segment.
+- **Preview / checks**: the draft preview and the checks render `embedded ∪ (live − deleted) ∪ draft` (a restore
+  check: `embedded ∪ version`); company and bank are read once per request; `locale` defaults to the company's.
+  Only live files go through the shared design cache — draft and version files are read directly for each check.
+  Only a template failure (mdcast `render_failed`, a design file over 10 MB, a non-UTF-8 template) becomes
+  `design_invalid` (cs is checked first, so its error wins); mdcast unreachable stays 503 `pdf_unavailable`, other
+  upstream errors 502 `pdf_render_failed` — nothing changes in either case.
+- **Rate limit**: bucket `design-space` (10 / hour per space, in memory per instance) shared by activate and
+  restore; reserved after the `draft_empty` / 404 / `version_incomplete` checks and before the renders, never
+  refunded (also not on `design_invalid`, `design_busy`, `draft_changed`). Reset is not limited.
+- **Versions**: snapshots, applying a draft and restoring are server-side copies (S3 `CopyObject`, fs hard link
+  renamed into place); a snapshot file's sha256 is computed by streaming the copy. A failed snapshot removes its
+  partial directory. Under the lock, before a snapshot, objects of version directories no row references
+  (leftovers of a failed commit) are deleted; pruned versions' objects are deleted after the commit, best effort
+  (logged). The completeness check of a restore compares presence and size against the row (not the sha256).
+- **After an activation's commit** the applied draft files are deleted unless one was re-uploaded meanwhile (its
+  ETag — or size + modification time without one — differs); the design cache of the space is invalidated after
+  every activation / restore / reset commit.
+- **Restore**: live files not in the version are deleted (hidden files are left alone); restoring a `default`
+  version empties the live set like reset but records `revert`. Unknown version (or another space's, or pruned in
+  the meantime) → 404.
+- **Reset** deletes the whole `design/` prefix (hidden files too) and records `default` with `files: []`, even when
+  nothing was custom.

@@ -5,6 +5,7 @@ pub mod amounts;
 pub mod archive;
 pub mod client;
 pub mod design;
+pub mod editor;
 pub mod format;
 pub mod handlers;
 pub mod labels;
@@ -110,11 +111,28 @@ impl PdfService {
     }
 
     /// Render `payload` with the current design (listed every time).
-    pub async fn render(&self, mut payload: Payload) -> Result<Vec<u8>, AppError> {
-        let design = design::load(
+    pub async fn render(&self, payload: Payload) -> Result<Vec<u8>, AppError> {
+        self.render_with(payload, design::Layers::LIVE).await
+    }
+
+    /// Forget the cached design files of this space (activation, restore,
+    /// reset).
+    pub fn invalidate_design(&self) {
+        self.design_cache.invalidate(&self.space.storage_prefix());
+    }
+
+    /// Render `payload` with the embedded default overridden by `layers`
+    /// (a draft or version check; [`render`](Self::render) uses the live set).
+    pub async fn render_with(
+        &self,
+        mut payload: Payload,
+        layers: design::Layers<'_>,
+    ) -> Result<Vec<u8>, AppError> {
+        let design = design::load_layers(
             &self.storage,
             &self.design_cache,
             &self.space.storage_prefix(),
+            layers,
         )
         .await?;
         payload.assets = payload::Assets {
@@ -145,5 +163,5 @@ impl PdfService {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/preview", get(handlers::preview))
-        .route("/design", get(handlers::design))
+        .merge(editor::router())
 }

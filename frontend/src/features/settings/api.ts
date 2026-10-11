@@ -9,7 +9,9 @@ import type {
   Company,
   CustomField,
   CustomFieldInput,
+  DesignFileSource,
   DesignInfo,
+  DesignVersion,
   DocType,
   NumberSeries,
   VatRate,
@@ -62,8 +64,23 @@ export const numberSeriesApi = {
     }),
 };
 
+const DESIGN = "/api/pdf/design";
+const query = (params: Record<string, string>) => new URLSearchParams(params).toString();
+
 export const pdfApi = {
-  design: () => request<DesignInfo>("/api/pdf/design"),
+  design: () => request<DesignInfo>(DESIGN),
   /** Sample invoice rendered with the current design; never stored. */
-  preview: (locale: DocLocale) => requestBlob(`/api/pdf/preview?${new URLSearchParams({ locale }).toString()}`),
+  preview: (locale: DocLocale) => requestBlob(`/api/pdf/preview?${query({ locale })}`),
+  designFile: (path: string, source: DesignFileSource) => requestBlob(`${DESIGN}/file?${query({ path, source })}`),
+  // The listing in the PUT / DELETE answers is not relied on: the store reloads the design (the quota moves too).
+  uploadDraftFile: (path: string, file: Blob) =>
+    request<unknown>(`${DESIGN}/draft/file?${query({ path })}`, { method: "PUT", body: file }),
+  removeDraftFile: (path: string) => request<unknown>(`${DESIGN}/draft/file?${query({ path })}`, { method: "DELETE" }),
+  discardDraft: () => request<void>(`${DESIGN}/draft`, { method: "DELETE" }),
+  /** Sample invoice rendered with live ∪ draft. */
+  draftPreview: (locale: DocLocale) => requestBlob(`${DESIGN}/draft/preview?${query({ locale })}`),
+  activate: () => request<unknown>(`${DESIGN}/activate`, { method: "POST" }),
+  versions: () => request<DesignVersion[]>(`${DESIGN}/versions`),
+  restore: (id: string) => request<unknown>(`${DESIGN}/versions/${encodeURIComponent(id)}/restore`, { method: "POST" }),
+  reset: () => request<unknown>(`${DESIGN}/reset`, { method: "POST" }),
 };

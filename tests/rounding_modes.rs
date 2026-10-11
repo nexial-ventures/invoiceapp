@@ -229,7 +229,8 @@ async fn migration_maps_round_total_to_the_mode() {
     )
     .await
     .expect("4d rows");
-    Migrator::up(&conn, None).await.expect("4e migration");
+    // Exactly 4e: later migrations would sit on top of it for the `down` below.
+    Migrator::up(&conn, Some(1)).await.expect("4e migration");
 
     let rows = conn
         .query_all(Statement::from_string(

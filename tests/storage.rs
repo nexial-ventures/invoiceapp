@@ -34,6 +34,7 @@ suite!(
     design_overlays_the_default,
     design_cache_downloads_only_changes,
     oversized_design_file_fails_the_render,
+    design_layers_and_invalidation,
     migrate_is_verified_and_idempotent,
     design_push_and_pull,
 );
@@ -207,6 +208,58 @@ async fn oversized_design_file_fails_the_render(t: TestStorage) {
         Err(AppError::PdfRenderFailed(m)) if m.contains("logo.png")
     ));
     assert!(cache.is_empty(), "checked before any download");
+}
+
+async fn design_layers_and_invalidation(t: TestStorage) {
+    let s = &t.storage;
+    for (key, body) in [
+        ("design/logo.png", "live"),
+        ("design/signature.png", "sig"),
+        ("design-draft/logo.png", "draft"),
+        ("design-draft/parts.typ", "#let x = 2"),
+    ] {
+        s.put(key, Bytes::from(body)).await.expect("put");
+    }
+    let cache = Cache::default();
+    design::load(s, &cache, "a").await.expect("live");
+    assert_eq!(cache.len(), 2);
+    let deleted = vec!["signature.png".to_string()];
+    let layers = design::Layers {
+        base: "design",
+        deleted: &deleted,
+        top: Some("design-draft"),
+    };
+    let d = design::load_layers(s, &cache, "a", layers)
+        .await
+        .expect("draft");
+    assert_eq!(d.files["logo.png"].as_ref(), b"draft");
+    assert!(d.files.contains_key("parts.typ"));
+    assert_eq!(d.signature(), None, "deleted in the draft");
+    assert_eq!(cache.len(), 2, "draft files are not cached");
+    cache.invalidate("b");
+    assert_eq!(cache.len(), 2, "other spaces untouched");
+    cache.invalidate("a");
+    assert!(cache.is_empty());
+
+    // Server-side copies are independent of their source afterwards.
+    s.copy("design-draft/logo.png", "design/logo.png")
+        .await
+        .expect("copy");
+    s.put("design-draft/logo.png", Bytes::from_static(b"changed"))
+        .await
+        .expect("overwrite source");
+    assert_eq!(
+        s.get("design/logo.png").await.expect("get").as_ref(),
+        b"draft"
+    );
+    assert_eq!(
+        s.sha256("design/logo.png").await.expect("sha"),
+        sha256_hex(b"draft")
+    );
+    assert!(matches!(
+        s.copy("design-draft/none.png", "design/x.png").await,
+        Err(Error::NotFound(_))
+    ));
 }
 
 fn write(root: &std::path::Path, rel: &str, body: &[u8]) {

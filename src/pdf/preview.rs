@@ -115,13 +115,21 @@ impl Sample {
         company: &company::Model,
         locale: Locale,
     ) -> Result<Sample, AppError> {
-        let bank = bank_account::Entity::find()
+        let bank = Self::bank(db, company).await?;
+        Ok(Sample::new(company, bank.as_ref(), locale, today())?)
+    }
+
+    /// The account the sample shows: the space's default CZK one.
+    pub async fn bank(
+        db: &DatabaseConnection,
+        company: &company::Model,
+    ) -> Result<Option<bank_account::Model>, AppError> {
+        Ok(bank_account::Entity::find()
             .filter(bank_account::Column::SpaceId.eq(company.space_id))
             .filter(bank_account::Column::Currency.eq("CZK"))
             .filter(bank_account::Column::IsDefault.eq(true))
             .one(db)
-            .await?;
-        Ok(Sample::new(company, bank.as_ref(), locale, today())?)
+            .await?)
     }
 
     pub fn new(

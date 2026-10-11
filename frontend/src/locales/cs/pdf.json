@@ -14,8 +14,8 @@
       "fs": "lokální adresář",
       "s3": "S3 bucket"
     },
-    "help": "Výchozí design je součástí aplikace. Soubory uložené v úložišti pod design/ jej přepisují soubor po souboru (stejná relativní cesta vyhrává): šablona invoice.typ, písma ve fonts/, logo logo.svg nebo logo.png, razítko či podpis signature.png. Nahrajete je příkazem `invoice design push <adresář>` (nebo přímo do bucketu); změny se projeví při dalším vykreslení bez restartu; už archivovaná PDF zůstávají beze změny.",
-    "files": "Použité soubory",
+    "help": "Výchozí design je součástí aplikace. Vlastní soubory jej přepisují soubor po souboru (stejná relativní cesta vyhrává): šablona invoice.typ, písma ve fonts/, logo logo.svg nebo logo.png, razítko či podpis signature.png. Nahrajte je do konceptu níže, vyzkoušejte náhledem a aktivujte (provozovatel je může nahrát i příkazem `invoice design push`). Už archivovaná PDF zůstávají beze změny.",
+    "files": "Živé soubory",
     "path": "Cesta",
     "source": "Původ",
     "size": "Velikost",

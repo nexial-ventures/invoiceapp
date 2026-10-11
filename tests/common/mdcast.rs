@@ -1,6 +1,10 @@
 //! A local mock of the mdcast endpoints `render_template` uses: the render
 //! (with the `409` → `POST /v1/blobs` → retry negotiation) — never the real
 //! service. Records what each render received.
+//!
+//! A template containing `// mock-fail` fails like a template that does not
+//! compile; `// mock-fail-en` only for the `en` sample (design checks).
+//! `// mock-slow` delays the answer by half a second.
 
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
@@ -77,11 +81,27 @@ async fn render(State(m): State<MdcastMock>, body: Bytes) -> Response {
             return (StatusCode::BAD_REQUEST, axum::Json(body)).into_response();
         }
     };
+    if req["template_source"]
+        .as_str()
+        .is_some_and(|t| t.contains("// mock-slow"))
+    {
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
     let mut inner = m.lock();
     if let Some((status, code, message)) = inner.fail.clone() {
         let body = json!({ "code": code, "message": message });
         let status = StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
         return (status, axum::Json(body)).into_response();
+    }
+    let template = req["template_source"].as_str().unwrap_or_default();
+    let en = req["data"]
+        .as_str()
+        .is_some_and(|d| d.contains("\"locale\":\"en\""));
+    if template.contains("// mock-fail-en") && en
+        || template.contains("// mock-fail") && !template.contains("// mock-fail-en")
+    {
+        let body = json!({ "code": "render_failed", "message": "error: mock template failure" });
+        return (StatusCode::UNPROCESSABLE_ENTITY, axum::Json(body)).into_response();
     }
     let assets = req["assets"].as_object().cloned().unwrap_or_default();
     let missing: Vec<Value> = assets
