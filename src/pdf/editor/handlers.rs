@@ -13,7 +13,7 @@ use utoipa::{IntoParams, ToSchema};
 use super::files::Stored;
 use super::{
     DRAFT_PREFIX, QUOTA_BYTES, UserRef, draft_key, in_txn, locked, refresh_usage, repo, safe_path,
-    valid_upload_path,
+    usage, valid_upload_path,
 };
 use crate::app::AppState;
 use crate::auth::{Manage, Read};
@@ -86,9 +86,8 @@ pub struct FileQuery {
 
 async fn listing(state: &AppState, pdf: &PdfService) -> Result<DesignListing, AppError> {
     let storage = pdf.storage();
-    let stored = Stored::load(storage).await?;
     // The space quota counts these bytes without listing storage.
-    limits::record_design(&state.db, pdf.space_id(), stored.usage()).await?;
+    let stored = usage::recorded(&state.db, pdf.space_id(), storage).await?;
     let files = design::effective(&stored.live_files());
     let row = repo::draft(&state.db, pdf.space_id()).await?;
     let draft_files: Vec<DraftFile> = stored
@@ -307,6 +306,7 @@ pub async fn put_file(
                 megabytes(used)
             )));
         }
+        // Records the new design total, committed with the upload.
         let added = bytes.len() as u64;
         limits::check_design(&txn, access.space(), used, added, replaced).await?;
         storage.put(&draft_key(&q.path), bytes).await?;

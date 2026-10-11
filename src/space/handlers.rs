@@ -15,6 +15,7 @@ use crate::auth::handlers::check_password;
 use crate::auth::{Authed, Manage, Own, Read, mfa};
 use crate::error::{AppError, ErrorBody, FieldErrors};
 use crate::extract::ApiJson;
+use crate::pdf::editor::ensure_usage;
 use crate::validation as v;
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -49,7 +50,16 @@ async fn with_limits(
     s: space::Model,
     role: Role,
 ) -> Result<Json<SpaceInfo>, AppError> {
-    let limits = limits::info(&state.db, super::SpaceId(s.id)).await?;
+    let space = super::SpaceId(s.id);
+    // Best effort: an unreachable storage must not fail `GET /api/space`.
+    let ensured = match state.pdf.space(space) {
+        Ok(pdf) => ensure_usage(&state.db, space, pdf.storage()).await,
+        Err(e) => Err(e),
+    };
+    if let Err(e) = ensured {
+        tracing::warn!(space = %space, error = %e, "record the design storage usage");
+    }
+    let limits = limits::info(&state.db, space).await?;
     Ok(Json(SpaceInfo {
         limits: Some(limits),
         ..info(state, s, role)

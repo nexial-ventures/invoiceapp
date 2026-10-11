@@ -29,7 +29,8 @@ are never re-rendered (1d). All routes are on a space host, **admin+** (Settings
   (100 MB by default, shared with originals and the PDF archive). A draft upload must fit **both**: the 50 MB design
   quota is checked first (`detail` `<used> / 50 MB`), then the space quota (`detail` `<space used> / <space limit>
   MB`, the space usage = documents from the database + the design `used` just listed). Every design listing and
-  change records the design bytes for the space usage (`space_storage_usage`).
+  change records the design bytes for the space usage (`space_storage_usage`; an upload, activation and restore in
+  their own transaction, under the space's quota lock — [spaces.md](spaces.md#limits)).
 - `invoice.typ` must be UTF-8 (1d rule).
 - **Lock**: every draft change, activation, restore and reset takes the space's lock without waiting; held by another
   change → 409 `{"code":"design_busy"}`, nothing changed (the UI retries or tells the user to try again).

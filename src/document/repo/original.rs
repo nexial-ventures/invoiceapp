@@ -12,6 +12,7 @@ use super::query;
 use crate::document::entity::document;
 use crate::error::AppError;
 use crate::pdf::PdfService;
+use crate::pdf::editor::ensure_usage;
 use crate::settings::doc_type::RECEIVED;
 use crate::space::{SpaceId, limits};
 use crate::storage;
@@ -64,6 +65,7 @@ pub async fn put(
     id: Uuid,
     bytes: Vec<u8>,
 ) -> Result<(), AppError> {
+    ensure_usage(db, pdf.space_id(), pdf.storage()).await?;
     let txn = db.begin().await?;
     let (rel, previous) = match put_in(&txn, pdf.space_id(), id, &bytes).await {
         Ok(paths) => paths,

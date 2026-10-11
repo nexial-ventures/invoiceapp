@@ -21,6 +21,7 @@ use crate::document::repo::issue::Rate;
 use crate::document::repo::{lines, original, payments, write};
 use crate::error::{AppError, number_violation};
 use crate::pdf::PdfService;
+use crate::pdf::editor::ensure_usage;
 use crate::settings::doc_type::{DocType, ISSUED, RECEIVED};
 use crate::settings::entity::bank_account;
 use crate::settings::repo::number_series;
@@ -305,6 +306,9 @@ pub async fn import(
     rate: &Rate,
     opts: &Options,
 ) -> Result<Uuid, AppError> {
+    if file.is_some() {
+        ensure_usage(db, pdf.space_id(), pdf.storage()).await?;
+    }
     let txn = db.begin().await?;
     let space = pdf.space_id();
     let added = file.as_ref().map_or(0, |b| b.len() as u64);

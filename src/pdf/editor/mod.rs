@@ -14,6 +14,7 @@ mod files;
 pub mod handlers;
 pub mod preview;
 mod repo;
+mod usage;
 
 use axum::Router;
 use axum::routing::{delete, get, post, put};
@@ -26,10 +27,10 @@ use uuid::Uuid;
 use super::design::QR_IMAGE;
 use crate::app::AppState;
 use crate::error::AppError;
-use crate::space::{SpaceId, limits};
-use crate::storage::Storage;
+use crate::space::SpaceId;
 
 pub use handlers::DesignListing;
+pub use usage::{ensure_usage, refresh_all, refresh_usage};
 
 /// The draft files, relative to the space prefix.
 pub const DRAFT_PREFIX: &str = "design-draft";
@@ -105,20 +106,6 @@ pub fn draft_key(path: &str) -> String {
 
 pub fn version_prefix(id: Uuid) -> String {
     format!("{VERSIONS_PREFIX}/{id}")
-}
-
-/// Record the space's stored design bytes for its storage quota
-/// (`space::limits`) after a change; best effort — every design listing
-/// records them again.
-pub async fn refresh_usage(db: &DatabaseConnection, space: SpaceId, storage: &Storage) {
-    let result: Result<(), AppError> = async {
-        let stored = files::Stored::load(storage).await?;
-        limits::record_design(db, space, stored.usage()).await
-    }
-    .await;
-    if let Err(e) = result {
-        tracing::warn!(space = %space, error = %e, "record the design storage usage");
-    }
 }
 
 /// Who made a change; `null` once the account is deleted.

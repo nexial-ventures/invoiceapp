@@ -221,8 +221,28 @@ async fn storage_cmd(action: StorageAction) -> Result<()> {
         StorageAction::Migrate {
             from_dir,
             design_dir,
-        } => finish(&transfer::migrate(&storage, &from_dir, design_dir.as_deref()).await?),
+        } => {
+            let result =
+                finish(&transfer::migrate(&storage, &from_dir, design_dir.as_deref()).await?);
+            refresh_design_usage(&storage).await?;
+            result
+        }
     }
+}
+
+/// The copied keys may hold space files: record every space's design bytes
+/// again (needs the database; without it, the next design listing does).
+async fn refresh_design_usage(storage: &Storage) -> Result<()> {
+    let Ok(cfg) = DbConfig::from_env() else {
+        println!("design storage usage not refreshed (no INVOICE__DATABASE_URL)");
+        return Ok(());
+    };
+    let db = connect(cfg.database_url.expose()).await?;
+    let n = invoice::pdf::editor::refresh_all(&db, storage)
+        .await
+        .map_err(|e| anyhow::anyhow!("refresh the design storage usage: {e}"))?;
+    println!("design storage usage refreshed for {n} space(s)");
+    Ok(())
 }
 
 /// The space `slug` (looked up in the database) and its storage.

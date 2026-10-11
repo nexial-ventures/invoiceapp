@@ -8,6 +8,12 @@
 //! sizes of every document's original and archived PDF (summed from
 //! `documents`, so a delete lowers it in the same transaction) plus the
 //! design bytes recorded by the design editor (`space_storage_usage`).
+//!
+//! Every quota check and every record of the design bytes runs under the
+//! space's quota lock ([`lock`]), and whatever grows the design bytes records
+//! the new total in the transaction that holds it — so a check never sees a
+//! total lower than what is stored (a stale value can only be too high,
+//! until the next record after a deletion).
 
 use chrono::Utc;
 use sea_orm::sea_query::OnConflict;
@@ -72,7 +78,8 @@ pub async fn seed(db: &impl ConnectionTrait, space: SpaceId) -> Result<(), AppEr
     })
     .exec_without_returning(db)
     .await?;
-    Ok(())
+    // A new space stores no design file yet.
+    record_design(db, space, 0).await
 }
 
 /// Bytes of every original and archived PDF of the space (an archive
@@ -93,6 +100,15 @@ pub async fn document_bytes(db: &impl ConnectionTrait, space: SpaceId) -> Result
     Ok(unsigned(n))
 }
 
+/// Whether the design bytes were ever recorded (spaces created before the
+/// limits migration start without; the design editor records them).
+pub async fn has_design_usage(db: &impl ConnectionTrait, space: SpaceId) -> Result<bool, AppError> {
+    Ok(usage::Entity::find_by_id(space.uuid())
+        .one(db)
+        .await?
+        .is_some())
+}
+
 /// The design bytes as last recorded (0 before the first record).
 pub async fn design_bytes(db: &impl ConnectionTrait, space: SpaceId) -> Result<u64, AppError> {
     Ok(usage::Entity::find_by_id(space.uuid())
@@ -101,7 +117,8 @@ pub async fn design_bytes(db: &impl ConnectionTrait, space: SpaceId) -> Result<u
         .map_or(0, |r| unsigned(r.design_bytes)))
 }
 
-/// Record the stored design bytes (after a listing of `design*/`).
+/// Record the stored design bytes; the caller holds [`lock`] and listed
+/// `design*/` (or knows the new total) inside the same transaction.
 pub async fn record_design(
     db: &impl ConnectionTrait,
     space: SpaceId,
@@ -144,7 +161,7 @@ pub async fn check_room(
 /// two concurrent uploads cannot both pass on the same remaining space.
 /// Callers take it last, after their own row locks, and then only write to
 /// storage and commit — nothing waits on it while holding a lock it needs.
-async fn lock(txn: &impl ConnectionTrait, space: SpaceId) -> Result<(), AppError> {
+pub async fn lock(txn: &impl ConnectionTrait, space: SpaceId) -> Result<(), AppError> {
     txn.execute(Statement::from_sql_and_values(
         txn.get_database_backend(),
         "SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))",
@@ -172,7 +189,9 @@ pub async fn check_documents(
 }
 
 /// A design upload: `design` = the bytes stored under `design*/` now (the
-/// editor just listed them), the upload adds `added` and replaces `freed`.
+/// editor listed them under its design lock), the upload adds `added` and
+/// replaces `freed`. Records the new total in `txn`, so it commits together
+/// with the upload and the quota lock is released only then.
 pub async fn check_design(
     txn: &impl ConnectionTrait,
     space: SpaceId,
@@ -180,13 +199,11 @@ pub async fn check_design(
     added: u64,
     freed: u64,
 ) -> Result<(), AppError> {
-    if added <= freed {
-        return Ok(());
-    }
     lock(txn, space).await?;
     let used = document_bytes(txn, space).await? + design;
     let quota = limits(txn, space).await?.storage_quota_bytes;
-    check(used, added, freed, quota)
+    check(used, added, freed, quota)?;
+    record_design(txn, space, design.saturating_sub(freed) + added).await
 }
 
 /// Refuse a write that grows the usage past the quota. A write that does

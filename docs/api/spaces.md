@@ -68,8 +68,18 @@ FROM spaces s LEFT JOIN space_limits l ON l.space_id = s.id ORDER BY s.slug;
 (`documents.original_size`), the issued-PDF archive (`documents.pdf_size`) and the PDF design files — live, draft and
 kept versions ([design.md](design.md)). It comes from the database, never from listing storage: the document sizes are
 summed from `documents` (so deleting an original or a document lowers it in the same transaction), the design bytes
-are recorded in `space_storage_usage.design_bytes` by every design listing and after every design change (also
-`invoice design push|rm`). Small storage objects outside these (e-mail templates) are not counted.
+are recorded in `space_storage_usage.design_bytes` (a row created with the space). Small storage objects outside these
+(e-mail templates) are not counted.
+
+- **Recording the design bytes:** always under the space's quota lock (below). Whatever grows them records the new
+  total in the transaction that writes the files, committed together: a draft upload (old total − replaced + new),
+  activation and restore (the live + version listing after the copies). Every design listing (`GET /api/pdf/design`
+  and the mutation answers) records a fresh listing in a transaction of its own; discarding / deleting draft files,
+  reset and the applied-draft cleanup after an activation record after their commit — until then the recorded value
+  is only ever too high, never too low. `invoice design push|rm --space` record after the copy, `invoice storage
+  migrate` for every space when `INVOICE__DATABASE_URL` is set (otherwise the next design listing does).
+- A space without a usage row (created before the limits migration) gets its design bytes listed and recorded on its
+  first `GET` / `PUT /api/space` (best effort: a storage outage leaves the value out) or its first quota check.
 
 - Refused with **422 `{"code":"quota_exceeded","detail":"<used> / <limit> MB"}`** (`used` = before the upload, MiB
   with one decimal; `limit` in MiB, whole when it is a whole number) when an upload would grow the usage past the
@@ -81,8 +91,9 @@ are recorded in `space_storage_usage.design_bytes` by every design listing and a
   PDF), also when an operator lowered the quota below the usage.
 - **Issuing is never blocked:** the archived PDF counts toward the usage but no issue / archive path checks the quota.
   Neither do design activation / restore / reset (recovery stays possible).
-- Checks of one space are serialized (a transaction-scoped advisory lock taken last before the storage write), so
-  concurrent uploads cannot both use the same remaining space.
+- Checks of one space are serialized with the design-bytes records (a transaction-scoped advisory lock taken last,
+  after the transaction's own row locks, held until its commit), so concurrent uploads — originals, imports, design —
+  cannot both use the same remaining space.
 - Settings → Space shows the usage as a bar (`used` of `limit`) to every role that sees the tab.
 
 ## Memberships and roles

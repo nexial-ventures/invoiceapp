@@ -194,6 +194,7 @@ pub async fn confirm(
         .filter_map(|(_, r)| r.pdf.as_ref())
         .map(|b| b.len() as u64)
         .sum();
+    crate::pdf::editor::ensure_usage(&state.db, space, pdf.storage()).await?;
     limits::check_room(&state.db, space, pdf_bytes).await?;
     let mut done: HashMap<&str, Result<Uuid, Code>> = HashMap::new();
     for (key, r) in todo {
