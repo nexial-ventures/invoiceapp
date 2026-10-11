@@ -75,4 +75,37 @@ defaultFooterNote: { cs: string|null, en: string|null },   // ≤ 2000 each
   section.
 
 ## Clarifications (as implemented)
-(filled during the 4e implementation)
+- **Rounding:** `half` = `round0(total × 2) / 2`, `unit` = `round0(total)`, both half away from zero, so the sign
+  is symmetric (−100.25 → −100.50). `payable`, `rounding` and `totalCzk` (= `round2(payable × rate)`) keep their
+  formulas; there is no `roundingMode: invalid` for a foreign currency any more.
+- **Derived mode (received / imported):** with `payable = Σ(base + vat) + rounding` (`total + rounding`):
+  `rounding = 0` → `none`; else `payable` whole → `unit`; else `payable` a 0.50 multiple → `half`; else `none`
+  (unit is checked before half). Applies to manual received documents (create and `PUT`), ISDOC and CSV imports of
+  both directions, and in the migration to received rows **and** imported issued rows (whose old flag was
+  CZK-only) without the old flag; a stored `round_total = true` always becomes `unit` (an imported draft keeps its
+  explicit choice). It does not check that the amount is what the mode would compute (e.g. `100.20 + 0.80` → `unit`).
+- **`POST` with `imported: true`** (the "import an existing issued document" form) is a normal create: it gets
+  the same company defaults, notes included.
+- **Notes default only when omitted or `null`**; an explicit `""` on POST means "no note" (stored `null`, no
+  default) — the editor sends `""` for a cleared note. The locale used is
+  the resolved one (body → contact → company). A non-`cs` / `en` locale cannot occur (validated).
+- **`PUT` without `roundingMode`** stores `none` (as `roundTotal` defaulted to `false`), not `required` and not the
+  company default. `POST /api/documents/compute` without `roundingMode` computes with `none`.
+- **Generators:** credit / debit notes and DDPP corrections copy the original's mode; a settlement invoice copies
+  the proforma's. A **DDPP stores `none`** (deviation from "takes the source's mode"): its amounts are the payment
+  itself and are never rounded — so a native DDPP's correction inherits `none` and nets against it exactly. All
+  generated drafts are editable.
+- **Company PUT:** each new field absent **or `null`** = keep. A present `defaultHeaderNote` / `defaultFooterNote`
+  object replaces **both** locales (a missing key = `null`); notes are trimmed, blank → `null`.
+  `defaultCurrency` is validated as document currencies are (3 letters, uppercased; `eur` → `EUR`) — there is no
+  narrower list of supported currencies; `usd` is accepted although the company may have no USD bank account.
+- **Corrupt stored values** (an unknown company default or document mode despite the CHECK constraints) are an
+  internal error (logged, 500 `internal`) everywhere — company GET / PUT, MCP `get_settings`, create defaults,
+  document views — via the shared `parse_stored` of the enum; never a silent fallback.
+- **Storage:** `company.default_rounding_cash` / `_other` / `default_payment_method` (CHECK-constrained text),
+  `default_currency`, `default_header_note_cs|en`, `default_footer_note_cs|en`; NOT NULL columns have DB
+  defaults, so the per-space seed (`INSERT INTO company (space_id)`) is unchanged. The migration's `down` sets
+  `round_total = true` only for issued, non-imported CZK documents in `unit` (the only rows 1b allowed it on);
+  every other row (`none`, `half`, received, imported, foreign) gets `false`.
+- **Detail views** (issued and received) return `roundingMode`; the PDF, ISDOC (`PayableRoundingAmount`) and the
+  Pohoda / Money exports keep printing the stored amounts, so `half` needs no change there.

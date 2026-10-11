@@ -117,7 +117,7 @@ pub async fn settle(
         header_note: p.header_note.clone(),
         footer_note: p.footer_note.clone(),
         internal_note: None,
-        round_total: p.round_total,
+        rounding_mode: view::rounding_mode(&p)?,
         lines: Vec::new(),
         imported: false,
         number: None,

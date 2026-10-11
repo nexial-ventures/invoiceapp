@@ -5,6 +5,7 @@ import FormField from "@/components/form/FormField.vue";
 import PartyFields from "@/components/form/PartyFields.vue";
 import { useFormSubmit } from "@/composables/useFormSubmit";
 import { LOCALES } from "@/i18n";
+import DocumentDefaultsSection from "../components/DocumentDefaultsSection.vue";
 import { toCompany, toCompanyDraft, validateCompany } from "../companyForm";
 import { useCompanyStore } from "../stores";
 
@@ -80,6 +81,8 @@ async function onSubmit() {
         </select>
       </FormField>
     </section>
+
+    <DocumentDefaultsSection v-model="draft" :errors="fieldErrors" />
 
     <p v-if="error" role="alert" class="alert-error">{{ error }}</p>
     <div class="flex items-center gap-3">

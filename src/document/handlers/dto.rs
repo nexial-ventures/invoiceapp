@@ -9,7 +9,7 @@ use uuid::Uuid;
 pub use super::line_out::{Line, lines_out};
 use crate::document::compute::{self, RecapRow};
 use crate::document::custom_fields::Values;
-use crate::document::line::{PaymentState, Status};
+use crate::document::line::{PaymentState, RoundingMode, Status};
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -118,7 +118,9 @@ pub struct Document {
     pub header_note: Option<String>,
     pub footer_note: Option<String>,
     pub internal_note: Option<String>,
-    pub round_total: bool,
+    /// `none` | `half` (nearest 0.50) | `unit` (whole units); derived from
+    /// the amounts on received / imported documents.
+    pub rounding_mode: RoundingMode,
     pub sent_at: Option<DateTime<FixedOffset>>,
     pub cancelled_at: Option<DateTime<FixedOffset>>,
     pub cancel_reason: Option<String>,

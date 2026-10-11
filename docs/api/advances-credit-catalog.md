@@ -145,7 +145,7 @@ DDPP
   goes to the higher rate (the highest-**gross** row takes the remainder, whatever its rate); zero shares are dropped; `ΣG ≤ 0` gives the whole payment to the highest-gross rate; a
   share ≥ 10^12 or an overflow → `amount: invalid` (payment not stored).
 - `variableSymbol` = the proforma's; `constantSymbol`, `orderRef`, bank, payment method copied; no notes;
-  `roundTotal` false. Line `unitPrice` = `base_r`, `quantity` 1.
+  `roundingMode` `none` (4e: the amounts are the payment, never rounded). Line `unitPrice` = `base_r`, `quantity` 1.
 - The recap is produced by `src/document/ddpp.rs` and stored; a DDPP is created issued and never passes through
   save or issue, so nothing recomputes it from base × rate.
 - Payment `exchangeRate` is validated on every payment (> 0, ≤ 6 dp) but only used for the DDPP of a
@@ -159,13 +159,13 @@ DDPP
 Settlement
 - The draft: `issueDate = taxPointDate = today`, `dueDate` = today + (contact ?? company) due days, `exchangeRate`
   null (fixed at its own issue), `variableSymbol` null (derived at issue); `constantSymbol`, `orderRef`, header and
-  footer notes, `roundTotal`, bank, payment method copied; the internal note is not.
+  footer notes, `roundingMode`, bank, payment method copied; the internal note is not.
 - Payer case = the proforma's supplier snapshot `vatPayer` and `vatMode = "standard"`. DDPPs are added oldest first;
   one already on another non-cancelled invoice is skipped. Non-payer form: the advance line is added only when
   `paid > 0`; an unpaid proforma gives a plain copy.
 
 Credit notes
-- Not copied: `variableSymbol`, `constantSymbol`, `orderRef`, notes; `roundTotal` false; `dueDate` = today + (contact ??
+- Not copied: `variableSymbol`, `constantSymbol`, `orderRef`, notes; `roundingMode` copied from the original (4e; a native DDPP's is `none`); `dueDate` = today + (contact ??
   company) due days — the same shared default as document create and settlement. Subtotal refs are renumbered after dropping advance lines.
 - The cap compares with the invoice's **item** bases per rate (before advance deductions — the supply it
   documents) and sums the issued credit notes plus the one being issued (other drafts are not counted). Issue locks

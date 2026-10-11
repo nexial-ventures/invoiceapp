@@ -26,7 +26,7 @@ describe("new document defaults", () => {
       vatMode: "standard",
       bankAccountId: "czk-b",
       paymentMethod: "bank_transfer",
-      roundTotal: false,
+      roundingMode: "none",
       lines: [],
     });
   });
@@ -63,10 +63,10 @@ describe("applyContact / changeCurrency", () => {
     expect(applyContact(start, contact(), ctx())).toMatchObject({ dueDate: "2026-10-22", locale: "cs", currency: "CZK", bankAccountId: "czk-b" });
   });
 
-  it("switching currency resets mismatched account, rate and CZK-only rounding", () => {
-    const czk = { ...newDocumentDraft(ctx()), roundTotal: true, bankAccountId: "czk-a" };
+  it("switching currency resets mismatched account and rate; rounding is allowed in any currency", () => {
+    const czk = { ...newDocumentDraft(ctx()), roundingMode: "half" as const, bankAccountId: "czk-a" };
     const eur = changeCurrency(czk, "eur", bankAccounts);
-    expect(eur).toMatchObject({ currency: "EUR", bankAccountId: "eur", roundTotal: false });
+    expect(eur).toMatchObject({ currency: "EUR", bankAccountId: "eur", roundingMode: "half" });
     const back = changeCurrency({ ...eur, exchangeRate: "24.5" }, "CZK", bankAccounts);
     expect(back).toMatchObject({ currency: "CZK", bankAccountId: "czk-b", exchangeRate: "" });
     expect(changeCurrency(czk, "USD", bankAccounts).bankAccountId).toBe("");
@@ -107,7 +107,7 @@ describe("draft ↔ wire", () => {
       vatMode: "standard",
       currency: "CZK",
       exchangeRate: null,
-      roundTotal: false,
+      roundingMode: "none",
       contactId: null,
       docType: "invoice",
       locale: "cs",

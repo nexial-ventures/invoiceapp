@@ -14,10 +14,18 @@ Company {
   email: string | null, phone: string | null, web: string | null,
   registration: string | null,  // e.g. "Fyzická osoba zapsaná v živnostenském rejstříku", <=300
   defaultDueDays: number,  // 0..365, default 14
-  defaultLocale: "cs" | "en"   // default "cs"
+  defaultLocale: "cs" | "en",  // default "cs"
+  // Document defaults (4e, see defaults.md); optional in the PUT body, absent / null = keep
+  defaultRoundingCash: "none" | "half" | "unit",    // default "unit"
+  defaultRoundingOther: "none" | "half" | "unit",   // default "none"
+  defaultPaymentMethod: "bank_transfer" | "cash" | "card" | "other",  // default "bank_transfer"
+  defaultCurrency: string,                          // ISO 4217, default "CZK"
+  defaultHeaderNote: { cs: string|null, en: string|null },  // <=2000 each
+  defaultFooterNote: { cs: string|null, en: string|null }
 }
 ```
-GET returns the row; a migration seeds an empty row (name "") so GET never 404s. PUT replaces all fields, returns the saved object.
+GET returns the row; a migration seeds an empty row (name "") so GET never 404s. PUT replaces all profile fields
+(the document defaults only when present), returns the saved object.
 
 ## Bank accounts — `/api/settings/bank-accounts`
 ```

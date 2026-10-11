@@ -1,25 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { mockFetch, sentRequest as call } from "@/test-utils";
+import { company as baseCompany } from "@/features/documents/testData";
 import { bankAccountsApi, companyApi, numberSeriesApi, vatRatesApi } from "./api";
 import type { BankAccountInput, Company, VatRateInput } from "./types";
 
-const company: Company = {
-  name: "Acme",
-  ico: "25596641",
-  dic: null,
-  vatPayer: false,
-  street: "",
-  city: "",
-  zip: "",
-  country: "CZ",
-  email: null,
-  phone: null,
-  web: null,
-  registration: null,
-  defaultDueDays: 14,
-  defaultLocale: "cs",
-};
+const company: Company = { ...baseCompany, name: "Acme", ico: "25596641", vatPayer: false };
 
 describe("settings api", () => {
   beforeEach(() => setActivePinia(createPinia()));

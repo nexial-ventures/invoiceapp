@@ -1,5 +1,5 @@
 //! Pure money computation for documents: line bases, the per-rate VAT recap
-//! (§37 ZDPH — VAT per rate, not per line), rounding and CZK conversion.
+//! (§37 ZDPH — VAT per rate, not per line), rounding (`rounding.rs`) and CZK conversion.
 //! Authoritative: the stored totals and the compute endpoint both come from here.
 //!
 //! All arithmetic is checked: `Decimal`'s operators panic on overflow, and
@@ -7,7 +7,7 @@
 
 use rust_decimal::{Decimal, RoundingStrategy};
 
-use super::line::{AdvanceRow, LineData, MAX_AMOUNT, VatMode};
+use super::line::{AdvanceRow, LineData, MAX_AMOUNT, RoundingMode, VatMode};
 use super::subtotals;
 use crate::error::FieldErrors;
 
@@ -15,10 +15,6 @@ pub fn round2(x: Decimal) -> Decimal {
     let mut r = x.round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero);
     r.rescale(2);
     r
-}
-
-fn round0(x: Decimal) -> Decimal {
-    round2(x.round_dp_with_strategy(0, RoundingStrategy::MidpointAwayFromZero))
 }
 
 /// `round2(quantity × unitPrice × (1 − discount/100))`, half away from zero;
@@ -79,7 +75,7 @@ pub struct Params {
     pub is_czk: bool,
     /// CZK per unit of a foreign currency, when known.
     pub exchange_rate: Option<Decimal>,
-    pub round_total: bool,
+    pub rounding: RoundingMode,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -95,9 +91,6 @@ pub struct Evaluated {
 /// the CZK conversion overflows).
 pub fn evaluate(lines: &[LineData], p: Params) -> Result<Evaluated, FieldErrors> {
     let mut e = FieldErrors::new();
-    if p.round_total && !p.is_czk {
-        e.add("roundTotal", "invalid");
-    }
     let mut bases = Vec::with_capacity(lines.len());
     for (i, line) in lines.iter().enumerate() {
         let base = match line {
@@ -271,11 +264,7 @@ pub fn summarize(recap: Vec<RecapRow>, p: Params) -> Result<Totals, Overflow> {
     let base = fits(round2(base_sum)).ok_or(Lines)?;
     let vat = fits(round2(vat_sum)).ok_or(Lines)?;
     let total = fits(round2(add(base, vat)?)).ok_or(Lines)?;
-    let payable = if p.round_total && p.is_czk {
-        fits(round0(total)).ok_or(Lines)?
-    } else {
-        total
-    };
+    let payable = p.rounding.apply(total).and_then(fits).ok_or(Lines)?;
     Ok(Totals {
         recap,
         base,

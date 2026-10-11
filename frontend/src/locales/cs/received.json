@@ -63,7 +63,8 @@
     "vatSuggested": "dopočteno, lze přepsat",
     "noVat": "Mimo režim Běžné DPH je DPH vždy 0.",
     "payableAuto": "Podle celkové částky; přepište např. u vyúčtování po zálohách.",
-    "payableManual": "Zadáno ručně. Smazáním se vrátí celková částka."
+    "payableManual": "Zadáno ručně. Smazáním se vrátí celková částka.",
+    "roundingMode": "Režim: {mode} (odvozeno z částky zaokrouhlení)"
   },
   "lines": {
     "title": "Položky dokladu",

@@ -17,7 +17,7 @@ use crate::document::correction::sum_bases;
 use crate::document::credit::{copy_lines, exceeds_original};
 use crate::document::entity::{document, vat_recap};
 use crate::document::handlers::input::DocumentData;
-use crate::document::line::{LineData, PaymentMethod, Status, VatMode};
+use crate::document::line::{LineData, PaymentMethod, RoundingMode, Status, VatMode};
 use crate::error::AppError;
 use crate::settings::doc_type::{DocType, ISSUED};
 use crate::space::SpaceId;
@@ -78,7 +78,7 @@ pub async fn draft_from(
         header_note: None,
         footer_note: None,
         internal_note: None,
-        round_total: false,
+        rounding_mode: view::rounding_mode(orig)?,
         lines,
         imported: false,
         number: None,
@@ -255,7 +255,7 @@ async fn item_bases<C: ConnectionTrait>(
         vat_mode: VatMode::Exempt,
         is_czk: true,
         exchange_rate: None,
-        round_total: false,
+        rounding: RoundingMode::None,
     };
     let totals = compute::totals(items, params)
         .map_err(|_| anyhow::anyhow!("stored document {original} totals overflow"))?;

@@ -41,7 +41,7 @@ fn apply(row: &mut ActiveModel, d: &DocumentData) {
     row.header_note = Set(d.header_note.clone());
     row.footer_note = Set(d.footer_note.clone());
     row.internal_note = Set(d.internal_note.clone());
-    row.round_total = Set(d.round_total);
+    row.rounding_mode = Set(d.rounding_mode.as_str().into());
     row.number = Set(d.number.clone());
     row.related_document_id = Set(d.related_document_id);
     row.category_id = Set(d.meta.category_id);

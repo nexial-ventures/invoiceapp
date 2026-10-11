@@ -20,6 +20,16 @@ pub struct Model {
     pub registration: Option<String>,
     pub default_due_days: i32,
     pub default_locale: String,
+    /// `none` | `half` | `unit` (CHECK-constrained).
+    pub default_rounding_cash: String,
+    pub default_rounding_other: String,
+    /// `bank_transfer` | `cash` | `card` | `other` (CHECK-constrained).
+    pub default_payment_method: String,
+    pub default_currency: String,
+    pub default_header_note_cs: Option<String>,
+    pub default_header_note_en: Option<String>,
+    pub default_footer_note_cs: Option<String>,
+    pub default_footer_note_en: Option<String>,
     pub updated_at: DateTimeWithTimeZone,
 }
 

@@ -19,6 +19,12 @@ export const company: Company = {
   registration: null,
   defaultDueDays: 14,
   defaultLocale: "cs",
+  defaultRoundingCash: "unit",
+  defaultRoundingOther: "none",
+  defaultPaymentMethod: "bank_transfer",
+  defaultCurrency: "CZK",
+  defaultHeaderNote: { cs: null, en: null },
+  defaultFooterNote: { cs: null, en: null },
 };
 
 export const vatRates: VatRate[] = [
@@ -97,7 +103,7 @@ export const document = (overrides: Partial<Document> = {}): Document => ({
   headerNote: null,
   footerNote: null,
   internalNote: null,
-  roundTotal: false,
+  roundingMode: "none",
   correctionReason: null,
   number: null,
   status: "draft",

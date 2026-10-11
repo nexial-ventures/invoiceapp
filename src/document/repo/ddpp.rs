@@ -16,7 +16,7 @@ use crate::cnb::CnbClient;
 use crate::document::advance::issues_ddpp;
 use crate::document::ddpp::{self, Share};
 use crate::document::entity::{document, document_line, payment, vat_recap};
-use crate::document::line::{ItemData, LineData, MAX_INPUT, Status};
+use crate::document::line::{ItemData, LineData, MAX_INPUT, RoundingMode, Status};
 use crate::error::{AppError, number_violation};
 use crate::settings::doc_type::{DocType, ISSUED};
 use crate::settings::repo::number_series;
@@ -124,7 +124,8 @@ pub async fn issue(
         header_note: Set(None),
         footer_note: Set(None),
         internal_note: Set(None),
-        round_total: Set(false),
+        // The DDPP's amounts are the payment itself: never rounded.
+        rounding_mode: Set(RoundingMode::None.as_str().into()),
         supplier_snapshot: Set(proforma.supplier_snapshot.clone()),
         customer_snapshot: Set(proforma.customer_snapshot.clone()),
         bank_snapshot: Set(proforma.bank_snapshot.clone()),

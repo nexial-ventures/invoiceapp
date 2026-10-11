@@ -14,6 +14,7 @@ pub mod handlers;
 pub mod line;
 pub mod received;
 pub mod repo;
+pub mod rounding;
 pub mod state;
 pub mod subtotals;
 

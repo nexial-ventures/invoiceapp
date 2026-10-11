@@ -102,7 +102,7 @@ async function onSubmit() {
   await submit(
     () => validateDocument(draft.value, props.ctx.fieldDefs),
     async () => {
-      emit("saved", await store.save(toInput(draft.value, props.ctx.fieldDefs), props.docId));
+      emit("saved", await store.save(toInput(draft.value, props.ctx.fieldDefs, !props.docId), props.docId));
     },
   );
 }
@@ -150,6 +150,7 @@ async function onSubmit() {
         v-model="draft"
         :errors="headerErrors"
         :bank-accounts="ctx.bankAccounts"
+        :company="ctx.company"
         :indicative-rate="indicative.rate.value"
         :indicative-error="indicative.error.value"
         :indicative-loading="indicative.loading.value"

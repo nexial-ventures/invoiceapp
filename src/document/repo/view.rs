@@ -13,7 +13,7 @@ use crate::contact::entity::contact;
 use crate::document::compute::{self, Params, RecapRow, round2};
 use crate::document::entity::document;
 use crate::document::handlers::dto::{self, Document, DocumentSummary, RelatedDocument, lines_out};
-use crate::document::line::{Status, VatMode};
+use crate::document::line::{RoundingMode, Status, VatMode};
 use crate::document::state;
 use crate::error::AppError;
 use crate::settings::doc_type::RECEIVED;
@@ -21,6 +21,13 @@ use crate::settings::doc_type::RECEIVED;
 pub fn status(doc: &document::Model) -> Result<Status, AppError> {
     Ok(Status::parse(&doc.status)
         .with_context(|| format!("document {} has unknown status {:?}", doc.id, doc.status))?)
+}
+
+pub fn rounding_mode(doc: &document::Model) -> Result<RoundingMode, AppError> {
+    Ok(RoundingMode::parse_stored(
+        &doc.rounding_mode,
+        format!("document {}", doc.id),
+    )?)
 }
 
 fn snapshot<T: DeserializeOwned>(v: &Option<serde_json::Value>) -> Result<Option<T>, AppError> {
@@ -92,11 +99,12 @@ pub fn document(full: Full, today: NaiveDate) -> Result<Document, AppError> {
     let d = &full.doc;
     let vat_mode = VatMode::parse(&d.vat_mode)
         .with_context(|| format!("document {} has unknown vat mode", d.id))?;
+    let rounding = rounding_mode(d)?;
     let params = Params {
         vat_mode,
         is_czk: d.currency == "CZK",
         exchange_rate: d.exchange_rate,
-        round_total: d.round_total,
+        rounding,
     };
     // Stored lines passed validation on save, so this only derives line bases.
     let evaluated = compute::evaluate(&full.lines, params)
@@ -195,7 +203,7 @@ pub fn document(full: Full, today: NaiveDate) -> Result<Document, AppError> {
         header_note: d.header_note,
         footer_note: d.footer_note,
         internal_note: d.internal_note,
-        round_total: d.round_total,
+        rounding_mode: rounding,
         sent_at: d.sent_at,
         cancelled_at: d.cancelled_at,
         cancel_reason: d.cancel_reason,

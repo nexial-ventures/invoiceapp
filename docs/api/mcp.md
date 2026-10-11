@@ -49,7 +49,7 @@ invoices. It is a thin layer over the same services as the REST API — no busin
 | Tool | Input | Result |
 |---|---|---|
 | `create_contact` | the REST `ContactInput` | Contact (ARES is not called implicitly; use `lookup_ares` first) |
-| `create_draft` | the REST `DocumentInput` for `docType` `invoice` \| `proforma` \| `simplified`, `direction` `issued` (others → `invalid_value` on `docType`); defaults as the UI: `issueDate` today, `dueDate` from the contact / company due days, `currency` CZK, `locale` from the contact / company, `vatMode` from the company, default bank account of the currency, `paymentMethod` `bank_transfer` | Document (draft) |
+| `create_draft` | the REST `DocumentInput` for `docType` `invoice` \| `proforma` \| `simplified`, `direction` `issued` (others → `invalid_value` on `docType`); defaults as the UI: `issueDate` today, `dueDate` from the contact / company due days, `currency` / `locale` from the contact / company, `vatMode` from the company, default bank account of the currency, `paymentMethod`, `roundingMode` (by payment method) and the header / footer notes (by locale) from the company defaults (4e, [defaults.md](defaults.md)) | Document (draft) |
 | `update_draft` | `id` + the full `DocumentInput` (replaces, as `PUT`) | Document; non-draft → `document_locked` |
 | `issue_document` | `id` | Document (issued, with `number`, `pdfUrl`); every REST issue error as a tool error (`validation`, `pdf_unavailable`, `cnb_unavailable`, …) |
 | `add_payment` | `id`, `date`, `amount`, `note?` | the payment + the document's new `paymentState` (DDPP creation for a proforma as in REST) |

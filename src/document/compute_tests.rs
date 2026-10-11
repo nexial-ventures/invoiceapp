@@ -27,7 +27,7 @@ fn czk(mode: VatMode) -> Params {
         vat_mode: mode,
         is_czk: true,
         exchange_rate: None,
-        round_total: false,
+        rounding: RoundingMode::None,
     }
 }
 
@@ -111,9 +111,9 @@ fn non_payer_requires_zero_rates() {
 }
 
 #[test]
-fn round_total_adds_a_rounding_line() {
+fn unit_mode_adds_a_rounding_line() {
     let p = Params {
-        round_total: true,
+        rounding: RoundingMode::Unit,
         ..czk(VatMode::Standard)
     };
     let t = eval(&[item("1", "100.40", "0", "21")], p);
@@ -126,17 +126,40 @@ fn round_total_adds_a_rounding_line() {
 }
 
 #[test]
-fn round_total_is_czk_only() {
+fn half_mode_rounds_to_fifty_hundredths() {
+    let p = Params {
+        rounding: RoundingMode::Half,
+        ..czk(VatMode::Standard)
+    };
+    // 100.40 + 21.08 = 121.48 → 121.50
+    let t = eval(&[item("1", "100.40", "0", "21")], p);
+    assert_eq!((t.payable, t.rounding), (dec("121.50"), dec("0.02")));
+    // Half-way: 100.25 → 100.50; a credit note rounds symmetrically.
+    let t = eval(&[item("1", "100.25", "0", "0")], p);
+    assert_eq!((t.payable, t.rounding), (dec("100.50"), dec("0.25")));
+    let t = eval(&[item("-1", "100.25", "0", "0")], p);
+    assert_eq!((t.payable, t.rounding), (dec("-100.50"), dec("-0.25")));
+}
+
+#[test]
+fn every_mode_works_for_a_foreign_currency() {
     let p = Params {
         vat_mode: VatMode::Standard,
         is_czk: false,
-        exchange_rate: None,
-        round_total: true,
+        exchange_rate: Some(dec("25")),
+        rounding: RoundingMode::Half,
     };
-    let err = evaluate(&[item("1", "1", "0", "21")], p).expect_err("invalid");
-    let mut expected = FieldErrors::new();
-    expected.add("roundTotal", "invalid");
-    assert_eq!(err, expected);
+    // 10.10 + 2.12 = 12.22 EUR → 12.00, CZK from the payable.
+    let t = eval(&[item("1", "10.10", "0", "21")], p);
+    assert_eq!((t.payable, t.rounding), (dec("12.00"), dec("-0.22")));
+    assert_eq!(t.total_czk, Some(dec("300.00")));
+    let unit = Params {
+        rounding: RoundingMode::Unit,
+        ..p
+    };
+    let t = eval(&[item("-1", "10.40", "0", "21")], unit);
+    // -(10.40 + 2.18) = -12.58 → -13
+    assert_eq!((t.payable, t.rounding), (dec("-13.00"), dec("-0.42")));
 }
 
 #[test]
@@ -145,7 +168,7 @@ fn foreign_currency_converts_to_czk() {
         vat_mode: VatMode::Standard,
         is_czk: false,
         exchange_rate: Some(dec("25.125")),
-        round_total: false,
+        rounding: RoundingMode::None,
     };
     let t = eval(&[item("1", "100", "0", "21")], p);
     assert_eq!(t.recap[0].base_czk, Some(dec("2512.50")));
@@ -205,7 +228,7 @@ fn eur(rate: &str) -> Params {
         vat_mode: VatMode::Standard,
         is_czk: false,
         exchange_rate: Some(dec(rate)),
-        round_total: false,
+        rounding: RoundingMode::None,
     }
 }
 

@@ -57,7 +57,7 @@ impl InvoiceMcp {
     }
 
     #[tool(
-        description = "Create a draft of an issued invoice, proforma or simplified tax document (docType invoice | proforma | simplified). Omitted fields get defaults: issueDate today, dueDate from the contact / company due days, currency CZK, locale from the contact / company, vatMode from the company, the currency's default bank account, paymentMethod bank_transfer. Amounts may be decimal strings or numbers. Check the returned totals, then issue_document.",
+        description = "Create a draft of an issued invoice, proforma or simplified tax document (docType invoice | proforma | simplified). Omitted fields get defaults: issueDate today, dueDate from the contact / company due days, currency and locale from the contact / company, vatMode from the company, the currency's default bank account, paymentMethod from the company, roundingMode (none | half | unit) from the company default for the payment method (cash / other), headerNote / footerNote from the company notes of the locale. Amounts may be decimal strings or numbers. Check the returned totals, then issue_document.",
         input_schema = input::<DocumentInput>(),
         annotations(
             read_only_hint = false,

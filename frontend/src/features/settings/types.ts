@@ -1,5 +1,5 @@
 import type { DocLocale } from "@/api/types";
-import type { Direction } from "@/features/documents/types";
+import type { Direction, PaymentMethod, RoundingMode } from "@/features/documents/types";
 
 /** `GET/PUT /api/settings/company` — singleton, seeded with name "". */
 export interface Company {
@@ -17,7 +17,16 @@ export interface Company {
   registration: string | null;
   defaultDueDays: number;
   defaultLocale: DocLocale;
+  /** Defaults a new document starts from (4e). */
+  defaultRoundingCash: RoundingMode;
+  defaultRoundingOther: RoundingMode;
+  defaultPaymentMethod: PaymentMethod;
+  defaultCurrency: string;
+  defaultHeaderNote: LocalizedNote;
+  defaultFooterNote: LocalizedNote;
 }
+
+export type LocalizedNote = Record<DocLocale, string | null>;
 
 /** `/api/settings/bank-accounts` */
 export interface BankAccount {

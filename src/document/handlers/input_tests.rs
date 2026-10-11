@@ -24,11 +24,19 @@ fn company(vat_payer: bool) -> company::Model {
         registration: None,
         default_due_days: 14,
         default_locale: "cs".into(),
+        default_rounding_cash: "unit".into(),
+        default_rounding_other: "none".into(),
+        default_payment_method: "bank_transfer".into(),
+        default_currency: "CZK".into(),
+        default_header_note_cs: None,
+        default_header_note_en: None,
+        default_footer_note_cs: None,
+        default_footer_note_en: None,
         updated_at: Utc::now().into(),
     }
 }
 
-fn ctx(apply_defaults: bool, contact: Option<contact::Model>) -> Context {
+pub(super) fn ctx(apply_defaults: bool, contact: Option<contact::Model>) -> Context {
     Context {
         today: date(10, 8),
         apply_defaults,
@@ -43,7 +51,7 @@ fn ctx(apply_defaults: bool, contact: Option<contact::Model>) -> Context {
     }
 }
 
-fn contact_with_defaults() -> contact::Model {
+pub(super) fn contact_with_defaults() -> contact::Model {
     contact::Model {
         id: Uuid::from_u128(7),
         space_id: Uuid::nil(),
@@ -65,7 +73,7 @@ fn contact_with_defaults() -> contact::Model {
     }
 }
 
-fn fields(err: AppError) -> FieldErrors {
+pub(super) fn fields(err: AppError) -> FieldErrors {
     match err {
         AppError::Validation(f) => f,
         other => panic!("expected validation, got {other:?}"),
@@ -83,7 +91,7 @@ fn post_defaults_from_company() {
     assert_eq!((d.currency.as_str(), d.locale.as_str()), ("CZK", "cs"));
     assert_eq!(d.vat_mode, VatMode::Standard);
     assert_eq!(d.payment_method, PaymentMethod::BankTransfer);
-    assert!(!d.round_total);
+    assert_eq!(d.rounding_mode, RoundingMode::None);
     assert!(ev.totals.recap.is_empty());
 }
 

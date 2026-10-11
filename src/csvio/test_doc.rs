@@ -56,7 +56,7 @@ pub fn doc() -> document::Model {
         header_note: Some("Hlavička".into()),
         footer_note: None,
         internal_note: Some("Interní".into()),
-        round_total: true,
+        rounding_mode: "unit".into(),
         supplier_snapshot: Some(snapshot("Dodavatel s.r.o.", "44444443")),
         customer_snapshot: Some(snapshot("Odběratel a.s.", "12345679")),
         bank_snapshot: None,

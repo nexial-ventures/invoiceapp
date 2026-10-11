@@ -12,7 +12,8 @@ use super::line_input::{LineInput, Texts, validate_lines};
 use crate::document::advance::{AdvanceCtx, AdvanceSource};
 use crate::document::compute::{Evaluated, Params};
 use crate::document::correction::ExactBasis;
-use crate::document::line::{LineData, VatMode};
+use crate::document::line::{LineData, RoundingMode, VatMode};
+use crate::document::rounding;
 use crate::error::{AppError, FieldErrors};
 use crate::settings::doc_type::DocType;
 use crate::validation as v;
@@ -28,7 +29,8 @@ pub struct ComputeInput {
     #[serde(deserialize_with = "crate::num_text::opt_decimal")]
     #[schemars(with = "Option<crate::num_text::DecimalText>")]
     pub exchange_rate: Option<String>,
-    pub round_total: bool,
+    /// `none` (default) | `half` | `unit`.
+    pub rounding_mode: Option<String>,
     /// For `advance` lines: the draft being edited (its type, related
     /// proforma and own references), the contact and the description locale.
     pub document_id: Option<Uuid>,
@@ -94,13 +96,17 @@ impl ComputeInput {
             ),
         }
         .unwrap_or_default();
+        let rounding = match self.rounding_mode.as_deref() {
+            Some(s) => e.check("roundingMode", rounding::parse(s)),
+            None => Some(RoundingMode::None),
+        };
         let mut lines = validate_lines(self.lines, vat_mode, ctx.default_rate, Texts::Skip, &mut e);
         e.into_result()?;
         let params = Params {
             vat_mode: vat_mode.unwrap_or(VatMode::Standard),
             is_czk: currency == "CZK",
             exchange_rate: rate,
-            round_total: self.round_total,
+            rounding: rounding.unwrap_or(RoundingMode::None),
         };
         let adv = AdvanceCtx {
             doc_type: doc_type.unwrap_or(DocType::Invoice),

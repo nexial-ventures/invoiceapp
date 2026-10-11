@@ -3,7 +3,8 @@ use sea_orm::{ActiveModelTrait, ConnectionTrait, DatabaseConnection, EntityTrait
 
 use crate::error::AppError;
 use crate::settings::entity::company;
-use crate::settings::handlers::company::Company;
+use crate::settings::handlers::company::Profile;
+use crate::settings::handlers::company_defaults::DefaultsUpdate;
 use crate::space::SpaceId;
 
 pub async fn get<C: ConnectionTrait>(db: &C, space: SpaceId) -> Result<company::Model, AppError> {
@@ -14,13 +15,14 @@ pub async fn get<C: ConnectionTrait>(db: &C, space: SpaceId) -> Result<company::
     Ok(row)
 }
 
-/// Replace every field of the singleton with the (validated) input.
+/// Replace the profile with the (validated) input and set the given defaults.
 pub async fn update(
     db: &DatabaseConnection,
     space: SpaceId,
-    c: Company,
+    c: Profile,
+    defaults: DefaultsUpdate,
 ) -> Result<company::Model, AppError> {
-    let row = company::ActiveModel {
+    let mut row = company::ActiveModel {
         space_id: Set(space.uuid()),
         name: Set(c.name),
         ico: Set(c.ico),
@@ -37,8 +39,9 @@ pub async fn update(
         default_due_days: Set(c.default_due_days),
         default_locale: Set(c.default_locale),
         updated_at: Set(chrono::Utc::now().into()),
-    }
-    .update(db)
-    .await?;
+        ..Default::default()
+    };
+    defaults.apply(&mut row);
+    let row = row.update(db).await?;
     Ok(row)
 }
