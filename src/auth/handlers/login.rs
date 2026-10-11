@@ -101,11 +101,12 @@ pub async fn login(
     };
     // An account without a password (Google only) runs the dummy
     // verification: refused like a wrong password.
-    let ok = crypto::verify_password(
+    let verified = crypto::verify_password(
         input.password,
         user.as_ref().and_then(|u| u.password_hash.clone()),
     )
-    .await?;
+    .await;
+    let ok = state.limiter.refund_if_busy(&buckets, verified)?;
     let space = host.space_id();
     let user = match user {
         Some(u) if ok && may_sign_in(&state.db, &u, space).await? => u,

@@ -178,6 +178,20 @@ impl RateLimiter {
         }
     }
 
+    /// Pass `result` through; an `Err(Busy)` (the argon2 gate was full, the
+    /// password was never checked) first gives the reservation back — an
+    /// attempt that did not happen must not count.
+    pub fn refund_if_busy<T>(
+        &self,
+        buckets: &[(Limit, &str)],
+        result: Result<T, AppError>,
+    ) -> Result<T, AppError> {
+        if matches!(result, Err(AppError::Busy)) {
+            self.refund(buckets);
+        }
+        result
+    }
+
     fn reserve_at(&self, buckets: &[(Limit, &str)], now: Instant) -> Result<(), AppError> {
         let mut inner = self.0.lock().unwrap_or_else(|e| e.into_inner());
         inner.sweep(now);
@@ -286,6 +300,32 @@ mod tests {
             rl.reserve_at(&[(LIM, &i.to_string())], t0).expect("ok");
         }
         assert!(rl.len() <= MAX_KEYS);
+    }
+
+    #[test]
+    fn busy_gives_the_reservation_back() {
+        let rl = RateLimiter::default();
+        let t0 = Instant::now();
+        let b = [(LIM, "k")];
+        rl.reserve_at(&b, t0).expect("1");
+        assert!(matches!(
+            rl.refund_if_busy(&b, Err::<(), _>(AppError::Busy)),
+            Err(AppError::Busy)
+        ));
+        // The busy attempt was given back: two more fit the limit of 2.
+        rl.reserve_at(&b, t0).expect("2");
+        rl.reserve_at(&b, t0).expect("3");
+        rl.refund(&b);
+        assert!(
+            rl.refund_if_busy(&b, Err::<(), _>(AppError::NotFound))
+                .is_err()
+        );
+        rl.reserve_at(&b, t0).expect("4");
+        assert!(
+            rl.reserve_at(&b, t0).is_err(),
+            "other errors keep the reservation"
+        );
+        assert_eq!(rl.refund_if_busy(&b, Ok(5)).expect("ok"), 5);
     }
 
     #[test]

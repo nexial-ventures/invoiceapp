@@ -107,17 +107,33 @@ pub async fn set_password(
 /// logins, the Google link: whoever set them up was not shown to own the
 /// address. A no-op for an already verified user.
 pub async fn mark_verified(db: &impl ConnectionTrait, user_id: Uuid) -> Result<(), AppError> {
+    verify(db, user_id, false).await
+}
+
+/// [`mark_verified`] for a user who has just proved their TOTP with a code
+/// in the same transaction (an invitation accept): that second factor is
+/// theirs and stays; only the Google link set up while unverified goes.
+pub async fn mark_verified_keeping_mfa(
+    db: &impl ConnectionTrait,
+    user_id: Uuid,
+) -> Result<(), AppError> {
+    verify(db, user_id, true).await
+}
+
+async fn verify(db: &impl ConnectionTrait, user_id: Uuid, keep_mfa: bool) -> Result<(), AppError> {
     let stmt = |sql: &str| {
         Statement::from_sql_and_values(db.get_database_backend(), sql, [user_id.into()])
     };
-    let res = db
-        .execute(stmt(
-            "UPDATE users SET email_verified_at = now(), google_sub = NULL, totp_secret = NULL, \
-             totp_pending = NULL, totp_pending_expires_at = NULL, totp_last_step = NULL \
-             WHERE id = $1 AND email_verified_at IS NULL",
-        ))
-        .await?;
-    if res.rows_affected() == 1 {
+    let sql = if keep_mfa {
+        "UPDATE users SET email_verified_at = now(), google_sub = NULL \
+         WHERE id = $1 AND email_verified_at IS NULL"
+    } else {
+        "UPDATE users SET email_verified_at = now(), google_sub = NULL, totp_secret = NULL, \
+         totp_pending = NULL, totp_pending_expires_at = NULL, totp_last_step = NULL \
+         WHERE id = $1 AND email_verified_at IS NULL"
+    };
+    let res = db.execute(stmt(sql)).await?;
+    if res.rows_affected() == 1 && !keep_mfa {
         db.execute(stmt("DELETE FROM recovery_codes WHERE user_id = $1"))
             .await?;
         db.execute(stmt("DELETE FROM mfa_logins WHERE user_id = $1"))

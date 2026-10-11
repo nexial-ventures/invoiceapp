@@ -37,7 +37,9 @@ created through Google that has not set one (4d) —, email_verified_at, disable
   Whoever registered an address they do not own must not leave credentials on the account its owner later proves.
 - When an unverified account becomes verified (verify link, password reset, invitation accept, the Google claim),
   everything second-factor set up before is dropped in the same statement: TOTP secret, pending setup, last step,
-  recovery codes, pending logins, a Google link (security review M1).
+  recovery codes, pending logins, a Google link (security review M1). Exception: an invitation accept whose step-up
+  TOTP code was checked in the same transaction keeps the TOTP and recovery codes (the user just proved them; only
+  the Google link goes) — a member of a space requiring TOTP must not lose it by joining.
 
 ## Login and sessions (base host and space hosts)
 - `POST /api/auth/login { email, password }` → 204 + session cookie. On a space host the user must be a member of
@@ -81,7 +83,9 @@ whole /64 and could rotate addresses through it); an IPv4-mapped IPv6 address co
 
 Password hashing (argon2id, ~19 MiB and a core each) runs under a global cap: at most 2 × the available cores
 (min 2) hashes / verifications at once; a request that cannot start one within ~2 s → **503 `{"code":"busy"}`**
-(nothing consumed — e.g. a reset token stays valid).
+(nothing consumed — a reset token stays valid, a login / own-password / invite-accept attempt is refunded from the
+login buckets). An `X-Forwarded-For` hop with a port (`203.0.113.7:51234`, `[2001:db8::1]:443`) is read as its
+address; an unparsable last hop falls back to the socket address and logs one warning.
 
 Nothing secret (password, cookie, token, reset / verify token) is ever logged.
 

@@ -48,7 +48,8 @@ pub async fn check_password(
     };
     let bucket = [(crate::auth::ratelimit::LOGIN_EMAIL, user.email.as_str())];
     state.limiter.reserve(&bucket)?;
-    if !crate::auth::crypto::verify_password(password, Some(hash)).await? {
+    let verified = crate::auth::crypto::verify_password(password, Some(hash)).await;
+    if !state.limiter.refund_if_busy(&bucket, verified)? {
         return Ok(Err("invalid"));
     }
     state.limiter.refund(&bucket);

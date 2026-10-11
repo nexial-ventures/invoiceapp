@@ -44,19 +44,34 @@ pub fn rate_key(ip: IpAddr) -> String {
     }
 }
 
+/// The last hop of the last `X-Forwarded-For` header. A header that is
+/// present but whose last hop does not parse logs one warning (the limits
+/// then fall back to the socket address — the proxy's).
 fn forwarded_ip(headers: &HeaderMap) -> Option<IpAddr> {
-    headers
-        .get_all("x-forwarded-for")
-        .iter()
-        .next_back()?
+    let value = headers.get_all("x-forwarded-for").iter().next_back()?;
+    let ip = value
         .to_str()
-        .ok()?
-        .rsplit(',')
-        .next()?
-        .trim()
-        .parse()
         .ok()
+        .and_then(|v| v.rsplit(',').next())
+        .and_then(|hop| parse_hop(hop.trim()));
+    if ip.is_none() && !UNPARSABLE_WARNED.swap(true, Ordering::Relaxed) {
+        tracing::warn!(
+            "X-Forwarded-For has an unparsable last hop: rate limits use the socket address \
+             (check what the reverse proxy appends)"
+        );
+    }
+    ip
 }
+
+/// A bare address, or one with a port (`203.0.113.7:51234`,
+/// `[2001:db8::1]:443`) as some proxies append it.
+fn parse_hop(hop: &str) -> Option<IpAddr> {
+    hop.parse::<IpAddr>()
+        .ok()
+        .or_else(|| hop.parse::<SocketAddr>().ok().map(|s| s.ip()))
+}
+
+static UNPARSABLE_WARNED: AtomicBool = AtomicBool::new(false);
 
 static WARNED: AtomicBool = AtomicBool::new(false);
 
@@ -92,6 +107,24 @@ mod tests {
         assert_eq!(forwarded_ip(&h), "203.0.113.7".parse().ok());
         h.insert("x-forwarded-for", "garbage".parse().unwrap());
         assert_eq!(forwarded_ip(&h), None);
+    }
+
+    #[test]
+    fn hops_with_a_port_parse() {
+        let ip = |s: &str| s.parse::<IpAddr>().ok();
+        assert_eq!(parse_hop("203.0.113.7"), ip("203.0.113.7"));
+        assert_eq!(parse_hop("203.0.113.7:51234"), ip("203.0.113.7"));
+        assert_eq!(parse_hop("2001:db8::1"), ip("2001:db8::1"));
+        assert_eq!(parse_hop("[2001:db8::1]:443"), ip("2001:db8::1"));
+        assert_eq!(parse_hop("unknown"), None);
+        let mut h = HeaderMap::new();
+        h.insert(
+            "x-forwarded-for",
+            "6.6.6.6, 203.0.113.7:51234".parse().unwrap(),
+        );
+        assert_eq!(forwarded_ip(&h), ip("203.0.113.7"));
+        h.insert("x-forwarded-for", "[2001:db8::1]:443".parse().unwrap());
+        assert_eq!(forwarded_ip(&h), ip("2001:db8::1"));
     }
 
     #[test]

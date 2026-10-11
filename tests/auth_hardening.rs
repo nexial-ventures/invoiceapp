@@ -274,3 +274,29 @@ async fn a_token_cannot_mint_a_token_that_outlives_it() {
     .await;
     assert_eq!(s, StatusCode::CREATED, "{j}");
 }
+
+#[tokio::test]
+async fn an_invite_accept_proved_by_totp_keeps_the_totp() {
+    let db = TestDb::new().await;
+    let app = router(db.conn.clone());
+    let email = "legacy@example.com";
+    let uid = common::auth::user(&db.conn, email).await;
+    let enrolled = enrol(&app, email).await;
+    // A legacy account: TOTP set up while the address was unproven.
+    let sql = format!("UPDATE users SET email_verified_at = NULL WHERE id = '{uid}'");
+    db.conn.execute_unprepared(&sql).await.expect("unverify");
+    common::mfa::require_mfa(&db.conn, common::TEST_SLUG).await;
+    let token = common::members::invited(&app, email, "member").await;
+    let code = common::mfa::fresh(&db.conn, uid, &enrolled.secret).await;
+    let body = json!({ "token": token, "password": OWNER_PASSWORD, "code": code });
+    let (s, cookie, j, _) = common::members::accept(&app, TEST_HOST, body).await;
+    assert_eq!(s, StatusCode::NO_CONTENT, "{j}");
+    assert!(cookie.is_some());
+    let sql = format!(
+        "SELECT count(*) FROM users WHERE id = '{uid}' AND totp_secret IS NOT NULL \
+         AND email_verified_at IS NOT NULL"
+    );
+    assert_eq!(count(&db.conn, &sql).await, 1, "verified, TOTP kept");
+    let sql = format!("SELECT count(*) FROM recovery_codes WHERE user_id = '{uid}'");
+    assert_eq!(count(&db.conn, &sql).await, 10);
+}
