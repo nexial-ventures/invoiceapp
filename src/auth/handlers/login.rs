@@ -169,13 +169,17 @@ pub async fn logout(State(state): State<AppState>, authed: Authed) -> Result<Res
     )
 }
 
-/// Delete every other session of the user, on all hosts (session only).
+/// Delete every other session of the user, on all hosts, and all the
+/// user's API tokens (session only).
 #[utoipa::path(
     post,
     path = "/api/auth/sessions/revoke-others",
     tag = "auth",
     security(("cookie" = [])),
-    responses((status = 204), (status = 403, description = "`forbidden` with a token", body = ErrorBody))
+    responses(
+        (status = 204, description = "Other sessions, pending logins and every API token of the user (all spaces) revoked"),
+        (status = 403, description = "`forbidden` with a token", body = ErrorBody),
+    )
 )]
 pub async fn revoke_others(
     State(state): State<AppState>,

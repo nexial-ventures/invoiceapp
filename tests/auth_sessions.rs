@@ -7,6 +7,7 @@ use axum::body::Body;
 use axum::http::{Method, StatusCode, header};
 use common::auth::{As, exchange, login, on, request, session_cookie};
 use common::{BASE_HOST, OWNER_EMAIL, OWNER_PASSWORD, TEST_HOST, TEST_TOKEN, TestDb, router};
+use invoice::space::Role;
 use sea_orm::ConnectionTrait;
 use serde_json::json;
 
@@ -295,15 +296,36 @@ async fn logout_and_revoke_others() {
             .contains("Max-Age=0")
     );
     assert_eq!(status(a, TEST_HOST).await, StatusCode::UNAUTHORIZED);
-    // The token keeps working.
-    let (s, _) = on(
-        &app,
-        Method::GET,
+    let bearer = |t: String| {
+        let app = app.clone();
+        async move {
+            on(
+                &app,
+                Method::GET,
+                TEST_HOST,
+                "/api/auth/me",
+                As::Bearer(&t),
+                None,
+            )
+            .await
+            .0
+        }
+    };
+    // revoke-others took the user's API tokens; a logout does not.
+    assert_eq!(bearer(TEST_TOKEN.into()).await, StatusCode::UNAUTHORIZED);
+    let fresh = common::members::token(&db.conn, db.space, db.user_id, Role::Owner).await;
+    let c = login(&app, TEST_HOST, OWNER_EMAIL, OWNER_PASSWORD)
+        .await
+        .expect("login");
+    let req = request(
+        Method::POST,
         TEST_HOST,
-        "/api/auth/me",
-        As::Bearer(TEST_TOKEN),
+        "/api/auth/logout",
+        As::Cookie(&c),
         None,
     )
-    .await;
-    assert_eq!(s, StatusCode::OK);
+    .body(Body::empty())
+    .expect("request");
+    assert_eq!(exchange(&app, req).await.0, StatusCode::NO_CONTENT);
+    assert_eq!(bearer(fresh).await, StatusCode::OK);
 }

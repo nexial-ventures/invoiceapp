@@ -55,14 +55,14 @@ pub async fn check_password(
     Ok(Ok(()))
 }
 
-/// The client IP for rate limits (see `ratelimit::client_ip`).
+/// The client IP for rate limits (see `client_ip::client_ip`).
 pub struct ClientIp(pub String);
 
 impl FromRequestParts<AppState> for ClientIp {
     type Rejection = AppError;
 
     async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, AppError> {
-        Ok(Self(crate::auth::ratelimit::client_ip(
+        Ok(Self(crate::auth::client_ip::client_ip(
             parts,
             state.trust_forwarded,
         )))

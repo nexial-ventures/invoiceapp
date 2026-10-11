@@ -13,7 +13,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::app::AppState;
-use crate::auth::ctx::{Authed, Read};
+use crate::auth::ctx::{Authed, Read, Via};
 use crate::auth::entity::{api_token, user};
 use crate::auth::host::HostCtx;
 use crate::auth::mfa;
@@ -91,7 +91,15 @@ pub struct TokenInput {
 }
 
 impl TokenInput {
-    pub fn validate(self, caller: Role, today: NaiveDate) -> Result<repo::NewToken, AppError> {
+    /// `cap`: the expiry of the token the caller authenticated with — a
+    /// token may not mint one that outlives it (`expiresAt: too_late`, also
+    /// for no expiry). `None` = no cap (a session, or a token without expiry).
+    pub fn validate(
+        self,
+        caller: Role,
+        today: NaiveDate,
+        cap: Option<NaiveDate>,
+    ) -> Result<repo::NewToken, AppError> {
         let mut e = FieldErrors::new();
         let name = e.check("name", v::required_text(&self.name, 100));
         let role = e.check(
@@ -109,6 +117,12 @@ impl TokenInput {
                 }
             },
         };
+        if let Some(cap) = cap
+            && e.get("expiresAt").is_none()
+            && expires_at.is_none_or(|d| d > cap)
+        {
+            e.add("expiresAt", "too_late");
+        }
         e.into_result()?;
         Ok(repo::NewToken {
             name: name.unwrap_or_default(),
@@ -150,7 +164,7 @@ pub async fn list(
     responses(
         (status = 201, body = CreatedToken),
         (status = 403, description = "`mfa_required`: the space requires TOTP and the caller has none", body = ErrorBody),
-        (status = 422, description = "Validation failed (`role: too_high`, …; `code: required | invalid` for a user with TOTP)", body = ErrorBody),
+        (status = 422, description = "Validation failed (`role: too_high`, `expiresAt: invalid | too_late` (after the calling token's expiry), …; `code: required | invalid` for a user with TOTP)", body = ErrorBody),
         (status = 429, description = "`rate_limited` (login bucket, code checks)", body = ErrorBody),
     )
 )]
@@ -170,7 +184,11 @@ pub async fn create(
     }
     let code = input.code.take();
     let mfa_on = authed.mfa_enabled;
-    let new = match input.validate(s.role, Utc::now().date_naive()) {
+    let cap = match authed.via {
+        Via::Token(id) => repo::expiry(&state.db, id).await?,
+        Via::Session(_) => None,
+    };
+    let new = match input.validate(s.role, Utc::now().date_naive(), cap) {
         Ok(new) => new,
         Err(AppError::Validation(mut e)) => {
             // Adds only `code: required` here (nothing is spent on a failing request).
@@ -238,17 +256,17 @@ mod tests {
     #[test]
     fn validates_tokens() {
         let ok = input(" MCP ", "member", Some("2026-10-10"))
-            .validate(Role::Member, today())
+            .validate(Role::Member, today(), None)
             .expect("valid");
         assert_eq!(ok.name, "MCP");
         assert_eq!(ok.role, Role::Member);
         assert_eq!(ok.expires_at, Some(today()));
         let err = input("x", "admin", None)
-            .validate(Role::Member, today())
+            .validate(Role::Member, today(), None)
             .expect_err("too high");
         assert!(reasons(err).contains("\"role\": \"too_high\""));
         let err = input("", "boss", Some("2026-10-09"))
-            .validate(Role::Owner, today())
+            .validate(Role::Owner, today(), None)
             .expect_err("invalid");
         let r = reasons(err);
         assert!(r.contains("\"name\": \"required\""), "{r}");
@@ -258,10 +276,25 @@ mod tests {
             name: "x".repeat(101),
             ..Default::default()
         }
-        .validate(Role::Owner, today())
+        .validate(Role::Owner, today(), None)
         .expect_err("invalid");
         let r = reasons(err);
         assert!(r.contains("\"name\": \"too_long\""), "{r}");
         assert!(r.contains("\"role\": \"required\""), "{r}");
+    }
+
+    #[test]
+    fn a_token_cannot_outlive_its_minter() {
+        let cap = NaiveDate::from_ymd_opt(2026, 10, 20);
+        let ok = |exp| input("x", "member", exp).validate(Role::Member, today(), cap);
+        assert!(ok(Some("2026-10-20")).is_ok());
+        assert!(ok(Some("2026-10-12")).is_ok());
+        for late in [Some("2026-10-21"), None, Some("")] {
+            let r = reasons(ok(late).expect_err("too late"));
+            assert!(r.contains("\"expiresAt\": \"too_late\""), "{r}");
+        }
+        // A past date stays `invalid`.
+        let r = reasons(ok(Some("2026-10-01")).expect_err("past"));
+        assert!(r.contains("\"expiresAt\": \"invalid\""), "{r}");
     }
 }

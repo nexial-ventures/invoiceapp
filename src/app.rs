@@ -101,6 +101,10 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .nest("/api", api)
         .fallback(spa::serve)
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth::client_ip::warn_untrusted_forwarded,
+        ))
         // Path only: query strings can carry secrets (the SPA's `/verify?token=…`,
         // `/reset?token=…` pages), which must never reach a log.
         .layer(TraceLayer::new_for_http().make_span_with(|req: &Request<Body>| {

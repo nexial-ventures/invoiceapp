@@ -24,8 +24,10 @@
     "label": "Invitation link for {email}",
     "copy": "Copy",
     "copied": "Copied.",
-    "emailSent": "E-mail sent.",
     "emailNotSent": "E-mail not sent (SMTP is not configured) – pass the link on yourself.",
+    "sentByEmail": "The link was sent by e-mail to {email}.",
+    "emailFailed": "The e-mail could not be sent – try resending the invitation.",
+    "sentHint": "The link is valid for 7 days and works once. If it does not arrive, resend the invitation.",
     "hint": "The link is valid for 7 days and works once. It is not shown again; if it gets lost, resend the invitation."
   },
   "pending": {

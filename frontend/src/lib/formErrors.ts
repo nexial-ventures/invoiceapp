@@ -74,6 +74,8 @@ const KNOWN_CODES: Record<string, string> = {
   forbidden: "errors.forbidden",
   csrf: "errors.csrf",
   rate_limited: "errors.rateLimited",
+  // 503 when password hashing is saturated (a burst of logins).
+  busy: "errors.busy",
   email_unverified: "errors.emailUnverified",
   space_creation_disabled: "errors.spaceCreationDisabled",
   invalid_credentials: "errors.invalidCredentials",

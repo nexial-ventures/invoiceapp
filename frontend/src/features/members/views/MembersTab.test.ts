@@ -181,19 +181,20 @@ describe("MembersTab", () => {
     expect(w.find("#invite-role-error").text()).toBe(i18n.global.t("validation.too_high"));
   });
 
-  it("resends an invitation showing the new link, and revokes one after confirmation", async () => {
+  it("resends an invitation by e-mail (no link shown), and revokes one after confirmation", async () => {
     const fetch = mockFetchRoutes({
       "GET /api/members": [member("me", "owner", { isSelf: true })],
       "GET /api/invites": [invite("i1"), invite("i2")],
-      "POST /api/invites/i1/resend": { ...invite("i1", { expiresAt: "2026-10-17T10:00:00Z" }), url: "http://firma.localhost:3000/invite?token=NEW", emailSent: true },
+      "POST /api/invites/i1/resend": { ...invite("i1", { expiresAt: "2026-10-17T10:00:00Z" }), emailSent: true },
       "DELETE /api/invites/i2": reply(204),
     });
     vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValue(true);
     const { w } = await mountTab("owner");
     await w.findAll('[data-test="invite-resend"]')[0]!.trigger("click");
     await flushPromises();
-    expect((w.find('[data-test="invite-url"]').element as HTMLInputElement).value).toBe("http://firma.localhost:3000/invite?token=NEW");
-    expect(w.find('[data-test="invite-email-status"]').text()).toBe("E-mail sent.");
+    expect(w.find('[data-test="invite-url"]').exists()).toBe(false);
+    expect(w.find('[data-test="invite-copy"]').exists()).toBe(false);
+    expect(w.find('[data-test="invite-email-status"]').text()).toBe("The link was sent by e-mail to i1@example.cz.");
 
     await w.findAll('[data-test="invite-revoke"]')[1]!.trigger("click");
     await flushPromises();

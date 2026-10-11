@@ -154,6 +154,7 @@ async fn auth_errors() {
             "space_creation_disabled",
         ),
         (AppError::Csrf, StatusCode::FORBIDDEN, "csrf"),
+        (AppError::Busy, StatusCode::SERVICE_UNAVAILABLE, "busy"),
         (
             AppError::RateLimited(42),
             StatusCode::TOO_MANY_REQUESTS,

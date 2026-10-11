@@ -21,5 +21,6 @@
   "last_owner": "Poslední vlastník musí zůstat vlastníkem.",
   "wrong_code": "Nesprávný kód.",
   "expired": "Platnost vypršela.",
+  "too_late": "Nesmí platit déle než token, kterým se přihlašujete.",
   "not_set": "Účet nemá nastavené heslo."
 }

@@ -78,6 +78,16 @@ pub async fn create(
     Ok((row, token))
 }
 
+/// The expiry of token `id` (`None`: no expiry); 401 when it was revoked
+/// meanwhile.
+pub async fn expiry(db: &DatabaseConnection, id: Uuid) -> Result<Option<NaiveDate>, AppError> {
+    api_token::Entity::find_by_id(id)
+        .one(db)
+        .await?
+        .map(|t| t.expires_at)
+        .ok_or(AppError::Unauthorized)
+}
+
 /// Delete token `id` of `space` (only `owner`'s when given); `false` when
 /// there is no such token.
 pub async fn delete(

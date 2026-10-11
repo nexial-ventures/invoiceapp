@@ -58,9 +58,13 @@ impl From<InviteRow> for Invite {
 pub struct SentInvite {
     #[serde(flatten)]
     pub invite: Invite,
-    /// `{space url}/invite?token=…` — shown only in this response.
-    pub url: String,
-    /// `true` = the e-mail is queued (failures are logged); `false` = no SMTP.
+    /// `{space url}/invite?token=…`, only when SMTP is **not** configured
+    /// (shown only in this response). With SMTP the link travels only by
+    /// e-mail, so accepting proves the invitee owns the address.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    /// `true` = the e-mail is queued (failures are logged), no `url`;
+    /// `false` = no SMTP, the `url` is returned instead.
     pub email_sent: bool,
 }
 
@@ -117,7 +121,10 @@ async fn refused(state: &AppState, s: Scope, id: Uuid) -> AppError {
     }
 }
 
-/// Mail the link (when SMTP is configured) and build the response.
+/// Mail the link when SMTP is configured — then it is never returned: the
+/// inviter must not be able to accept in the invitee's name (create a
+/// verified account for an address they do not own, or learn whether it has
+/// an account). Without SMTP the link is returned for the inviter to pass on.
 fn sent(
     state: &AppState,
     authed: &Authed,
@@ -130,21 +137,27 @@ fn sent(
         "{}/invite?token={token}",
         state.public.space_url(&space.slug)
     );
-    let email_sent = state.email.is_some()
-        && mail::send(
-            state,
-            &row.email,
-            Mail::Invite {
-                url: url.clone(),
-                space: space.name.clone(),
-                inviter: authed.user.display_name.clone(),
-                role: row.role,
-            },
-            mail::locale(locale),
-        );
+    if state.email.is_none() {
+        return Ok(SentInvite {
+            invite: row.into(),
+            url: Some(url),
+            email_sent: false,
+        });
+    }
+    let email_sent = mail::send(
+        state,
+        &row.email,
+        Mail::Invite {
+            url,
+            space: space.name.clone(),
+            inviter: authed.user.display_name.clone(),
+            role: row.role,
+        },
+        mail::locale(locale),
+    );
     Ok(SentInvite {
         invite: row.into(),
-        url,
+        url: None,
         email_sent,
     })
 }

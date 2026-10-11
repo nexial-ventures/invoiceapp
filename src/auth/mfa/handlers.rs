@@ -72,7 +72,7 @@ pub struct Setup {
     request_body = SetupInput,
     responses(
         (status = 200, description = "A pending secret (10 min); a new setup replaces it", body = Setup),
-        (status = 403, description = "`forbidden` with a token", body = ErrorBody),
+        (status = 403, description = "`forbidden` with a token, `email_unverified`", body = ErrorBody),
         (status = 409, description = "`mfa_enabled`", body = ErrorBody),
         (status = 422, description = "`password: invalid | not_set`", body = ErrorBody),
         (status = 429, description = "`rate_limited` (login bucket)", body = ErrorBody),
@@ -84,6 +84,7 @@ pub async fn setup(
     ApiJson(input): ApiJson<SetupInput>,
 ) -> Result<Json<Setup>, AppError> {
     authed.require_session()?;
+    authed.require_verified()?;
     let user = &authed.user;
     if authed.mfa_enabled {
         return Err(AppError::MfaEnabled);
@@ -134,7 +135,7 @@ fn fresh_codes(key: &SecretKey) -> Result<(Vec<String>, Vec<String>), AppError> 
     request_body = EnableInput,
     responses(
         (status = 200, description = "TOTP on; the recovery codes", body = RecoveryCodes),
-        (status = 403, description = "`forbidden` with a token", body = ErrorBody),
+        (status = 403, description = "`forbidden` with a token, `email_unverified`", body = ErrorBody),
         (status = 409, description = "`mfa_enabled`", body = ErrorBody),
         (status = 422, description = "`code: required | expired | invalid`", body = ErrorBody),
         (status = 429, description = "`rate_limited` (login bucket)", body = ErrorBody),
@@ -146,6 +147,7 @@ pub async fn enable(
     ApiJson(input): ApiJson<EnableInput>,
 ) -> Result<Json<RecoveryCodes>, AppError> {
     authed.require_session()?;
+    authed.require_verified()?;
     let user = &authed.user;
     if authed.mfa_enabled {
         return Err(AppError::MfaEnabled);

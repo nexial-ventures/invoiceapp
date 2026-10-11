@@ -154,7 +154,8 @@ redirects with `unavailable` too (logged), never a JSON 500.
   that e-mail is **claimed** (the Google e-mail proves the owner, whoever registered it): its password, TOTP,
   recovery codes, sessions and pending logins are removed and any Google account linked to it while unverified is
   replaced; then it is verified and linked. Every other verification (`users::mark_verified`: verify link, password
-  reset, invitation accept) clears a `google_sub` linked while unverified, in the same statement. New accounts only for a `login` on the **base host**
+  reset, invitation accept) clears a `google_sub` linked while unverified — and the TOTP secret, pending setup,
+  recovery codes and pending logins set up while unverified ([auth.md](auth.md)) — in the same transaction. New accounts only for a `login` on the **base host**
   with registration on, or an `invite` whose e-mail equals the Google e-mail. A `login` on a space host without an
   account → `not_member` (no account is created there). The new display name: `name` without control characters,
   ≤ 100 chars, else the e-mail's local part.

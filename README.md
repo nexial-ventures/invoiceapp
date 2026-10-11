@@ -92,7 +92,10 @@ PDFs need an mdcast (`INVOICE__MDCAST_URL`, `INVOICE__MDCAST_TOKEN`).
   host itself.
 - **Reverse proxy:** pass the original `Host` (the app picks the base host or a space by it; an unknown host is 404)
   and **append** to `X-Forwarded-For` rather than passing the client's header through, then set
-  `INVOICE__TRUST_FORWARDED=true` — the auth rate limits take the last hop as the client IP.
+  `INVOICE__TRUST_FORWARDED=true` — the auth rate limits take the last hop as the client IP (IPv6 by its /64).
+  Behind a proxy this **must** be `true`, and the app port (`:3000`) **must not be reachable directly** (bind it to
+  the proxy's network only): otherwise all clients share the proxy's rate-limit buckets, or a direct client forges
+  the header. With `false` the app logs a warning the first time a request carries `X-Forwarded-For`.
 - **`INVOICE__PUBLIC_URL`** must be the external `https://…` URL the browser sees, not the proxy's upstream: its scheme +
   the request `Host` form the origin the CSRF check compares `Origin` with (an `http://` value behind a TLS proxy makes every login and
   cookie mutation 403 `csrf`), the Google redirect URI and the links in e-mails and between spaces; session cookies
@@ -101,6 +104,8 @@ PDFs need an mdcast (`INVOICE__MDCAST_URL`, `INVOICE__MDCAST_TOKEN`).
   TOTP secret and every recovery code unusable.
 - **`INVOICE__REGISTRATION=true`** requires SMTP (`INVOICE__SMTP__*`); the start is refused otherwise. `false` also
   disables creating spaces (403 `space_creation_disabled`): only people invited into existing spaces can enter.
+- **mdcast** renders each space's own typst templates: run it **sandboxed** (no file system or network access
+  beyond the request, resource limits) — template isolation is mdcast's, not the app's.
 - **Sign in with Google** (optional): the only redirect URI to register is
   `{INVOICE__PUBLIC_URL}/api/auth/google/callback`.
 - **Storage:** the image's `/data` volume (`INVOICE__STORAGE_KIND=fs`, default) or an S3-compatible bucket

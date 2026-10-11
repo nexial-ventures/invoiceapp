@@ -24,8 +24,10 @@
     "label": "Odkaz pozvánky pro {email}",
     "copy": "Kopírovat",
     "copied": "Zkopírováno.",
-    "emailSent": "E-mail odeslán.",
     "emailNotSent": "E-mail neodeslán (SMTP není nastaveno) – pošlete odkaz sami.",
+    "sentByEmail": "Odkaz byl odeslán e-mailem na {email}.",
+    "emailFailed": "E-mail se nepodařilo odeslat – zkuste pozvánku poslat znovu.",
+    "sentHint": "Odkaz platí 7 dní a lze ho použít jen jednou. Pokud nedorazí, pozvánku pošlete znovu.",
     "hint": "Odkaz platí 7 dní a lze ho použít jen jednou. Znovu ho nezobrazíme; při ztrátě pozvánku pošlete znovu."
   },
   "pending": {

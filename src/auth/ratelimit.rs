@@ -10,13 +10,8 @@
 //! amortized cost per request.
 
 use std::collections::{HashMap, VecDeque};
-use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-
-use axum::extract::ConnectInfo;
-use axum::http::HeaderMap;
-use axum::http::request::Parts;
 
 use crate::error::AppError;
 
@@ -226,35 +221,6 @@ fn prune(events: &mut VecDeque<Instant>, window: Duration, now: Instant) {
     }
 }
 
-/// The client IP: with a trusted reverse proxy the **last** `X-Forwarded-For`
-/// hop (the one our proxy appended — earlier hops are client-controlled),
-/// else the socket address; `"unknown"` when neither exists (in-process
-/// test requests).
-pub fn client_ip(parts: &Parts, trust_forwarded: bool) -> String {
-    if trust_forwarded && let Some(ip) = forwarded_ip(&parts.headers) {
-        return ip.to_string();
-    }
-    parts
-        .extensions
-        .get::<ConnectInfo<SocketAddr>>()
-        .map(|c| c.0.ip().to_string())
-        .unwrap_or_else(|| "unknown".to_string())
-}
-
-fn forwarded_ip(headers: &HeaderMap) -> Option<IpAddr> {
-    headers
-        .get_all("x-forwarded-for")
-        .iter()
-        .next_back()?
-        .to_str()
-        .ok()?
-        .rsplit(',')
-        .next()?
-        .trim()
-        .parse()
-        .ok()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -326,14 +292,5 @@ mod tests {
     fn long_keys_are_cut_on_a_char_boundary() {
         let k = Inner::key(LIM, &"ž".repeat(400));
         assert!(k.1.len() <= MAX_KEY);
-    }
-
-    #[test]
-    fn forwarded_for_last_hop() {
-        let mut h = HeaderMap::new();
-        h.insert("x-forwarded-for", "6.6.6.6, 203.0.113.7".parse().unwrap());
-        assert_eq!(forwarded_ip(&h), "203.0.113.7".parse().ok());
-        h.insert("x-forwarded-for", "garbage".parse().unwrap());
-        assert_eq!(forwarded_ip(&h), None);
     }
 }

@@ -32,16 +32,19 @@ expires_at; unique (space_id, email)).
 
 - `GET /api/invites` (admin+) → pending, unexpired invitations `[ { id, email, role, invitedBy: { email,
   displayName }, createdAt, expiresAt } ]`, newest first. Expired rows are not listed (and are purged lazily).
-- `POST /api/invites { email, role, locale? }` (admin+) → `201 { …item, url }`:
-  - `url` = `{space url}/invite?token=…` — shown to the inviter once (copy button) **and** sent by e-mail through
-    the instance SMTP (cs / en by `locale`, default cs; subject and text name the space and the inviter). No SMTP
-    configured → the invitation is still created, the response carries `emailSent: false`; the e-mail is sent in
-    a spawned task otherwise (`emailSent: true` = queued; failures logged).
+- `POST /api/invites { email, role, locale? }` (admin+) → `201 { …item, emailSent, url? }`:
+  - **SMTP configured** → the link `{space url}/invite?token=…` is sent **only by e-mail** (cs / en by `locale`,
+    default cs; subject and text name the space and the inviter; a spawned task, failures logged) and the response
+    carries `emailSent: true` and **no `url`** — accepting then proves the invitee owns the address (security
+    review H1).
+  - **No SMTP** (a closed instance) → the invitation is created, the response carries `emailSent: false` and the
+    `url`, shown to the inviter once (copy button) to pass on.
   - Token: 32 random bytes base64url, stored sha256, **valid 7 days**, single use.
   - 422: `email: required | invalid | already_member`, `role: required | invalid | too_high`.
   - A pending invitation for the same e-mail is **replaced** (new role, new token, new expiry; the old link stops
     working).
-- `POST /api/invites/{id}/resend` (admin+) → `200 { …item, url }`: new token + new 7-day expiry, e-mail again.
+- `POST /api/invites/{id}/resend` (admin+) → `200 { …item, emailSent, url? }`: new token + new 7-day expiry, e-mail
+  again; `url` only without SMTP (as above).
 - `DELETE /api/invites/{id}` (admin+) → 204 (revoke). Unknown / foreign → 404.
 
 ## Accepting (space host, no auth)
@@ -61,8 +64,9 @@ expires_at; unique (space_id, email)).
 
 ## UI (space host)
 - Settings → **Členové** tab (admin+): members table (role select per row within the caller's rights, remove with
-  confirm, "(vy)" marker), "Pozvat" form (e-mail, role) → shows the link with copy + "e-mail odeslán / neodeslán",
-  pending invitations table (resend, revoke).
+  confirm, "(vy)" marker), "Pozvat" form (e-mail, role) → with SMTP "Odkaz byl odeslán e-mailem na {email}" (no
+  link, no copy field); without SMTP the link with copy + "e-mail neodeslán", pending invitations table (resend,
+  revoke).
 - Account page: **"Opustit space"** with confirm (hidden for the last owner, who sees why).
 - `/invite?token=…` page (no login): space name + role; existing account → e-mail (read-only) + password →
   "Přijmout pozvánku"; new account → name + password (≥ 12) → "Vytvořit účet a přijmout". Success → the app home.
@@ -72,7 +76,8 @@ expires_at; unique (space_id, email)).
 - Integration: invite → accept with an existing account and with a new account (registration off), wrong
   password, expired / used / replaced token, already member; role rules (admin vs owner, too_high, last owner on
   demote / remove / leave); removal and leave delete the member's sessions and tokens in that space only (other
-  spaces untouched); role change caps tokens; e-mail through the mock SMTP and `emailSent: false` without SMTP;
+  spaces untouched); role change caps tokens; with the mock SMTP the link only in the mail (no `url`), without SMTP
+  `emailSent: false` + `url`;
   isolation (another space's invite id / member id → 404).
 - Frontend: members tab (rights-based controls), invite flow with link copy, invite accept page both branches,
   leave.
@@ -118,9 +123,10 @@ expires_at; unique (space_id, email)).
 - Token: 32 random bytes base64url (43 chars), sha256 (hex) stored (`space_invites.token_hash`, unique);
   `expiresAt` = creation + exactly 7 days (RFC 3339). Expired rows are never served and are purged by
   `GET /api/invites` (that space's rows only).
-- `POST` / `resend` answer `{ …item, url, emailSent }`; `url` = `{space url}/invite?token=…`. `emailSent: false`
-  when SMTP is not configured (nothing is attempted); `true` = queued in a background task, a failure is logged at
-  `error`. Subject `{inviter} vás zve do {space}` / `{inviter} invites you to {space}` (inviter = the sender's
+- `POST` / `resend` answer `{ …item, emailSent, url? }`. With SMTP: `url` is **omitted** (the link exists only in
+  the e-mail), `emailSent: true` = queued in a background task, a failure is logged at `error` (`false` only when
+  the stored address cannot be used as a recipient — logged; resend after fixing it). Without SMTP: `emailSent:
+  false`, nothing is attempted, `url` = `{space url}/invite?token=…`. Subject `{inviter} vás zve do {space}` / `{inviter} invites you to {space}` (inviter = the sender's
   display name, space = its name; control characters → spaces), the text names the role (cs: vlastník, správce,
   člen, účetní; en: the role id) and the 7-day validity.
 - **Accept**: both routes exist only on a space host (base host → 404); a token of another space is unknown (404 /
@@ -145,11 +151,16 @@ expires_at; unique (space_id, email)).
   An account registered for the address between the lookup and the commit → 409 `conflict`, nothing committed.
 - The CSRF rule is the one of the other public auth routes: a present, foreign `Origin` → 403 `csrf`.
 - **Accepted risks** (decided with the product owner; kept as is):
-  - *Account enumeration*: an admin of any space (anyone can create one while `INVOICE__REGISTRATION` is on) can
-    invite an arbitrary address and read `accountExists` from `GET /api/invites/accept`.
-  - *Address squatting*: an admin can invite an address nobody has registered yet and accept the invitation
-    themselves (they hold the link), creating a **verified** account for that address with a password they chose.
-  - Mitigation: switch `INVOICE__REGISTRATION` off — it disables registration **and** space creation (403
+  - *Account enumeration* and *address squatting* — **only on an instance without SMTP**: there the inviter gets
+    the link, so an admin can invite an arbitrary address and read `accountExists` from `GET /api/invites/accept`,
+    or accept an invitation for an address nobody has registered yet and so create a **verified** account for it
+    with a password they chose (and a later Google sign-in with that address would link to it). With SMTP the link
+    goes only to the invitee's mailbox, which closes both. An instance without SMTP cannot have registration on
+    (the start is refused), so only admins of existing spaces — people the operator let in — can do this.
+  - *No instance-wide e-mail limit*: the buckets above (and the per-IP / per-address ones of [auth.md](auth.md))
+    bound one inviter, one space or one client, but many accounts and spaces together can still make the instance
+    send a lot of mail. Mitigation: open registration only to vetted users at first, or keep
+    `INVOICE__REGISTRATION=false` — it disables registration **and** space creation (403
     `space_creation_disabled`, also for invited accounts), so only people invited by an existing space's admins can
     enter, and only into those spaces.
 - New error code: 409 `last_owner` (remove, leave). Migration `m20261017_000001_space_invites` (`space_invites`,
