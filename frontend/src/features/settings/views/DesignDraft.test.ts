@@ -119,7 +119,7 @@ describe("DesignTab draft", () => {
   it.each([
     [reply(422, { code: "validation", fields: { path: "invalid" } }), "Invalid path or file extension.", null],
     [reply(422, { code: "validation", fields: { file: "too_large" } }), "The file is larger than 10 MB.", null],
-    [reply(422, { code: "quota_exceeded", detail: "49.8 MB / 50 MB" }), "The design storage quota is used up.", "49.8 MB / 50 MB"],
+    [reply(422, { code: "quota_exceeded", detail: "49.8 MB / 50 MB" }), "The storage quota is used up.", "49.8 MB / 50 MB"],
     [reply(409, { code: "design_busy" }), "Another design change is in progress. Try again in a moment.", null],
   ])("maps an upload failure to a message", async (answer, message, detail) => {
     mockFetchRoutes(routes({ "PUT /api/pdf/design/draft/file": answer }));

@@ -14,7 +14,9 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::preview::SampleSource;
-use super::{DRAFT_PREFIX, Version, VersionFile, files, in_txn, locked, repo, version_prefix};
+use super::{
+    DRAFT_PREFIX, Version, VersionFile, files, in_txn, locked, refresh_usage, repo, version_prefix,
+};
 use crate::app::AppState;
 use crate::auth::Manage;
 use crate::auth::ratelimit::DESIGN_SPACE;
@@ -159,6 +161,7 @@ pub async fn activate(
     let response = finish(&pdf, txn, result).await?;
     // Already live; a file re-uploaded meanwhile is kept.
     files::remove_applied(storage, &draft).await;
+    refresh_usage(&state.db, space, storage).await;
     Ok(response)
 }
 
@@ -236,7 +239,9 @@ pub async fn restore(
         record(&txn, &pdf, "revert", access.scope.user_id).await
     }
     .await;
-    finish(&pdf, txn, result).await
+    let response = finish(&pdf, txn, result).await?;
+    refresh_usage(&state.db, access.space(), pdf.storage()).await;
+    Ok(response)
 }
 
 #[utoipa::path(
@@ -261,5 +266,7 @@ pub async fn reset(
         record(&txn, &pdf, "default", access.scope.user_id).await
     }
     .await;
-    finish(&pdf, txn, result).await
+    let response = finish(&pdf, txn, result).await?;
+    refresh_usage(&state.db, access.space(), pdf.storage()).await;
+    Ok(response)
 }

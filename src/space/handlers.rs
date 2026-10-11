@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use super::entity::space;
+use super::limits::{self, StorageInfo};
 use super::{Role, repo, slug};
 use crate::app::AppState;
 use crate::auth::handlers::check_password;
@@ -26,6 +27,9 @@ pub struct SpaceInfo {
     pub url: String,
     /// New logins on this host need TOTP (`docs/api/mfa.md`).
     pub require_mfa: bool,
+    /// `GET` / `PUT /api/space` only: the hidden limits and the usage.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limits: Option<StorageInfo>,
 }
 
 fn info(state: &AppState, s: space::Model, role: Role) -> SpaceInfo {
@@ -35,7 +39,21 @@ fn info(state: &AppState, s: space::Model, role: Role) -> SpaceInfo {
         name: s.name,
         role,
         require_mfa: s.require_mfa,
+        limits: None,
     }
+}
+
+/// [`info`] of the current space, with its limits.
+async fn with_limits(
+    state: &AppState,
+    s: space::Model,
+    role: Role,
+) -> Result<Json<SpaceInfo>, AppError> {
+    let limits = limits::info(&state.db, super::SpaceId(s.id)).await?;
+    Ok(Json(SpaceInfo {
+        limits: Some(limits),
+        ..info(state, s, role)
+    }))
 }
 
 #[utoipa::path(
@@ -114,7 +132,7 @@ async fn current(state: &AppState, access_space: super::SpaceId) -> Result<space
 )]
 pub async fn get(State(state): State<AppState>, access: Read) -> Result<Json<SpaceInfo>, AppError> {
     let row = current(&state, access.space()).await?;
-    Ok(Json(info(&state, row, access.scope.role)))
+    with_limits(&state, row, access.scope.role).await
 }
 
 #[derive(Debug, Default, Deserialize, ToSchema)]
@@ -169,7 +187,7 @@ pub async fn update(
     }
     e.into_result()?;
     let row = repo::update(&state.db, access.space(), name, input.require_mfa).await?;
-    Ok(Json(info(&state, row, access.scope.role)))
+    with_limits(&state, row, access.scope.role).await
 }
 
 #[derive(Debug, Default, Deserialize, ToSchema)]

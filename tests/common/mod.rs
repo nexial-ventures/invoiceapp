@@ -36,6 +36,7 @@ pub mod design;
 pub mod documents;
 pub mod google;
 pub mod isdoc;
+pub mod limits;
 pub mod mcp;
 pub mod mdcast;
 pub mod members;

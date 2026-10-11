@@ -13,7 +13,7 @@ use crate::document::entity::document;
 use crate::error::AppError;
 use crate::pdf::PdfService;
 use crate::settings::doc_type::RECEIVED;
-use crate::space::SpaceId;
+use crate::space::{SpaceId, limits};
 use crate::storage;
 
 /// `documents/{year}/{id}-original-{sha8}.pdf`: content-addressed, so a
@@ -104,6 +104,9 @@ async fn put_in(
     let year = doc.number_year.unwrap_or(doc.issue_date.year());
     let rel = relative_path(year, id, &sha256);
     let previous = doc.original_path.clone();
+    let freed = doc
+        .original_size
+        .map_or(0, |n| u64::try_from(n).unwrap_or(0));
     let size = i64::try_from(bytes.len()).map_err(|_| AppError::TooLarge)?;
     let now = chrono::Utc::now();
     let mut row: document::ActiveModel = doc.into();
@@ -113,6 +116,7 @@ async fn put_in(
     row.original_uploaded_at = Set(Some(now.into()));
     row.updated_at = Set(now.into());
     row.update(txn).await?;
+    limits::check_documents(txn, space, bytes.len() as u64, freed).await?;
     Ok((rel, previous))
 }
 

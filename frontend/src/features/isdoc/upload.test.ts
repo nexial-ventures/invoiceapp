@@ -34,6 +34,7 @@ describe("isdoc upload helpers", () => {
 
   it("maps known entry codes and falls back for unknown ones; every key exists", () => {
     expect(entryErrorKey("foreign")).toBe("isdoc.entryError.foreign");
+    expect(entryErrorKey("quota_exceeded")).toBe("isdoc.entryError.quota_exceeded");
     expect(entryErrorKey("new_thing")).toBe("isdoc.entryError.unknown");
     expect(warningKey("pdf_skipped")).toBe("isdoc.warning.pdf_skipped");
     expect(warningKey("other")).toBe("isdoc.warning.unknown");

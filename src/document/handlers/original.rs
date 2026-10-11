@@ -60,7 +60,7 @@ pub fn is_pdf(bytes: &[u8]) -> bool {
         (status = 404, body = ErrorBody),
         (status = 409, description = "`invalid_state` (a native issued document)", body = ErrorBody),
         (status = 413, description = "`too_large`", body = ErrorBody),
-        (status = 422, description = "`file`: `required` / `invalid`", body = ErrorBody),
+        (status = 422, description = "`file`: `required` / `invalid`; `quota_exceeded` (+ `detail` `<used> / <limit> MB`, the space's storage quota)", body = ErrorBody),
         (status = 503, description = "`storage_unavailable`; nothing changed", body = ErrorBody),
     )
 )]

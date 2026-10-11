@@ -225,34 +225,45 @@ async fn storage_cmd(action: StorageAction) -> Result<()> {
     }
 }
 
-/// The storage of the space `slug` (looked up in the database).
-async fn space_storage(slug: &str) -> Result<Storage> {
+/// The space `slug` (looked up in the database) and its storage.
+async fn space_storage(slug: &str) -> Result<(DatabaseConnection, space::SpaceId, Storage)> {
     let cfg = DbConfig::from_env()?;
     let db = connect(cfg.database_url.expose()).await?;
     let space = space::repo::find_by_slug(&db, slug)
         .await
         .map_err(|e| anyhow::anyhow!("look up space {slug}: {e}"))?
         .with_context(|| format!("no space with slug {slug}"))?;
-    let prefix = space::SpaceId(space.id).storage_prefix();
-    Ok(open_storage()?.scoped(&prefix)?)
+    let space = space::SpaceId(space.id);
+    let storage = open_storage()?.scoped(&space.storage_prefix())?;
+    Ok((db, space, storage))
 }
 
 async fn design_cmd(action: DesignAction) -> Result<()> {
-    let storage = space_storage(action.space()).await?;
+    let (db, space, storage) = space_storage(action.space()).await?;
+    let changes = matches!(action, DesignAction::Push { .. } | DesignAction::Rm { .. });
+    let result = design_action(&storage, action).await;
+    if changes {
+        // Also after a partial failure: some files may have changed.
+        invoice::pdf::editor::refresh_usage(&db, space, &storage).await;
+    }
+    result
+}
+
+async fn design_action(storage: &Storage, action: DesignAction) -> Result<()> {
     match action {
         DesignAction::Push { dir, .. } => {
             let mut report = Report::default();
-            transfer::copy_tree(&storage, &dir, Some(DESIGN_PREFIX), true, &mut report).await?;
+            transfer::copy_tree(storage, &dir, Some(DESIGN_PREFIX), true, &mut report).await?;
             finish(&report)
         }
         DesignAction::Pull { dir, .. } => {
-            for rel in transfer::pull(&storage, DESIGN_PREFIX, &dir).await? {
+            for rel in transfer::pull(storage, DESIGN_PREFIX, &dir).await? {
                 println!("{rel}");
             }
             Ok(())
         }
         DesignAction::Ls { .. } => {
-            for f in design::list(&storage).await? {
+            for f in design::list(storage).await? {
                 let source = match f.source {
                     design::Source::Custom => "custom",
                     design::Source::Default => "default",
@@ -264,7 +275,7 @@ async fn design_cmd(action: DesignAction) -> Result<()> {
         DesignAction::Rm { paths, .. } => {
             let mut missing = 0;
             for path in paths {
-                if design::remove(&storage, &path).await? {
+                if design::remove(storage, &path).await? {
                     println!("removed    {path}");
                 } else {
                     eprintln!("not found  {path}");

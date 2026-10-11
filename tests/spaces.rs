@@ -250,7 +250,8 @@ async fn current_space_get_and_rename() {
     assert_eq!(s, StatusCode::OK);
     assert_eq!(
         j,
-        json!({ "slug": "acme", "name": "Space acme", "role": "owner", "url": "http://acme.localhost:3000", "requireMfa": false })
+        json!({ "slug": "acme", "name": "Space acme", "role": "owner", "url": "http://acme.localhost:3000", "requireMfa": false,
+            "limits": { "storageQuotaBytes": 104_857_600, "storageUsedBytes": 0 } })
     );
     let (s, j) = on(
         &app,

@@ -24,7 +24,7 @@ use crate::pdf::PdfService;
 use crate::settings::doc_type::{DocType, ISSUED, RECEIVED};
 use crate::settings::entity::bank_account;
 use crate::settings::repo::number_series;
-use crate::space::SpaceId;
+use crate::space::{SpaceId, limits};
 use crate::storage;
 use crate::validation::normalize_iban;
 
@@ -306,7 +306,15 @@ pub async fn import(
     opts: &Options,
 ) -> Result<Uuid, AppError> {
     let txn = db.begin().await?;
-    let stored = match insert(&txn, pdf.space_id(), plan, file.as_deref(), rate, opts).await {
+    let space = pdf.space_id();
+    let added = file.as_ref().map_or(0, |b| b.len() as u64);
+    let inserted = async {
+        let stored = insert(&txn, space, plan, file.as_deref(), rate, opts).await?;
+        limits::check_documents(&txn, space, added, 0).await?;
+        Ok(stored)
+    }
+    .await;
+    let stored = match inserted {
         Ok(s) => s,
         Err(e) => return Err(rollback(txn, e).await),
     };

@@ -67,6 +67,9 @@ pub struct Model {
     pub pdf_path: Option<String>,
     pub pdf_sha256: Option<String>,
     pub pdf_rendered_at: Option<DateTimeWithTimeZone>,
+    /// Bytes of the archived PDF (counted by the space's storage quota);
+    /// NULL for archives written before it was recorded.
+    pub pdf_size: Option<i64>,
     /// Received documents: the supplier's own number and the receipt date.
     pub supplier_number: Option<String>,
     pub received_date: Option<Date>,

@@ -37,13 +37,53 @@ Base context (session of a verified user, [auth.md](auth.md)):
   e-mail templates, accounting settings, … — every former global seed, now per space).
 
 Space context:
-- `GET /api/space` (any role) → `{ slug, name, url, role }` (the caller's role).
+- `GET /api/space` (any role) → `{ slug, name, url, role, limits: { storageQuotaBytes, storageUsedBytes } }` (the
+  caller's role; `limits` read-only, [Limits](#limits)).
 - `PUT /api/space { name }` (admin+) → the same shape.
 - `DELETE /api/space { slug, password }` (owner, **session only** — a token gets 403 `forbidden`) → `204`.
   `slug` must equal the space slug (422 `slug: mismatch`), `password` must be the caller's password (422
   `password: invalid`). Deletes in one transaction every row of the space (all tables, memberships, tokens, its
   sessions), then deletes the storage prefix `spaces/{id}/`. A storage failure after the commit is logged at
   `error` and does not fail the request (orphaned files only). The slug becomes free again.
+
+## Limits
+Every space has one hidden row in `space_limits` (space_id PK → `spaces` `ON DELETE CASCADE`,
+`storage_quota_bytes bigint NOT NULL DEFAULT 104857600` = 100 MiB, `created_at`, `updated_at`), created with the space
+(and by the migration for every existing space). **No route changes it and there is no global admin role**: an
+operator changes it directly in the database. A space without a row gets the defaults.
+
+```sql
+-- Raise the storage quota of the space `firma` to 500 MiB.
+UPDATE space_limits SET storage_quota_bytes = 500 * 1024 * 1024, updated_at = now()
+WHERE space_id = (SELECT id FROM spaces WHERE slug = 'firma');
+-- Current quota and usage of every space.
+SELECT s.slug, l.storage_quota_bytes,
+       (SELECT COALESCE(SUM(COALESCE(d.original_size, 0) + COALESCE(d.pdf_size, 0)), 0)
+          FROM documents d WHERE d.space_id = s.id)
+       + COALESCE((SELECT design_bytes FROM space_storage_usage u WHERE u.space_id = s.id), 0) AS used_bytes
+FROM spaces s LEFT JOIN space_limits l ON l.space_id = s.id ORDER BY s.slug;
+```
+
+**Storage quota.** The usage counts every stored object of the space: originals of received / imported documents
+(`documents.original_size`), the issued-PDF archive (`documents.pdf_size`) and the PDF design files — live, draft and
+kept versions ([design.md](design.md)). It comes from the database, never from listing storage: the document sizes are
+summed from `documents` (so deleting an original or a document lowers it in the same transaction), the design bytes
+are recorded in `space_storage_usage.design_bytes` by every design listing and after every design change (also
+`invoice design push|rm`). Small storage objects outside these (e-mail templates) are not counted.
+
+- Refused with **422 `{"code":"quota_exceeded","detail":"<used> / <limit> MB"}`** (`used` = before the upload, MiB
+  with one decimal; `limit` in MiB, whole when it is a whole number) when an upload would grow the usage past the
+  quota: an original upload (`PUT /api/documents/{id}/original`; a replacement counts only what it adds), an ISDOC
+  import with PDFs (`confirm`: the PDFs of all selected entries are checked up front — nothing is imported; an entry
+  that still fails when stored, e.g. after a concurrent upload, gets the per-entry error `quota_exceeded`), a design
+  draft upload (on top of the design's own 50 MB, [design.md](design.md)). CSV imports carry no PDFs.
+- A write that does not grow the usage always passes (replacing a file by a smaller one, an import entry without a
+  PDF), also when an operator lowered the quota below the usage.
+- **Issuing is never blocked:** the archived PDF counts toward the usage but no issue / archive path checks the quota.
+  Neither do design activation / restore / reset (recovery stays possible).
+- Checks of one space are serialized (a transaction-scoped advisory lock taken last before the storage write), so
+  concurrent uploads cannot both use the same remaining space.
+- Settings → Space shows the usage as a bar (`used` of `limit`) to every role that sees the tab.
 
 ## Memberships and roles
 Table `space_members` (space_id, user_id, role, created_at; unique pair). The creator is `owner`. Invitations and
@@ -181,6 +221,9 @@ For MCP and scripts. A token belongs to **one user in one space** and works only
   `Origin` it is unaffected.
 - Members are added through invitations since 4b ([members.md](members.md)); the role tests still write
   `space_members` rows directly (`tests/common/auth.rs::member`), which is simpler.
+- **Limits** (as implemented): `limits` is in the `GET` and `PUT /api/space` answers only (not in `GET /api/spaces` /
+  `POST /api/spaces`). Archives written before the limits migration have `pdf_size` NULL and count 0; the design
+  bytes start at 0 and are recorded by the next design listing (Settings → Design) or change.
 - **4c** ([mfa.md](mfa.md)): `SpaceInfo` gains `requireMfa`; `PUT /api/space` takes `{ name?, requireMfa? }`
   (`requireMfa` owner only, session only, needs the owner's TOTP and a step-up `code`, on and off); `DELETE
   /api/space` and `POST /api/tokens` take a step-up `code` for users with TOTP; `POST /api/tokens` in a space with

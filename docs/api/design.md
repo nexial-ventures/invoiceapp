@@ -25,6 +25,11 @@ are never re-rendered (1d). All routes are on a space host, **admin+** (Settings
 - File ≤ 10 MB (as today). **Quota per space: 50 MB** over live + draft + kept versions (counted by stored object
   size). A file over 10 MB → 422 `{"code":"validation","fields":{"file":"too_large"}}`; over the quota → 422
   `{"code":"quota_exceeded","detail":"<used> / 50 MB"}`. Bad path / extension → 422 `path: invalid`.
+- **Space quota** ([spaces.md](spaces.md#limits)): the same design bytes also count toward the space's storage quota
+  (100 MB by default, shared with originals and the PDF archive). A draft upload must fit **both**: the 50 MB design
+  quota is checked first (`detail` `<used> / 50 MB`), then the space quota (`detail` `<space used> / <space limit>
+  MB`, the space usage = documents from the database + the design `used` just listed). Every design listing and
+  change records the design bytes for the space usage (`space_storage_usage`).
 - `invoice.typ` must be UTF-8 (1d rule).
 - **Lock**: every draft change, activation, restore and reset takes the space's lock without waiting; held by another
   change → 409 `{"code":"design_busy"}`, nothing changed (the UI retries or tells the user to try again).
@@ -116,7 +121,8 @@ are never re-rendered (1d). All routes are on a space host, **admin+** (Settings
   (hidden ones included; the three listings run concurrently and serve the whole request). An upload is refused
   when `used − (draft file it replaces) + new size > 50 MB`; `detail` = the current `used` in MiB, one decimal
   (`"46.0 / 50 MB"`). Activation, restore and reset are not quota-checked (recovery must stay possible; keeping 10
-  versions bounds the growth). On `fs` a copy is a hard link, so the disk use can be lower than `used`.
+  versions bounds the growth) — neither by the design quota nor by the space quota. On `fs` a copy is a hard link,
+  so the disk use can be lower than `used`.
 - **Download**: `source` defaults to `live`; `live` is the effective file (custom, else default); an unknown
   `source` → 422 `source: invalid`. `Content-Type` by extension, `Cache-Control: no-store`, filename = last segment.
 - **Preview / checks**: the draft preview and the checks render `embedded ∪ (live − deleted) ∪ draft` (a restore

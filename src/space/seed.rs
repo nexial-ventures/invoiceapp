@@ -1,6 +1,7 @@
 //! Everything a fresh space starts with — the rows a single-tenant instance
 //! used to get from its migrations: the company profile row, the default VAT
-//! rates, all fourteen number series and the accounting settings row.
+//! rates, all fourteen number series and the accounting settings row — plus
+//! the hidden limits row with the defaults.
 
 use sea_orm::{ConnectionTrait, DatabaseTransaction, Statement};
 use uuid::Uuid;
@@ -51,6 +52,7 @@ pub async fn seed(txn: &DatabaseTransaction, space: SpaceId) -> Result<(), AppEr
         vec![space.into()],
     ))
     .await?;
+    super::limits::seed(txn, space).await?;
     for (rate, label, is_default, position) in VAT_RATES {
         txn.execute(exec(
             "INSERT INTO vat_rates (id, space_id, rate, label, is_default, position) \

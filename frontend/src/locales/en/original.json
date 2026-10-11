@@ -7,5 +7,6 @@
   "hint": "The document's PDF as you received it (20 MB at most).",
   "notPdf": "The file is not a PDF.",
   "tooLarge": "The file is too large (20 MB at most).",
-  "confirmDelete": "Really delete the uploaded PDF?"
+  "confirmDelete": "Really delete the uploaded PDF?",
+  "quotaExceeded": "The file does not fit the storage quota of the space ({detail}). Delete files you no longer need, or ask the operator for a higher quota."
 }

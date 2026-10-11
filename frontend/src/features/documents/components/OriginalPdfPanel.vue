@@ -4,7 +4,7 @@ import { useI18n } from "vue-i18n";
 import { useErrorText } from "@/composables/useAction";
 import { usePdf } from "@/composables/usePdf";
 import { formatBytes } from "@/lib/bytes";
-import { fieldErrorsOf } from "@/lib/formErrors";
+import { fieldErrorsOf, isApiError } from "@/lib/formErrors";
 import { documentsApi } from "../api";
 import { formatDate } from "../format";
 import { checkOriginalFile } from "../original";
@@ -33,7 +33,9 @@ async function act(action: () => Promise<void>) {
   try {
     await action();
   } catch (err) {
-    error.value = fieldErrorsOf(err)?.file ? t("original.notPdf") : errorText(err);
+    if (fieldErrorsOf(err)?.file) error.value = t("original.notPdf");
+    else if (isApiError(err, 422, "quota_exceeded")) error.value = t("original.quotaExceeded", { detail: err.detail ?? "" });
+    else error.value = errorText(err);
   } finally {
     busy.value = false;
   }

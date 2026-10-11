@@ -7,6 +7,7 @@ import ImportResultTable from "@/features/imports/components/ImportResultTable.v
 import { MAX_UPLOAD_BYTES, totalBytes } from "@/features/imports/upload";
 import { useImportPage } from "@/features/imports/useImportPage";
 import { formatBytes } from "@/lib/bytes";
+import { isApiError } from "@/lib/formErrors";
 import IsdocBatchOptions from "../components/IsdocBatchOptions.vue";
 import IsdocPreviewTable from "../components/IsdocPreviewTable.vue";
 import { useIsdocImportStore } from "../store";
@@ -15,6 +16,7 @@ import { ACCEPT_ATTR, entryErrorKey, partitionFiles, uploadErrorKey } from "../u
 const { t, locale } = useI18n();
 const store = useIsdocImportStore();
 const { busy, error, backTo, act } = useImportPage((err) => {
+  if (isApiError(err, 422, "quota_exceeded")) return t("isdoc.upload.quotaExceeded", { detail: err.detail ?? "" });
   const key = uploadErrorKey(err);
   return key ? t(key) : null;
 });

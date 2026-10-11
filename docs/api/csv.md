@@ -255,7 +255,8 @@ Mapping
 - **Confirm** runs on the ISDOC pipeline (now `src/import/`):
   - rank order (originals first);
   - one transaction per row with the advisory lock and the duplicate re-check;
-  - failure codes `duplicate`, `number_taken`, `storage_unavailable`, `internal`;
+  - failure codes `duplicate`, `number_taken`, `storage_unavailable`, `internal` (CSV rows carry no PDF, so the
+    space's storage quota never refuses them);
   - the database lookups only for the selected rows.
 - **Sample:** the rate columns are Settings → VAT rates plus 21 % (the rate the example rows use). Dates are fixed in
   2026. Categories are `Služby` (issued) and `Software` (received). The parties are IČO 12345679 / 87654326.

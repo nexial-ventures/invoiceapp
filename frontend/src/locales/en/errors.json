@@ -34,7 +34,7 @@
   "mfaInvalid": "Wrong code.",
   "mfaRequired": "This space requires two-factor authentication, which your account does not have. Turn it on in your account on the main site and sign in again.",
   "mfaEnabled": "Two-factor authentication is already on.",
-  "quotaExceeded": "The design storage quota is used up.",
+  "quotaExceeded": "The storage quota is used up.",
   "designInvalid": "The design cannot be rendered – nothing was changed.",
   "draftEmpty": "The draft is empty – there is nothing to activate.",
   "designBusy": "Another design change is in progress. Try again in a moment.",

@@ -23,6 +23,14 @@ export interface Space {
   url: string;
   /** Members must use TOTP to sign in (from their next login). */
   requireMfa: boolean;
+  /** `GET` / `PUT /api/space` only: the hidden limits (changed by the operator, never through the API). */
+  limits?: SpaceLimits;
+}
+
+export interface SpaceLimits {
+  storageQuotaBytes: number;
+  /** Originals, archived PDFs and design files. */
+  storageUsedBytes: number;
 }
 
 /** `PUT /api/space`; `requireMfa` is owner only. */

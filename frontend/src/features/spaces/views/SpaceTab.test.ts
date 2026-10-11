@@ -31,6 +31,22 @@ describe("SpaceTab", () => {
     expect(session.context?.space?.name).toBe("Nová firma");
   });
 
+  it("shows the storage usage against the quota, read-only", async () => {
+    const limits = { storageQuotaBytes: 100 * 1024 * 1024, storageUsedBytes: 85 * 1024 * 1024 };
+    mockFetchRoutes({ "GET /api/space": { ...current("admin"), limits } });
+    const { w } = await mountTab("admin");
+    expect(w.find('[data-test="space-storage-text"]').text()).toBe("Used 85 MB of 100 MB");
+    expect(w.find('[data-test="space-storage-bar"]').attributes("style")).toContain("width: 85%");
+    expect(w.find('[data-test="space-storage-bar"]').classes()).toContain("bg-amber-500");
+    expect(w.find('[data-test="storage-usage"] input').exists()).toBe(false);
+  });
+
+  it("hides the storage section without limits", async () => {
+    mockFetchRoutes({ "GET /api/space": current("admin") });
+    const { w } = await mountTab("admin");
+    expect(w.find('[data-test="storage-usage"]').exists()).toBe(false);
+  });
+
   it("offers deletion only to the owner", async () => {
     mockFetchRoutes({ "GET /api/space": current("admin") });
     let { w } = await mountTab("admin");

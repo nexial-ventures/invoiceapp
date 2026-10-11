@@ -13,7 +13,8 @@
     "tooLarge": "The files are too large together (50 MB at most).",
     "tooMany": "Too many documents at once (500 at most). Split the import into smaller parts.",
     "unpackedTooLarge": "The unpacked archives are too large (200 MB at most). Split the import into smaller parts.",
-    "category": "The chosen category is no longer active. Pick another one."
+    "category": "The chosen category is no longer active. Pick another one.",
+    "quotaExceeded": "The PDFs of the selected documents do not fit the storage quota of the space ({detail}). Import fewer documents or delete files."
   },
   "preview": {
     "empty": "No ISDOC document was found in the files."
@@ -34,6 +35,7 @@
     "duplicate": "The document already exists (created meanwhile).",
     "number_taken": "The number from the received series is already taken. Check the counter in Settings.",
     "unsupported_currency": "Unsupported local currency (CZK expected)",
+    "quota_exceeded": "The PDF does not fit the storage quota of the space.",
     "unknown": "Error ({code})."
   },
   "warning": {

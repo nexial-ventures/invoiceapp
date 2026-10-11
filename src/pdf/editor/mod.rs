@@ -26,6 +26,8 @@ use uuid::Uuid;
 use super::design::QR_IMAGE;
 use crate::app::AppState;
 use crate::error::AppError;
+use crate::space::{SpaceId, limits};
+use crate::storage::Storage;
 
 pub use handlers::DesignListing;
 
@@ -105,9 +107,18 @@ pub fn version_prefix(id: Uuid) -> String {
     format!("{VERSIONS_PREFIX}/{id}")
 }
 
-/// `12.3` (MiB, one decimal) for the quota detail.
-fn megabytes(bytes: u64) -> String {
-    format!("{:.1}", bytes as f64 / (1024.0 * 1024.0))
+/// Record the space's stored design bytes for its storage quota
+/// (`space::limits`) after a change; best effort — every design listing
+/// records them again.
+pub async fn refresh_usage(db: &DatabaseConnection, space: SpaceId, storage: &Storage) {
+    let result: Result<(), AppError> = async {
+        let stored = files::Stored::load(storage).await?;
+        limits::record_design(db, space, stored.usage()).await
+    }
+    .await;
+    if let Err(e) = result {
+        tracing::warn!(space = %space, error = %e, "record the design storage usage");
+    }
 }
 
 /// Who made a change; `null` once the account is deleted.
@@ -145,7 +156,7 @@ pub struct Version {
 /// draft row (created on first use), or 409 `design_busy`.
 async fn locked(
     db: &DatabaseConnection,
-    space: crate::space::SpaceId,
+    space: SpaceId,
 ) -> Result<(DatabaseTransaction, entity::draft::Model), AppError> {
     repo::ensure(db, space).await?;
     let txn = begin(db).await?;
@@ -254,14 +265,12 @@ mod tests {
     }
 
     #[test]
-    fn keys_and_sizes() {
+    fn keys() {
         assert_eq!(draft_key("fonts/a.ttf"), "design-draft/fonts/a.ttf");
         let id = Uuid::nil();
         assert_eq!(
             version_prefix(id),
             "design-versions/00000000-0000-0000-0000-000000000000"
         );
-        assert_eq!(megabytes(QUOTA_BYTES), "50.0");
-        assert_eq!(megabytes(1024 * 1024 + 300 * 1024), "1.3");
     }
 }

@@ -170,7 +170,8 @@ pub enum AppError {
     #[error("the design draft is empty")]
     DraftEmpty,
 
-    /// The space's design storage quota (`detail`: `<used> / 50 MB`).
+    /// A storage quota: the space's (`detail`: `<used> / <limit> MB`) or
+    /// the design's own (`<used> / 50 MB`).
     #[error("quota exceeded: {0}")]
     QuotaExceeded(String),
 
