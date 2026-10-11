@@ -72,7 +72,7 @@ pub struct CreateInput {
     request_body = CreateInput,
     responses(
         (status = 201, body = SpaceInfo),
-        (status = 403, description = "`email_unverified`", body = ErrorBody),
+        (status = 403, description = "`space_creation_disabled` (`INVOICE__REGISTRATION` off), `email_unverified`", body = ErrorBody),
         (status = 422, description = "`slug: required | invalid | reserved | taken`, `name: required | too_long`", body = ErrorBody),
     )
 )]
@@ -81,6 +81,9 @@ pub async fn create(
     authed: Authed,
     ApiJson(input): ApiJson<CreateInput>,
 ) -> Result<(StatusCode, Json<SpaceInfo>), AppError> {
+    if !state.registration {
+        return Err(AppError::SpaceCreationDisabled);
+    }
     if authed.user.email_verified_at.is_none() {
         return Err(AppError::EmailUnverified);
     }

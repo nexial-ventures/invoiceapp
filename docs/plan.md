@@ -179,7 +179,8 @@ defaults; #3 comments) → 4f per-space design versions / preview (rest of #10).
 - 4a: one space = one own company. Space per **subdomain** `{slug}.{base host}` of `INVOICE__PUBLIC_URL`
   (`invoiceapp.cz`); the base host hosts registration, login and the "my spaces" hub. Slug immutable, validated,
   reserved names. `INVOICE__API_TOKEN` removed; **public registration** (e-mail verification required, SMTP
-  required) behind `INVOICE__REGISTRATION`; no CLI bootstrap, no superadmin, no limit on spaces per user. Sessions
+  required) behind `INVOICE__REGISTRATION`, which also gates creating spaces (off → only invited people, into
+  existing spaces); no CLI bootstrap, no superadmin, no limit on spaces per user. Sessions
   host-only (log in again on each space host, no handoff); idle 14 d / absolute 90 d; password ≥ 12, argon2id;
   reset by e-mail. Roles owner / admin / member / accountant with a fixed matrix; tokens bound to one user + space
   with role ≤ membership. Root tables carry `space_id`, children via parent, repo API takes `SpaceId`; ČNB rates

@@ -156,7 +156,7 @@ async fn tokens_work_only_on_their_space_host() {
 #[tokio::test]
 async fn space_create_rules() {
     let db = TestDb::new().await;
-    let app = router(db.conn.clone());
+    let app = common::router_open(db.conn.clone());
     let cookie = login(&app, BASE_HOST, OWNER_EMAIL, OWNER_PASSWORD)
         .await
         .expect("login");

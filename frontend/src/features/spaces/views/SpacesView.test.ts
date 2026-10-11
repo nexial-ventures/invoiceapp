@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises } from "@vue/test-utils";
 import { i18n } from "@/i18n";
 import { useSessionStore } from "@/stores/session";
-import { calls, meFixture, mockFetchRoutes, reply, sentRequest } from "@/test-utils";
+import { BASE_CONTEXT, calls, meFixture, mockFetchRoutes, reply, sentRequest } from "@/test-utils";
 import { mountView } from "@/testMount";
 import type { Space } from "../types";
 import SpacesView from "./SpacesView.vue";
@@ -91,5 +91,23 @@ describe("SpacesView", () => {
     await flushPromises();
     expect(w.find('[data-test="unverified"]').exists()).toBe(true);
     expect(w.find('[data-test="new-space"]').exists()).toBe(false);
+  });
+
+  it("replaces the form by a note while registration (and so space creation) is off", async () => {
+    mockFetchRoutes({ "GET /api/spaces": [space("alfa", "Alfa")] });
+    const { w } = await mountView(SpacesView, { path: "/", role: null, context: { ...BASE_CONTEXT, registration: false } });
+    expect(w.find('[data-test="new-space"]').exists()).toBe(false);
+    expect(w.find('[data-test="creation-disabled"]').text()).toBe("Creating new spaces is disabled on this instance.");
+    expect(w.findAll('[data-test="space-row"]')).toHaveLength(1);
+  });
+
+  it("shows a readable message when the server refuses creation", async () => {
+    mockFetchRoutes({ "GET /api/spaces": [], "POST /api/spaces": reply(403, { code: "space_creation_disabled" }) });
+    const { w } = await mountHub();
+    await w.find('[data-test="space-name"]').setValue("Firma");
+    await w.find('[data-test="space-slug"]').setValue("firma");
+    await w.find('[data-test="new-space"]').trigger("submit");
+    await flushPromises();
+    expect(w.find('[data-test="new-space-error"]').text()).toBe(i18n.global.t("errors.spaceCreationDisabled"));
   });
 });

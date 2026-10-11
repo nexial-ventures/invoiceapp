@@ -30,7 +30,9 @@ not reserved (`www`, `api`, `app`, `admin`, `mail`, `smtp`, `static`, `assets`, 
 Base context (session of a verified user, [auth.md](auth.md)):
 - `GET /api/spaces` → `[ { slug, name, role, url } ]` — the user's memberships, by name.
 - `POST /api/spaces { slug, name }` → `201 { slug, name, role: "owner", url }`. 422: `slug: required | invalid |
-  reserved | taken`, `name: required | too_long`. No limit on the number of spaces per user. Creation also creates
+  reserved | taken`, `name: required | too_long`; 403 `space_creation_disabled` while `INVOICE__REGISTRATION` is off
+  (only invited people enter such an instance, [members.md](members.md)). No limit on the number of spaces per user.
+  Creation also creates
   everything a fresh instance used to get from migrations (company profile row, default VAT rates, number series,
   e-mail templates, accounting settings, … — every former global seed, now per space).
 
@@ -126,8 +128,11 @@ For MCP and scripts. A token belongs to **one user in one space** and works only
 - Space-host-only routes on the base host → 404 **before** authentication (also without credentials);
   `/api/spaces` on a space host → 404. An unknown `/api/*` path on a known host → 404 with or without credentials
   (before 4a it was 401 without the token).
-- `GET /api/spaces` sorts by name (case-insensitive), then slug. `POST /api/spaces`: an unverified caller → 403
-  `email_unverified` before validation; slug trimmed, not lowercased (`Firma` → `invalid`); name trimmed, 1–200.
+- `GET /api/spaces` sorts by name (case-insensitive), then slug. `POST /api/spaces`: registration off → 403
+  `space_creation_disabled` first for any signed-in caller with a well-formed JSON body (auth and the JSON extractor
+  run before the handler), then an unverified caller → 403 `email_unverified`, both before validation; the hub hides
+  the "new space" form while `context.registration` is false; slug trimmed, not lowercased (`Firma` → `invalid`);
+  name trimmed, 1–200.
   `taken` comes from the unique index (also a concurrent create).
 - **Minimum roles** as implemented (extractors `Read` / `Write` / `Manage` / `Own` in `src/auth/ctx.rs`): every GET
   `accountant` (incl. PDFs, exports, ISDOC, `GET /api/pdf/preview`, `/api/pdf/design`, ARES, exchange rates, e-mail

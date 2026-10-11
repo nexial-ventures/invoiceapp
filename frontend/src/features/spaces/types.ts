@@ -6,7 +6,7 @@ export type Role = (typeof ROLES)[number];
 export interface AppContext {
   kind: "base" | "space";
   space: { slug: string; name: string } | null;
-  /** Public registration is enabled on the base host. */
+  /** Public registration on the base host; also gates creating spaces (`POST /api/spaces`). */
   registration: boolean;
   /** Sign in with Google is configured (the Google buttons are shown). */
   google: boolean;

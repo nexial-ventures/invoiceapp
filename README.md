@@ -27,7 +27,7 @@ and open `http://localhost:3000` / `http://<slug>.localhost:3000`.
 
 Bootstrap = registration: with `INVOICE__REGISTRATION=true` (needs SMTP) register on the base host
 (`http://localhost:5173`), confirm the e-mail, create a space (`firma`) and log in on its host
-(`http://firma.localhost:5173`). Disable registration afterwards if you want. Hosts, roles and tokens:
+(`http://firma.localhost:5173`). Disable registration afterwards if you want (this also disables creating further spaces, including for you). Hosts, roles and tokens:
 [docs/api/spaces.md](docs/api/spaces.md), [docs/api/auth.md](docs/api/auth.md).
 
 ## Make targets
@@ -99,7 +99,8 @@ PDFs need an mdcast (`INVOICE__MDCAST_URL`, `INVOICE__MDCAST_TOKEN`).
   are also `Secure` only with `https`.
 - **`INVOICE__SECRET_KEY`** (`openssl rand -base64 32`) is permanent: changing or losing it makes every enrolled
   TOTP secret and every recovery code unusable.
-- **`INVOICE__REGISTRATION=true`** requires SMTP (`INVOICE__SMTP__*`); the start is refused otherwise.
+- **`INVOICE__REGISTRATION=true`** requires SMTP (`INVOICE__SMTP__*`); the start is refused otherwise. `false` also
+  disables creating spaces (403 `space_creation_disabled`): only people invited into existing spaces can enter.
 - **Sign in with Google** (optional): the only redirect URI to register is
   `{INVOICE__PUBLIC_URL}/api/auth/google/callback`.
 - **Storage:** the image's `/data` volume (`INVOICE__STORAGE_KIND=fs`, default) or an S3-compatible bucket

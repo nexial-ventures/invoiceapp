@@ -5,7 +5,8 @@ login code step, step-up codes and `user.mfaEnabled` in [mfa.md](mfa.md). Sign i
 without a password, `user.hasPassword` / `googleLinked`: [google.md](google.md).
 
 ## Config
-- `INVOICE__REGISTRATION` (`true` / `false`, default `false`): public registration on the base host. `true` requires
+- `INVOICE__REGISTRATION` (`true` / `false`, default `false`): public registration on the base host **and** creating
+  spaces (`POST /api/spaces`; off → 403 `space_creation_disabled`, [spaces.md](spaces.md)). `true` requires
   SMTP to be configured (startup fails otherwise) — verification and reset e-mails go through the instance SMTP
   (2a), `From` = the configured sender.
 - `INVOICE__TRUST_FORWARDED` (default `false`): take the client IP for rate limits from the **last**
@@ -13,7 +14,8 @@ without a password, `user.hasPassword` / `googleLinked`: [google.md](google.md).
   otherwise the socket address.
 - `INVOICE__API_TOKEN` is removed (startup ignores it; `.env.example` and docs drop it).
 - **Bootstrap = registration.** There is no CLI user / space creation; the first user registers like anyone else
-  (enable registration, register, disable it if wanted).
+  (enable registration, register, disable it if wanted — this also disables creating further spaces, including for
+  you).
 
 ## Users
 Table `users` (id, email unique lowercased + trimmed, display_name, password_hash argon2id — `NULL` for an account

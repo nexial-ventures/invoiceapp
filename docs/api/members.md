@@ -149,8 +149,9 @@ expires_at; unique (space_id, email)).
     invite an arbitrary address and read `accountExists` from `GET /api/invites/accept`.
   - *Address squatting*: an admin can invite an address nobody has registered yet and accept the invitation
     themselves (they hold the link), creating a **verified** account for that address with a password they chose.
-  - Mitigation: switch `INVOICE__REGISTRATION` off — then nobody can create a space on their own and only people
-    invited by an existing space's admins can enter.
+  - Mitigation: switch `INVOICE__REGISTRATION` off — it disables registration **and** space creation (403
+    `space_creation_disabled`, also for invited accounts), so only people invited by an existing space's admins can
+    enter, and only into those spaces.
 - New error code: 409 `last_owner` (remove, leave). Migration `m20261017_000001_space_invites` (`space_invites`,
   FKs to `spaces` and `users` (`invited_by`) with `ON DELETE CASCADE`, unique `(space_id, email)` and
   `token_hash`).
