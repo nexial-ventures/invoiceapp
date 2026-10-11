@@ -170,7 +170,7 @@ Bearer`; a cookie mutation without the own `Origin` → 403 `csrf`.
 | `INVOICE__DATABASE_URL` | yes | — | Postgres URL |
 | `INVOICE__PUBLIC_URL` | serve | — | `http(s)://host[:port]`: base host (registration, login, "my spaces"); spaces at `{slug}.{host}` |
 | `INVOICE__SECRET_KEY` | serve | — | 32 bytes base64 (`openssl rand -base64 32`): AES-256-GCM of TOTP secrets, HMAC of recovery codes ([api/mfa.md](api/mfa.md)); missing / wrong length → start refused; changing it breaks every enrolled TOTP |
-| `INVOICE__REGISTRATION` | no | `false` | public registration on the base host; `true` needs SMTP (start refused otherwise) |
+| `INVOICE__REGISTRATION` | no | `false` | public registration on the base host and creating spaces (`false` → `POST /api/spaces` 403 `space_creation_disabled`); `true` needs SMTP (start refused otherwise) |
 | `INVOICE__TRUST_FORWARDED` | no | `false` | client IP for the auth rate limits from the **last** `X-Forwarded-For` hop (the reverse proxy must append to the header, not pass the client's through) |
 | `INVOICE__GOOGLE__CLIENT_ID`, `INVOICE__GOOGLE__CLIENT_SECRET` | no | — | Sign in with Google: both or neither (one only → start refused); redirect URI `{INVOICE__PUBLIC_URL}/api/auth/google/callback` |
 | `INVOICE__GOOGLE__ISSUER` | no | `https://accounts.google.com` | OpenID discovery base (https; http only for a loopback host, e.g. a test mock) |

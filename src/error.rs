@@ -36,6 +36,11 @@ pub enum AppError {
     #[error("e-mail not verified")]
     EmailUnverified,
 
+    /// `POST /api/spaces` while `INVOICE__REGISTRATION` is off: only invited
+    /// people may enter the instance, so nobody creates a space of their own.
+    #[error("space creation disabled")]
+    SpaceCreationDisabled,
+
     /// The space requires TOTP and the user has none (login, invitation
     /// accept). `account_created`: an invitation created the account
     /// without a membership (`detail: "account_created"`).
@@ -204,6 +209,7 @@ impl AppError {
             Self::InvalidCredentials => (StatusCode::UNAUTHORIZED, "invalid_credentials"),
             Self::Forbidden => (StatusCode::FORBIDDEN, "forbidden"),
             Self::EmailUnverified => (StatusCode::FORBIDDEN, "email_unverified"),
+            Self::SpaceCreationDisabled => (StatusCode::FORBIDDEN, "space_creation_disabled"),
             Self::MfaRequired { .. } => (StatusCode::FORBIDDEN, "mfa_required"),
             Self::MfaInvalid => (StatusCode::UNAUTHORIZED, "mfa_invalid"),
             Self::MfaEnabled => (StatusCode::CONFLICT, "mfa_enabled"),

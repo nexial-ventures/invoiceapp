@@ -155,7 +155,8 @@ async fn space_delete_removes_rows_files_and_frees_the_slug() {
     )
     .await;
     assert_eq!(s, StatusCode::OK);
-    // The slug is free again.
+    // The slug is free again (space creation needs registration on).
+    let app = common::router_open(db.conn.clone());
     let base = login(&app, BASE_HOST, OWNER_EMAIL, OWNER_PASSWORD)
         .await
         .expect("still a user");

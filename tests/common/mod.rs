@@ -163,6 +163,19 @@ pub fn router(db: DatabaseConnection) -> Router {
     router_with_ares(db, DEFAULT_ARES_URL)
 }
 
+/// [`router`] with `INVOICE__REGISTRATION` on, so `POST /api/spaces` is allowed.
+pub fn router_open(db: DatabaseConnection) -> Router {
+    let (mdcast_url, _) = mdcast::spawn();
+    let mut state = state(
+        db,
+        DEFAULT_ARES_URL,
+        DEFAULT_CNB_URL,
+        pdf_service(&mdcast_url, shared_storage()),
+    );
+    state.registration = true;
+    app(state)
+}
+
 /// App router with ARES at `ares_url` (a local mock server in tests).
 pub fn router_with_ares(db: DatabaseConnection, ares_url: &str) -> Router {
     router_with(db, ares_url, DEFAULT_CNB_URL)

@@ -75,6 +75,7 @@ const KNOWN_CODES: Record<string, string> = {
   csrf: "errors.csrf",
   rate_limited: "errors.rateLimited",
   email_unverified: "errors.emailUnverified",
+  space_creation_disabled: "errors.spaceCreationDisabled",
   invalid_credentials: "errors.invalidCredentials",
   // 409 on removing / the leave of the last owner (the 422 field reason is `validation.last_owner`).
   last_owner: "errors.lastOwner",

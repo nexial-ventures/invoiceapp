@@ -27,6 +27,7 @@
   "csrf": "Požadavek byl odmítnut (neplatný původ). Obnovte stránku a zkuste to znovu.",
   "rateLimited": "Příliš mnoho pokusů. Zkuste to později.",
   "emailUnverified": "Nejprve ověřte svůj e-mail.",
+  "spaceCreationDisabled": "Zakládání nových spaces je na této instanci vypnuté.",
   "invalidCredentials": "Nesprávný e-mail nebo heslo.",
   "lastOwner": "Jediného vlastníka nelze odebrat a nemůže space opustit. Nejprve udělejte vlastníkem dalšího člena.",
   "mfaInvalid": "Nesprávný kód.",

@@ -21,6 +21,7 @@
   },
   "unverified": "Než založíte space, ověřte svůj e-mail.",
   "unverifiedAction": "Ověřit e-mail",
+  "creationDisabled": "Zakládání nových spaces je na této instanci vypnuté.",
   "notFound": {
     "title": "Space nenalezen",
     "text": "Na této adrese žádný space není. Zkontrolujte adresu, nebo přejděte na úvodní stránku.",

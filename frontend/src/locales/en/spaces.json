@@ -21,6 +21,7 @@
   },
   "unverified": "Verify your e-mail before creating a space.",
   "unverifiedAction": "Verify e-mail",
+  "creationDisabled": "Creating new spaces is disabled on this instance.",
   "notFound": {
     "title": "Space not found",
     "text": "There is no space at this address. Check the address or go to the home page.",

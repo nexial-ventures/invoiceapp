@@ -42,7 +42,11 @@ async function create(body: CreateSpaceBody): Promise<void> {
       </li>
     </ul>
 
-    <div v-if="session.me && !session.me.user.emailVerified" class="card space-y-2" data-test="unverified">
+    <!-- Registration off: only invited people enter, so nobody founds a space (spaces.md). -->
+    <p v-if="!session.context?.registration" class="text-sm text-gray-600 dark:text-gray-400" data-test="creation-disabled">
+      {{ t("spaces.creationDisabled") }}
+    </p>
+    <div v-else-if="session.me && !session.me.user.emailVerified" class="card space-y-2" data-test="unverified">
       <p class="text-sm">{{ t("spaces.unverified") }}</p>
       <RouterLink :to="{ name: 'verify' }" class="btn btn-sm">{{ t("spaces.unverifiedAction") }}</RouterLink>
     </div>
