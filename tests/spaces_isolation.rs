@@ -11,11 +11,9 @@ use common::auth::{As, on, seed_space};
 use common::documents::{create_doc, id, issuable, issue, item};
 use common::mcp::tool_as;
 use common::mdcast::PdfEnv;
+use common::members::{B_HOST, B_TOKEN};
 use common::{TEST_HOST, TEST_TOKEN, TestDb, call};
 use serde_json::{Value, json};
-
-const B_TOKEN: &str = "inv_0b0b0b0b_YmV0YS1zcGFjZS10b2tlbi1zZWNyZXQtMDEyMzQ1Njc4OWFi";
-const B_HOST: &str = "beta.localhost:3000";
 
 /// `app` as seen by space beta: every request goes to beta's host with
 /// beta's token, so the shared helpers (which use the default host and
