@@ -75,6 +75,15 @@ describe("ReceivedEditView", () => {
     await w.find("#recap-0-base").setValue("2000");
     expect((w.find("#rec-payable").element as HTMLInputElement).value).toBe("500");
 
+    // The mode is read-only, derived from the rounding amount as the server does on save.
+    const roundingHint = () => w.find("#rec-rounding").element.parentElement?.textContent ?? "";
+    expect(roundingHint()).toContain("Mode: No rounding");
+    await w.find("#recap-0-base").setValue("1000.4");
+    await w.find("#rec-rounding").setValue("0.02");
+    expect(roundingHint()).toContain("Mode: To 0.50");
+    await w.find("#rec-rounding").setValue("-0.48");
+    expect(roundingHint()).toContain("Mode: To whole units");
+
     await w.find("#rec-vatMode").setValue("reverse_charge");
     expect((w.find("#recap-0-vat").element as HTMLInputElement).value).toBe("0");
     expect((w.find("#rec-vatDeductible").element as HTMLInputElement).checked).toBe(false);

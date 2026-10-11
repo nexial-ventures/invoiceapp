@@ -7,7 +7,7 @@ use super::format::Locale;
 use super::payload::Input;
 use crate::document::compute::{self, Params};
 use crate::document::handlers::dto::{BankSnapshot, Line, PartySnapshot, Totals, lines_out};
-use crate::document::line::{ItemData, LineData, Status, VatMode};
+use crate::document::line::{ItemData, LineData, RoundingMode, Status, VatMode};
 use crate::document::repo::issue::supplier;
 use crate::error::AppError;
 use crate::settings::entity::{bank_account, company};
@@ -137,7 +137,7 @@ impl Sample {
                 vat_mode: VatMode::Standard,
                 is_czk: true,
                 exchange_rate: None,
-                round_total: false,
+                rounding: RoundingMode::None,
             },
         )
         .map_err(|e| anyhow::anyhow!("sample invoice does not compute: {e:?}"))?;
@@ -218,6 +218,14 @@ mod tests {
             registration: None,
             default_due_days: 14,
             default_locale: "cs".into(),
+            default_rounding_cash: "unit".into(),
+            default_rounding_other: "none".into(),
+            default_payment_method: "bank_transfer".into(),
+            default_currency: "CZK".into(),
+            default_header_note_cs: None,
+            default_header_note_en: None,
+            default_footer_note_cs: None,
+            default_footer_note_en: None,
             updated_at: chrono::Utc::now().into(),
         }
     }

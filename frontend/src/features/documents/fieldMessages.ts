@@ -23,7 +23,7 @@ export const FIELD_LABELS = [
   "headerNote",
   "footerNote",
   "internalNote",
-  "roundTotal",
+  "roundingMode",
   "correctionReason",
   "lines",
   "date",

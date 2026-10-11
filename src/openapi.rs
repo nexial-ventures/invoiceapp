@@ -260,5 +260,13 @@ mod tests {
         let components = doc.components.expect("components");
         assert!(components.security_schemes.contains_key("bearer"));
         assert!(components.security_schemes.contains_key("cookie"));
+        for schema in [
+            "CompanyInput",
+            "DocDefaults",
+            "DocDefaultsInput",
+            "RoundingMode",
+        ] {
+            assert!(components.schemas.contains_key(schema), "{schema}");
+        }
     }
 }

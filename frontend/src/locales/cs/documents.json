@@ -26,6 +26,11 @@
     "card": "Kartou",
     "other": "Jinak"
   },
+  "roundingMode": {
+    "none": "Bez zaokrouhlení",
+    "half": "Na 0,50",
+    "unit": "Na celé jednotky"
+  },
   "rateSource": {
     "cnb": "ČNB",
     "manual": "ručně",
@@ -52,7 +57,7 @@
     "headerNote": "Text nad položkami",
     "footerNote": "Text pod položkami",
     "internalNote": "Interní poznámka",
-    "roundTotal": "Zaokrouhlit na celé koruny",
+    "roundingMode": "Zaokrouhlení",
     "lines": "Položky",
     "date": "Datum",
     "amount": "Částka",
@@ -133,7 +138,6 @@
     "changeContact": "Změnit",
     "removeContact": "Odebrat",
     "noAccountForCurrency": "Žádný účet v měně {currency}",
-    "roundTotalCzkOnly": "Jen pro doklady v CZK.",
     "variableSymbolHint": "Prázdné = odvodí se z čísla faktury.",
     "internalNoteHint": "Netiskne se na doklad.",
     "manualRate": "Ruční kurz — přepíše ČNB",

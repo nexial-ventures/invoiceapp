@@ -26,6 +26,11 @@
     "card": "Card",
     "other": "Other"
   },
+  "roundingMode": {
+    "none": "No rounding",
+    "half": "To 0.50",
+    "unit": "To whole units"
+  },
   "rateSource": {
     "cnb": "ČNB",
     "manual": "manual",
@@ -52,7 +57,7 @@
     "headerNote": "Text above lines",
     "footerNote": "Text below lines",
     "internalNote": "Internal note",
-    "roundTotal": "Round to whole crowns",
+    "roundingMode": "Rounding",
     "lines": "Lines",
     "date": "Date",
     "amount": "Amount",
@@ -133,7 +138,6 @@
     "changeContact": "Change",
     "removeContact": "Remove",
     "noAccountForCurrency": "No account in {currency}",
-    "roundTotalCzkOnly": "CZK documents only.",
     "variableSymbolHint": "Empty = derived from the invoice number.",
     "internalNoteHint": "Never printed on the document.",
     "manualRate": "Manual rate — overrides ČNB",

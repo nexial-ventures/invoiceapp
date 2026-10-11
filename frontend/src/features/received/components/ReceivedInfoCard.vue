@@ -30,6 +30,7 @@ const rows = computed(() => {
             .join(" · "),
     ],
     ["documents.fields.vatMode", d.vatMode === "non_payer" ? t("received.supplierNonPayer") : t(`documents.vatMode.${d.vatMode}`)],
+    ["documents.fields.roundingMode", t(`documents.roundingMode.${d.roundingMode}`)],
     ["received.fields.vatDeductible", d.vatDeductible == null ? null : d.vatDeductible ? t("common.yes") : t("common.no")],
     ["documents.fields.variableSymbol", d.variableSymbol],
     ["documents.fields.constantSymbol", d.constantSymbol],

@@ -298,7 +298,7 @@ Import
 - **Received fields:** `note` is the document's `internalNote` (received documents have no header note);
   `receivedDate` = tax point (issue date for a proforma); `supplierAccount` = IBAN else `account/bankCode`
   (≤ 60); locale `cs`; `bankAccountId` none. Issued: `bankSnapshot` = the ISDOC payment details,
-  `roundTotal` = rounding ≠ 0. VS / KS kept only when they are digits (≤ 10 / ≤ 4).
+  `roundingMode` derived from the amounts (4e, [defaults.md](defaults.md)). VS / KS kept only when they are digits (≤ 10 / ≤ 4).
 - **Rates:** `CurrRate / RefCurrRate` with a positive `RefCurrRate` (default 1), 6 dp, when a `ForeignCurrencyCode`
   differs from CZK.
 - **More entry error codes:** `unsupported_currency` (see above), `invalid_archive` (an unreadable `.zip`), `too_deep` (a zip nested deeper than 3

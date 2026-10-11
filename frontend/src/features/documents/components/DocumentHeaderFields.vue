@@ -1,21 +1,23 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import type { FieldErrors } from "@/api/types";
+import type { DocLocale, FieldErrors } from "@/api/types";
 import FormField from "@/components/form/FormField.vue";
-import { reasonKey } from "@/lib/formErrors";
 import { LOCALES } from "@/i18n";
-import type { BankAccount } from "@/features/settings/types";
+import type { BankAccount, Company } from "@/features/settings/types";
+import { changeLocale, changePaymentMethod, changeRounding } from "../defaults";
 import { isCorrection } from "../docTypes";
 import { changeCurrency, type DocumentDraft } from "../form";
 import { formatNumber } from "../format";
-import { PAYMENT_METHODS, VAT_MODES, type ExchangeRate } from "../types";
+import { PAYMENT_METHODS, ROUNDING_MODES, VAT_MODES, type ExchangeRate, type PaymentMethod, type RoundingMode } from "../types";
 import IndicativeRateNote from "./IndicativeRateNote.vue";
 
 const model = defineModel<DocumentDraft>({ required: true });
 const props = defineProps<{
   errors: FieldErrors;
   bankAccounts: BankAccount[];
+  /** Source of the defaults re-applied on payment method / locale changes. */
+  company: Company;
   /** Indicative ČNB rate for the tax point date (preview only, never saved). */
   indicativeRate: ExchangeRate | null;
   indicativeError: unknown;
@@ -33,6 +35,16 @@ const accountLabel = (a: BankAccount) => [a.label, a.accountNumber ?? a.iban].fi
 
 function onCurrency(event: Event) {
   model.value = changeCurrency(model.value, (event.target as HTMLInputElement).value, props.bankAccounts);
+}
+const selected = (event: Event) => (event.target as HTMLSelectElement).value;
+function onPaymentMethod(event: Event) {
+  model.value = changePaymentMethod(model.value, selected(event) as PaymentMethod, props.company);
+}
+function onRounding(event: Event) {
+  model.value = changeRounding(model.value, selected(event) as RoundingMode);
+}
+function onLocale(event: Event) {
+  model.value = changeLocale(model.value, selected(event) as DocLocale, props.company);
 }
 
 const cls = (field: string) => ({ "input-error": props.errors[field] });
@@ -53,14 +65,19 @@ const cls = (field: string) => ({ "input-error": props.errors[field] });
     <FormField :label="t('documents.fields.currency')" for="doc-currency" :error="errors.currency">
       <input id="doc-currency" :value="model.currency" maxlength="3" class="input uppercase" :class="cls('currency')" autocomplete="off" :disabled="lockedCorrection" @change="onCurrency" />
     </FormField>
-    <div v-if="!isCzk && lockedCorrection" class="space-y-1 sm:col-span-2" data-test="original-rate">
+    <FormField :label="t('documents.fields.roundingMode')" for="doc-roundingMode" :error="errors.roundingMode">
+      <select id="doc-roundingMode" :value="model.roundingMode" class="input" :class="cls('roundingMode')" @change="onRounding">
+        <option v-for="m in ROUNDING_MODES" :key="m" :value="m">{{ t(`documents.roundingMode.${m}`) }}</option>
+      </select>
+    </FormField>
+    <div v-if="!isCzk && lockedCorrection" class="space-y-1" data-test="original-rate">
       <span class="text-sm font-medium">{{ t("documents.fields.exchangeRate") }}</span>
       <p class="py-2 text-sm">
         {{ model.exchangeRate ? formatNumber(model.exchangeRate, locale, 6) : "—" }}
         <span class="text-xs text-gray-600 dark:text-gray-400">({{ t("documents.editor.originalRate") }})</span>
       </p>
     </div>
-    <div v-else-if="!isCzk" class="space-y-1 sm:col-span-2">
+    <div v-else-if="!isCzk" class="space-y-1">
       <FormField :label="t('documents.editor.manualRate')" for="doc-exchangeRate" :error="errors.exchangeRate" :hint="t('documents.editor.manualRateHint')">
         <input id="doc-exchangeRate" v-model="model.exchangeRate" inputmode="decimal" class="input" :class="cls('exchangeRate')" autocomplete="off" />
       </FormField>
@@ -72,27 +89,18 @@ const cls = (field: string) => ({ "input-error": props.errors[field] });
         message-key="documents.editor.indicativeRate"
       />
     </div>
-    <div class="flex flex-col justify-end pb-2" :class="{ 'sm:col-span-2': isCzk && !isProforma, 'sm:col-span-3': !isCzk || isProforma }">
-      <label class="flex items-center gap-2 text-sm" :class="{ 'opacity-60': !isCzk }">
-        <input id="doc-roundTotal" v-model="model.roundTotal" type="checkbox" class="size-4" :disabled="!isCzk" />
-        {{ t("documents.fields.roundTotal") }}
-      </label>
-      <p v-if="errors.roundTotal" class="text-xs text-red-600 dark:text-red-400">{{ t(reasonKey(errors.roundTotal)) }}</p>
-      <p v-else-if="!isCzk" class="text-xs text-gray-500 dark:text-gray-400">{{ t("documents.editor.roundTotalCzkOnly") }}</p>
-    </div>
-
     <FormField :label="t('documents.fields.vatMode')" for="doc-vatMode" :error="errors.vatMode">
       <select id="doc-vatMode" v-model="model.vatMode" class="input" :disabled="lockedCorrection">
         <option v-for="m in VAT_MODES" :key="m" :value="m">{{ t(`documents.vatMode.${m}`) }}</option>
       </select>
     </FormField>
     <FormField :label="t('documents.fields.locale')" for="doc-locale" :error="errors.locale">
-      <select id="doc-locale" v-model="model.locale" class="input">
+      <select id="doc-locale" :value="model.locale" class="input" @change="onLocale">
         <option v-for="code in LOCALES" :key="code" :value="code">{{ t(`locale.names.${code}`) }}</option>
       </select>
     </FormField>
     <FormField :label="t('documents.fields.paymentMethod')" for="doc-paymentMethod" :error="errors.paymentMethod">
-      <select id="doc-paymentMethod" v-model="model.paymentMethod" class="input">
+      <select id="doc-paymentMethod" :value="model.paymentMethod" class="input" @change="onPaymentMethod">
         <option v-for="m in PAYMENT_METHODS" :key="m" :value="m">{{ t(`documents.paymentMethod.${m}`) }}</option>
       </select>
     </FormField>

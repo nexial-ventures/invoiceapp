@@ -12,6 +12,9 @@ export const VAT_MODES = ["standard", "reverse_charge", "exempt", "non_payer"] a
 export type VatMode = (typeof VAT_MODES)[number];
 export const PAYMENT_METHODS = ["bank_transfer", "cash", "card", "other"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+/** `half` → nearest 0.50, `unit` → whole units of the document currency (half away from zero). */
+export const ROUNDING_MODES = ["none", "half", "unit"] as const;
+export type RoundingMode = (typeof ROUNDING_MODES)[number];
 
 export interface ItemLine {
   kind: "item";
@@ -111,7 +114,7 @@ export interface DocumentInput {
   headerNote: string | null;
   footerNote: string | null;
   internalNote: string | null;
-  roundTotal: boolean;
+  roundingMode: RoundingMode;
   /** Credit / debit notes and DDPP corrections; required at issue (not for imported ones). */
   correctionReason: string | null;
   /** Manual import of an existing document: keeps its own `number`, issue renders no PDF. Immutable. */
@@ -330,7 +333,7 @@ export interface ComputeRequest {
   vatMode: VatMode;
   currency: string;
   exchangeRate: string | null;
-  roundTotal: boolean;
+  roundingMode: RoundingMode;
   contactId: string | null;
   docType: EditableDocType;
   locale: DocLocale;

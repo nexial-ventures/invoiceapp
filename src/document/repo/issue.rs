@@ -117,7 +117,7 @@ pub async fn issue(
         vat_mode,
         is_czk: doc.currency == "CZK",
         exchange_rate: rate.rate,
-        round_total: doc.round_total,
+        rounding: view::rounding_mode(&doc)?,
     };
     // Re-resolve deductions: the stored amounts are a draft-time snapshot.
     let sources = advance_sources::load(db, space, &advance::referenced_ids(&lines)).await?;

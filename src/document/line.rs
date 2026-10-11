@@ -99,6 +99,14 @@ macro_rules! str_enum {
             pub fn parse(s: &str) -> Option<$name> {
                 Self::ALL.iter().copied().find(|v| v.as_str() == s)
             }
+
+            /// A stored (CHECK-constrained) value; anything else is a
+            /// corrupt row of `owner` — an internal error, never a fallback.
+            pub fn parse_stored(s: &str, owner: impl std::fmt::Display) -> anyhow::Result<$name> {
+                Self::parse(s).ok_or_else(|| {
+                    anyhow::anyhow!("{owner} has unknown {} {s:?}", stringify!($name))
+                })
+            }
         }
     };
 }
@@ -128,6 +136,12 @@ str_enum!(PaymentMethod {
     Cash => "cash",
     Card => "card",
     Other => "other",
+});
+
+str_enum!(RoundingMode {
+    None => "none",
+    Half => "half",
+    Unit => "unit",
 });
 
 str_enum!(PaymentState {
@@ -167,5 +181,18 @@ mod tests {
         assert_eq!(Status::parse("sent"), None);
         assert!(VatMode::Standard.charges_vat());
         assert!(!VatMode::NonPayer.charges_vat());
+    }
+
+    #[test]
+    fn corrupt_stored_values_are_errors() {
+        assert_eq!(
+            RoundingMode::parse_stored("half", "doc").expect("valid"),
+            RoundingMode::Half
+        );
+        let err = RoundingMode::parse_stored("whole", "document 7").expect_err("corrupt");
+        assert_eq!(
+            err.to_string(),
+            "document 7 has unknown RoundingMode \"whole\""
+        );
     }
 }

@@ -139,6 +139,7 @@ describe("ReceivedDetailView", () => {
     const { w } = await mountAt("/received/r1");
     expect(w.find("h1").text()).toBe("Received credit note PD20260001");
     expect(w.find('[data-test="info-supplierNumber"]').text()).toBe("DOB-1");
+    expect(w.find('[data-test="info-roundingMode"]').text()).toBe("No rounding");
     expect(w.find('[data-test="payable"]').text()).toMatch(/-CZK\s1,210\.00/);
     expect(w.find('[data-test="payments-panel"]').exists()).toBe(true);
     expect(w.find('[data-test="original-missing"]').exists()).toBe(true);

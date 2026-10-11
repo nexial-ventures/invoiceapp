@@ -41,7 +41,7 @@ async fn source(app: &Router) {
     let full = id(&create_issued(
         app,
         json!({ "contactId": customer, "issueDate": "2026-10-01", "lines": lines,
-                "headerNote": "Nativní faktura", "roundTotal": true }),
+                "headerNote": "Nativní faktura", "roundingMode": "unit" }),
     )
     .await);
     for (date, amount) in [("2026-10-03", "1000"), ("2026-10-05", "322")] {

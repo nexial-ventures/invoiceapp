@@ -1,4 +1,4 @@
-import type { VatMode } from "@/features/documents/types";
+import type { RoundingMode, VatMode } from "@/features/documents/types";
 
 /**
  * VAT recap rows of a received document, entered as printed on the supplier's document.
@@ -87,6 +87,21 @@ export function recapTotal(rows: { base: string; vat: string }[], rounding: stri
     sum += base + vat;
   }
   return fromCents(sum);
+}
+
+/**
+ * Mode the server derives on save from the entered amounts (informational for received documents):
+ * no rounding amount → none; Σ(base + vat) + rounding on a whole / 0.50 multiple → unit / half;
+ * any other ("odd") rounding → none. null while an amount is not valid.
+ */
+export function derivedRoundingMode(rows: { base: string; vat: string }[], rounding: string): RoundingMode | null {
+  const amount = toCents(rounding.trim() === "" ? "0" : rounding);
+  const total = recapTotal(rows, rounding);
+  if (amount === null || total === null) return null;
+  const cents = toCents(total) ?? 0n;
+  if (amount === 0n) return "none";
+  if (cents % 100n === 0n) return "unit";
+  return cents % 50n === 0n ? "half" : "none";
 }
 
 /** True when two amount strings denote the same cents ("210" = "210.00"). */

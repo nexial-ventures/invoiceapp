@@ -19,7 +19,16 @@
     "registration": "Registry entry",
     "registrationHint": "E.g. Natural person registered in the Trade Register.",
     "defaultDueDays": "Default due days",
-    "defaultLocale": "Default document language"
+    "defaultLocale": "Default document language",
+    "defaults": {
+      "title": "Document defaults",
+      "hint": "New documents start with these values; the customer's currency wins.",
+      "paymentMethod": "Payment method",
+      "currency": "Currency",
+      "currencyHint": "ISO 4217 code, e.g. CZK or EUR.",
+      "roundingCash": "Rounding – cash",
+      "roundingOther": "Rounding – other payment methods"
+    }
   },
   "bankAccounts": {
     "add": "Add account",

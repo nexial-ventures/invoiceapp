@@ -16,7 +16,7 @@ use super::model::{ContactRule, IssuedBank, Party, Plan};
 use crate::contact::entity::contact;
 use crate::document::entity::{document, payment};
 use crate::document::handlers::dto::BankSnapshot;
-use crate::document::line::Status;
+use crate::document::line::{RoundingMode, Status};
 use crate::document::repo::issue::Rate;
 use crate::document::repo::{lines, original, payments, write};
 use crate::error::{AppError, number_violation};
@@ -216,8 +216,12 @@ async fn insert(
         constant_symbol: Set(plan.constant_symbol.clone()),
         header_note: Set(plan.note.clone().filter(|_| issued)),
         internal_note: Set(plan.note.clone().filter(|_| !issued)),
-        // As received create: no rounding flag; it is CZK-only for issued ones.
-        round_total: Set(issued && plan.currency == "CZK" && !plan.totals.rounding.is_zero()),
+        // The rounding amount is kept as given; the mode is derived from it.
+        rounding_mode: Set(
+            RoundingMode::derive(plan.totals.total, plan.totals.rounding)
+                .as_str()
+                .into(),
+        ),
         supplier_snapshot: Set(Some(json(&plan.supplier.snapshot(plan.vat_payer))?)),
         customer_snapshot: Set(match (&plan.customer, issued) {
             (Some(c), true) => Some(json(&c.snapshot(None))?),

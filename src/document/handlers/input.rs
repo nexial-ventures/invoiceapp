@@ -21,7 +21,8 @@ use crate::document::correction::ExactBasis;
 use crate::document::custom_fields::Values;
 use crate::document::defaults;
 use crate::document::entity::document;
-use crate::document::line::{LineData, PaymentMethod, VatMode};
+use crate::document::line::{LineData, PaymentMethod, RoundingMode, VatMode};
+use crate::document::rounding;
 use crate::error::{AppError, FieldErrors};
 use crate::settings::doc_type::{DocType, ISSUED};
 use crate::settings::entity::company;
@@ -59,7 +60,9 @@ pub struct DocumentInput {
     pub header_note: Option<String>,
     pub footer_note: Option<String>,
     pub internal_note: Option<String>,
-    pub round_total: Option<bool>,
+    /// `none` | `half` (nearest 0.50) | `unit` (whole units); create default:
+    /// the company's default for the payment method (cash / other).
+    pub rounding_mode: Option<String>,
     /// Corrections only (ignored otherwise); at most 500 characters.
     pub correction_reason: Option<String>,
     pub lines: Vec<LineInput>,
@@ -112,7 +115,7 @@ pub struct DocumentData {
     pub header_note: Option<String>,
     pub footer_note: Option<String>,
     pub internal_note: Option<String>,
-    pub round_total: bool,
+    pub rounding_mode: RoundingMode,
     pub lines: Vec<LineData>,
     pub imported: bool,
     /// Imported documents: their own number.
@@ -126,7 +129,7 @@ impl DocumentData {
             vat_mode: self.vat_mode,
             is_czk: self.currency == "CZK",
             exchange_rate: self.exchange_rate,
-            round_total: self.round_total,
+            rounding: self.rounding_mode,
         }
     }
 }
@@ -239,10 +242,7 @@ impl DocumentInput {
             Some(r) => e.check("currency", r),
             None => e.check(
                 "currency",
-                or_default(None, ctx, || {
-                    c.and_then(|c| c.default_currency.clone())
-                        .unwrap_or_else(|| "CZK".into())
-                }),
+                or_default(None, ctx, || defaults::currency(c, &ctx.company)),
             ),
         }
         .unwrap_or_else(|| "CZK".into());
@@ -291,10 +291,21 @@ impl DocumentInput {
                 "paymentMethod",
                 PaymentMethod::parse(s.trim()).ok_or("invalid"),
             ),
-            None => e.check(
-                "paymentMethod",
-                or_default(None, ctx, || PaymentMethod::BankTransfer),
-            ),
+            None if ctx.apply_defaults => Some(defaults::payment_method(&ctx.company)?),
+            None => e.check("paymentMethod", Err("required")),
+        };
+        // PUT: an omitted mode is `none` (as the 1b `roundTotal: false`), not a default.
+        let rounding_mode = match (self.rounding_mode.as_deref(), payment_method) {
+            (Some(s), _) => e.check("roundingMode", rounding::parse(s)),
+            (None, Some(m)) if ctx.apply_defaults => {
+                Some(defaults::rounding_mode(m, &ctx.company)?)
+            }
+            (None, _) => Some(RoundingMode::None),
+        }
+        .unwrap_or(RoundingMode::None);
+        let (header_default, footer_default) = match (ctx.apply_defaults, locale.as_str()) {
+            (true, l) => defaults::notes(&ctx.company, l),
+            (false, _) => (None, None),
         };
         let lines = validate_lines(
             self.lines,
@@ -329,19 +340,21 @@ impl DocumentInput {
             order_ref: e
                 .check("orderRef", v::opt_text(self.order_ref.as_deref(), 100))
                 .flatten(),
-            header_note: e
-                .check("headerNote", v::opt_text(self.header_note.as_deref(), 2000))
-                .flatten(),
-            footer_note: e
-                .check("footerNote", v::opt_text(self.footer_note.as_deref(), 2000))
-                .flatten(),
+            header_note: match self.header_note.as_deref() {
+                Some(s) => e.check("headerNote", v::opt_text(Some(s), 2000)).flatten(),
+                None => header_default,
+            },
+            footer_note: match self.footer_note.as_deref() {
+                Some(s) => e.check("footerNote", v::opt_text(Some(s), 2000)).flatten(),
+                None => footer_default,
+            },
             internal_note: e
                 .check(
                     "internalNote",
                     v::opt_text(self.internal_note.as_deref(), 2000),
                 )
                 .flatten(),
-            round_total: self.round_total.unwrap_or(false),
+            rounding_mode,
             lines,
             imported,
             number,
@@ -372,3 +385,7 @@ impl DocumentInput {
 #[cfg(test)]
 #[path = "input_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "input_defaults_tests.rs"]
+mod defaults_tests;

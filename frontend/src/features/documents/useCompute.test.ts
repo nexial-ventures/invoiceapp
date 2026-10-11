@@ -10,7 +10,7 @@ const body = (currency: string): ComputeRequest => ({
   vatMode: "standard",
   currency,
   exchangeRate: null,
-  roundTotal: false,
+  roundingMode: "none",
   contactId: null,
   docType: "invoice",
   locale: "cs",

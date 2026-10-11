@@ -294,7 +294,7 @@ async fn get_settings(state: &AppState, space: SpaceId) -> Result<Value, AppErro
         .map(|s| NumberSeries::build(s, year))
         .collect();
     Ok(json!({
-        "company": to_value(&Company::from(company))?,
+        "company": to_value(&Company::try_from(company).map_err(AppError::from)?)?,
         "bankAccounts": to_value(&banks)?,
         "vatRates": to_value(&rates)?,
         "numberSeries": to_value(&series)?,

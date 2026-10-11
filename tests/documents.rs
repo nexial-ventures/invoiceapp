@@ -36,7 +36,7 @@ async fn create_applies_company_defaults() {
     assert_eq!(doc["vatMode"], "standard");
     assert_eq!(doc["paymentMethod"], "bank_transfer");
     assert_eq!(doc["bankAccountId"], bank);
-    assert_eq!(doc["roundTotal"], false);
+    assert_eq!(doc["roundingMode"], "none");
     assert_eq!(doc["supplier"], Value::Null);
     assert_eq!(doc["customer"], Value::Null);
     assert_eq!(doc["paid"], "0.00");
@@ -132,14 +132,14 @@ async fn create_validates_with_line_indexes() {
         })
     );
 
-    // Computation rules: subtotal refs, non-payer rates, roundTotal for foreign currency.
+    // Computation rules: subtotal refs, non-payer rates, an unknown rounding mode.
     let (status, body) = call(
         &app,
         Method::POST,
         "/api/documents",
         Some(json!({
             "currency": "EUR",
-            "roundTotal": true,
+            "roundingMode": "half",
             "lines": [
                 item("1", "1", "21"), item("1", "1", "12"),
                 { "kind": "subtotal", "description": "", "refs": [1, 2], "collapse": true }
@@ -150,8 +150,18 @@ async fn create_validates_with_line_indexes() {
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
     assert_eq!(
         fields(&body),
-        &json!({ "roundTotal": "invalid", "lines.2.refs": "invalid" })
+        &json!({ "lines.2.refs": "invalid" }),
+        "rounding is allowed for a foreign currency"
     );
+    let (status, body) = call(
+        &app,
+        Method::POST,
+        "/api/documents",
+        Some(json!({ "roundingMode": "whole", "lines": [] })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(fields(&body), &json!({ "roundingMode": "invalid" }));
     let (status, body) = call(
         &app,
         Method::POST,
@@ -202,7 +212,7 @@ async fn update_replaces_a_draft() {
         &uri,
         Some(json!({
             "issueDate": "2026-10-01", "dueDate": "2026-10-15", "currency": "czk", "locale": "en",
-            "vatMode": "standard", "paymentMethod": "cash", "roundTotal": true,
+            "vatMode": "standard", "paymentMethod": "cash", "roundingMode": "unit",
             "internalNote": "  call first ",
             "lines": [
                 item("1", "100.40", "21"),

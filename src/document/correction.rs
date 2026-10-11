@@ -141,7 +141,7 @@ pub fn exact_vat(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::document::line::VatMode;
+    use crate::document::line::{RoundingMode, VatMode};
 
     fn d(s: &str) -> Decimal {
         s.parse().expect("decimal")
@@ -162,7 +162,7 @@ mod tests {
             vat_mode: VatMode::Standard,
             is_czk: rate.is_none(),
             exchange_rate: rate.map(d),
-            round_total: false,
+            rounding: RoundingMode::None,
         }
     }
 

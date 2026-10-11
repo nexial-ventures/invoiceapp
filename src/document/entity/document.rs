@@ -36,7 +36,8 @@ pub struct Model {
     pub header_note: Option<String>,
     pub footer_note: Option<String>,
     pub internal_note: Option<String>,
-    pub round_total: bool,
+    /// `none` | `half` | `unit` (CHECK-constrained).
+    pub rounding_mode: String,
     pub supplier_snapshot: Option<Json>,
     pub customer_snapshot: Option<Json>,
     pub bank_snapshot: Option<Json>,

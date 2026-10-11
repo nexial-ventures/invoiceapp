@@ -19,7 +19,16 @@
     "registration": "Zápis v rejstříku",
     "registrationHint": "Např. Fyzická osoba zapsaná v živnostenském rejstříku.",
     "defaultDueDays": "Výchozí splatnost (dny)",
-    "defaultLocale": "Výchozí jazyk dokladů"
+    "defaultLocale": "Výchozí jazyk dokladů",
+    "defaults": {
+      "title": "Výchozí hodnoty dokladů",
+      "hint": "Nový doklad začíná s těmito hodnotami; měna zákazníka má přednost.",
+      "paymentMethod": "Způsob úhrady",
+      "currency": "Měna",
+      "currencyHint": "Kód ISO 4217, např. CZK nebo EUR.",
+      "roundingCash": "Zaokrouhlení – hotovost",
+      "roundingOther": "Zaokrouhlení – ostatní způsoby úhrady"
+    }
   },
   "bankAccounts": {
     "add": "Přidat účet",

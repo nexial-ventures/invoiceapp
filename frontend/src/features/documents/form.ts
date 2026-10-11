@@ -3,9 +3,10 @@ import { collectErrors, nullIfEmpty, textRule } from "@/lib/formErrors";
 import type { Contact } from "@/features/contacts/types";
 import { toMetadataDraft, toMetadataInput, validateMetadata, type MetadataDraft } from "@/features/metadata/metadata";
 import type { BankAccount, Company, CustomField, VatRate } from "@/features/settings/types";
+import { changeLocale, defaultNote, defaultRounding } from "./defaults";
 import { isCorrection } from "./docTypes";
 import { toLineDraft, toWireLine, type LineDraft } from "./lines";
-import type { ComputeRequest, Document, DocumentInput, EditableDocType, PaymentMethod, VatMode } from "./types";
+import type { ComputeRequest, Document, DocumentInput, EditableDocType, PaymentMethod, RoundingMode, VatMode } from "./types";
 
 /** Editor form state; nullable wire strings are "" here. */
 export interface DocumentDraft {
@@ -26,7 +27,9 @@ export interface DocumentDraft {
   orderRef: string;
   headerNote: string;
   footerNote: string;
-  roundTotal: boolean;
+  roundingMode: RoundingMode;
+  /** New draft: the rounding follows the payment method's company default until the user picks one. */
+  roundingAuto: boolean;
   correctionReason: string;
   /**
    * Native: read-only, the proforma a final invoice settles (its non-payer advance line references it).
@@ -78,10 +81,13 @@ export function defaultVatRate(rates: VatRate[], vatMode: VatMode): string {
   return (active.find((r) => r.isDefault) ?? active[0])?.rate ?? "0";
 }
 
-/** Mirrors the server's create defaults so the form shows them before the first save. */
-/** Natively only invoices, proformas and simplified documents start empty; an import may be any type. */
+/**
+ * Mirrors the server's create defaults so the form shows them before the first save.
+ * Natively only invoices, proformas and simplified documents start empty; an import may be any type. */
 export function newDocumentDraft(ctx: DraftContext, docType: EditableDocType = "invoice", imported = false): DocumentDraft {
   const { company, bankAccounts, today } = ctx;
+  const locale = company.defaultLocale;
+  const paymentMethod = company.defaultPaymentMethod;
   return {
     docType,
     contactId: null,
@@ -89,18 +95,19 @@ export function newDocumentDraft(ctx: DraftContext, docType: EditableDocType = "
     // A proforma is not a tax document: the server rejects a tax point date.
     taxPointDate: docType === "proforma" ? "" : today,
     dueDate: addDays(today, company.defaultDueDays),
-    currency: "CZK",
+    currency: company.defaultCurrency,
     exchangeRate: "",
-    locale: company.defaultLocale,
+    locale,
     vatMode: company.vatPayer ? "standard" : "non_payer",
-    bankAccountId: defaultBankAccountId(bankAccounts, "CZK"),
-    paymentMethod: "bank_transfer",
+    bankAccountId: defaultBankAccountId(bankAccounts, company.defaultCurrency),
+    paymentMethod,
     variableSymbol: "",
     constantSymbol: "",
     orderRef: "",
-    headerNote: "",
-    footerNote: "",
-    roundTotal: false,
+    headerNote: defaultNote(company, "header", locale),
+    footerNote: defaultNote(company, "footer", locale),
+    roundingMode: defaultRounding(company, paymentMethod),
+    roundingAuto: true,
     correctionReason: "",
     relatedDocumentId: null,
     imported,
@@ -110,21 +117,23 @@ export function newDocumentDraft(ctx: DraftContext, docType: EditableDocType = "
   };
 }
 
-/** Picking a customer applies its due days, locale and currency (and that currency's bank account). */
+/**
+ * Picking a customer applies its due days, locale (and that locale's default notes) and
+ * currency (and that currency's bank account).
+ */
 export function applyContact(draft: DocumentDraft, contact: Contact, ctx: DraftContext): DocumentDraft {
-  const currency = contact.defaultCurrency ?? draft.currency;
+  const currency = contact.defaultCurrency ?? ctx.company.defaultCurrency;
   const next: DocumentDraft = {
-    ...draft,
+    ...changeLocale(draft, contact.defaultLocale ?? ctx.company.defaultLocale, ctx.company),
     contactId: contact.id,
     dueDate: addDays(draft.issueDate, contact.defaultDueDays ?? ctx.company.defaultDueDays),
-    locale: contact.defaultLocale ?? ctx.company.defaultLocale,
   };
   return currency === draft.currency ? next : changeCurrency(next, currency, ctx.bankAccounts);
 }
 
 /**
- * Keeps currency-dependent fields consistent: bank account, CZK-only rounding,
- * and the manual rate — a rate for one currency is meaningless for another.
+ * Keeps currency-dependent fields consistent: bank account and the manual rate —
+ * a rate for one currency is meaningless for another.
  */
 export function changeCurrency(draft: DocumentDraft, currency: string, accounts: BankAccount[]): DocumentDraft {
   const code = currency.trim().toUpperCase();
@@ -134,7 +143,6 @@ export function changeCurrency(draft: DocumentDraft, currency: string, accounts:
     currency: code,
     bankAccountId: account?.currency === code ? draft.bankAccountId : defaultBankAccountId(accounts, code),
     exchangeRate: code === draft.currency ? draft.exchangeRate : "",
-    roundTotal: code === "CZK" ? draft.roundTotal : false,
   };
 }
 
@@ -157,7 +165,9 @@ export function toDraft(doc: Document, fieldDefs: CustomField[] = []): DocumentD
     orderRef: doc.orderRef ?? "",
     headerNote: doc.headerNote ?? "",
     footerNote: doc.footerNote ?? "",
-    roundTotal: doc.roundTotal,
+    roundingMode: doc.roundingMode,
+    // PUT applies no defaults: a saved draft keeps what it has.
+    roundingAuto: false,
     correctionReason: doc.correctionReason ?? "",
     relatedDocumentId: doc.relatedDocumentId,
     imported: doc.imported,
@@ -199,7 +209,12 @@ export function validateDocument(d: DocumentDraft, fieldDefs: CustomField[] = []
   return errors;
 }
 
-export function toInput(d: DocumentDraft, fieldDefs: CustomField[] = []): DocumentInput {
+/**
+ * `create`: POST treats a null note as omitted and applies the company default, so a note the user
+ * cleared goes out as "" (no note); PUT applies no defaults and keeps null.
+ */
+export function toInput(d: DocumentDraft, fieldDefs: CustomField[] = [], create = false): DocumentInput {
+  const note = (v: string) => (create ? v.trim() : nullIfEmpty(v));
   return {
     docType: d.docType,
     direction: "issued",
@@ -216,9 +231,9 @@ export function toInput(d: DocumentDraft, fieldDefs: CustomField[] = []): Docume
     variableSymbol: nullIfEmpty(d.variableSymbol),
     constantSymbol: nullIfEmpty(d.constantSymbol),
     orderRef: nullIfEmpty(d.orderRef),
-    headerNote: nullIfEmpty(d.headerNote),
-    footerNote: nullIfEmpty(d.footerNote),
-    roundTotal: d.roundTotal,
+    headerNote: note(d.headerNote),
+    footerNote: note(d.footerNote),
+    roundingMode: d.roundingMode,
     correctionReason: isCorrection(d.docType) ? nullIfEmpty(d.correctionReason) : null,
     imported: d.imported,
     number: d.imported ? d.number.trim() : null,
@@ -234,13 +249,13 @@ export function toInput(d: DocumentDraft, fieldDefs: CustomField[] = []): Docume
  * used for the CZK preview only — it is never saved, so issue fixes the real one.
  */
 export function toComputeRequest(d: DocumentDraft, indicativeRate: string | null = null, documentId?: string): ComputeRequest {
-  const { lines, vatMode, currency, exchangeRate, roundTotal, contactId, locale } = toInput(d);
+  const { lines, vatMode, currency, exchangeRate, roundingMode, contactId, locale } = toInput(d);
   return {
     lines,
     vatMode,
     currency,
     exchangeRate: exchangeRate ?? indicativeRate,
-    roundTotal,
+    roundingMode,
     contactId,
     docType: d.docType,
     locale,

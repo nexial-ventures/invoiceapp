@@ -34,6 +34,7 @@ const rows = computed(() => {
     ],
     ["vatMode", t(`documents.vatMode.${d.vatMode}`)],
     ["paymentMethod", t(`documents.paymentMethod.${d.paymentMethod}`)],
+    ["roundingMode", t(`documents.roundingMode.${d.roundingMode}`)],
     ["bankAccountId", bank.value],
     ["variableSymbol", d.variableSymbol],
     ["constantSymbol", d.constantSymbol],

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { enforceRecapVatMode, fromCents, newRecapRow, recapTotal, sameAmount, suggestVat, toCents, updateRow, validateRecap } from "./recap";
+import { derivedRoundingMode, enforceRecapVatMode, fromCents, newRecapRow, recapTotal, sameAmount, suggestVat, toCents, updateRow, validateRecap } from "./recap";
 
 describe("recap amounts", () => {
   it("parses and formats cents exactly, accepting a decimal comma", () => {
@@ -67,5 +67,23 @@ describe("recap rows", () => {
     });
     expect(validateRecap([{ ...newRecapRow("0"), base: "1", vat: "1" }], "reverse_charge")).toEqual({ "vatRecap.0.vat": "invalid" });
     expect(validateRecap([], "standard")).toEqual({ vatRecap: "required" });
+  });
+});
+
+describe("derived rounding mode", () => {
+  const rows = (base: string, vat = "0") => [{ base, vat }];
+  it("none without a rounding amount, unit / half on whole / 0.50 totals, none for an odd amount", () => {
+    expect(derivedRoundingMode(rows("100.30"), "")).toBe("none");
+    expect(derivedRoundingMode(rows("100.30"), "-0.30")).toBe("unit");
+    expect(derivedRoundingMode(rows("100.30"), "0.20")).toBe("half");
+    expect(derivedRoundingMode(rows("100.30"), "0.05")).toBe("none");
+    // Negative totals (credit notes entered with signs) follow the same rule.
+    expect(derivedRoundingMode(rows("-100.30"), "-0.20")).toBe("half");
+    expect(derivedRoundingMode(rows("100", "21.40"), "0.60")).toBe("unit");
+  });
+
+  it("null while an amount is invalid", () => {
+    expect(derivedRoundingMode(rows("x"), "0.20")).toBeNull();
+    expect(derivedRoundingMode(rows("100"), "abc")).toBeNull();
   });
 });

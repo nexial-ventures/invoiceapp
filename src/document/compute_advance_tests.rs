@@ -44,7 +44,7 @@ fn params(mode: VatMode, rate: Option<&str>) -> Params {
         vat_mode: mode,
         is_czk: rate.is_none(),
         exchange_rate: rate.map(dec),
-        round_total: false,
+        rounding: RoundingMode::None,
     }
 }
 
@@ -90,7 +90,7 @@ fn advance_only_rate_and_negative_payable() {
     );
     assert_eq!(t.payable, dec("-179.00"));
     let rounded = Params {
-        round_total: true,
+        rounding: RoundingMode::Unit,
         ..params(VatMode::Standard, None)
     };
     let lines = vec![

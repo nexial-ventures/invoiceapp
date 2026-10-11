@@ -59,7 +59,7 @@ describe("documents api", () => {
       vatMode: "standard",
       currency: "CZK",
       exchangeRate: null,
-      roundTotal: false,
+      roundingMode: "none",
       contactId: "c1",
       docType: "invoice",
       locale: "cs",

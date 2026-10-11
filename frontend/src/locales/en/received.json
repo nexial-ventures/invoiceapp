@@ -63,7 +63,8 @@
     "vatSuggested": "computed, can be overwritten",
     "noVat": "Outside the standard VAT mode, VAT is always 0.",
     "payableAuto": "Follows the total; overwrite e.g. for a final invoice after advances.",
-    "payableManual": "Entered manually. Clear it to follow the total again."
+    "payableManual": "Entered manually. Clear it to follow the total again.",
+    "roundingMode": "Mode: {mode} (derived from the rounding amount)"
   },
   "lines": {
     "title": "Document lines",

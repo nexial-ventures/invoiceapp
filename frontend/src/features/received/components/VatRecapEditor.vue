@@ -7,7 +7,7 @@ import { reasonKey } from "@/lib/formErrors";
 import { docSign } from "@/features/documents/docTypes";
 import { formatMoney } from "@/features/documents/format";
 import { draftTotal, type ReceivedDraft } from "../form";
-import { newRecapRow, updateRow, vatAllowed, type RecapRowDraft } from "../recap";
+import { derivedRoundingMode, newRecapRow, updateRow, vatAllowed, type RecapRowDraft } from "../recap";
 
 /** VAT recap rows (rate / base / VAT), rounding, the computed total and the payable amount. */
 const model = defineModel<ReceivedDraft>({ required: true });
@@ -21,6 +21,7 @@ const props = defineProps<{
 const { t, locale } = useI18n();
 const vatEnabled = computed(() => vatAllowed(model.value.vatMode));
 const total = computed(() => draftTotal(model.value));
+const roundingMode = computed(() => derivedRoundingMode(model.value.vatRecap, model.value.rounding));
 const isCreditNote = computed(() => docSign(model.value.docType) === -1);
 const rowError = (i: number, field: string) => props.errors[`vatRecap.${i}.${field}`];
 
@@ -117,7 +118,12 @@ const value = (e: Event) => (e.target as HTMLInputElement).value;
     <p v-if="!vatEnabled" class="text-xs text-gray-600 dark:text-gray-400">{{ t("received.recap.noVat") }}</p>
 
     <div class="grid gap-4 border-t border-gray-200 pt-4 sm:grid-cols-3 dark:border-gray-800">
-      <FormField :label="t('documents.totals.rounding')" for="rec-rounding" :error="errors.rounding">
+      <FormField
+        :label="t('documents.totals.rounding')"
+        for="rec-rounding"
+        :error="errors.rounding"
+        :hint="roundingMode ? t('received.recap.roundingMode', { mode: t(`documents.roundingMode.${roundingMode}`) }) : undefined"
+      >
         <input id="rec-rounding" v-model="model.rounding" inputmode="decimal" class="input" :class="{ 'input-error': errors.rounding }" autocomplete="off" />
       </FormField>
       <div class="space-y-1">

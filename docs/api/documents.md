@@ -36,7 +36,7 @@ DocumentInput {
   constantSymbol: string|null /* digits <=4 */,
   orderRef: string|null /* <=100 */, headerNote: string|null, footerNote: string|null /* <=2000, printed */,
   internalNote: string|null /* <=2000, never printed */,
-  roundTotal: boolean,                  // round payable to whole units; only allowed for CZK
+  roundingMode: "none"|"half"|"unit",   // payable rounding, any currency (4e, defaults.md)
   lines: DocumentLine[]                 // order = position
 }
 
@@ -68,20 +68,24 @@ Payment { id, date, amount: string /* >0, doc currency */, note: string|null, cr
 - Recap: group item bases by `vatRate`; `vat = round2(Σbase × rate/100)` per rate (§37 ZDPH — per rate, not per line).
   For `reverse_charge`, `exempt`, `non_payer`: `vat = 0` in every recap row (rates kept for display).
   `non_payer` requires every item `vatRate = "0"` (else 422 `lines.N.vatRate: invalid`).
-- `total = Σbase + Σvat`; `roundTotal` (CZK only, else 422 `roundTotal: invalid`): `payable = round0(total)`,
-  `rounding = payable − total`; otherwise `payable = total`, `rounding = 0`.
+- `total = Σbase + Σvat`; `payable` = `total` rounded by `roundingMode` (`unit` whole units, `half` nearest 0.50,
+  half away from zero, any currency; `none` → `payable = total`), `rounding = payable − total` (4e, see
+  [defaults.md](defaults.md)).
 - Foreign currency with a known rate: `baseCzk = round2(base × rate)`, `vatCzk = round2(vat × rate)` per recap row,
   `totalCzk = round2(payable × rate)`.
 - Subtotal validation (port of infra `repo/subtotals.rs`): refs must point to existing other positions, no cycles, all
   (transitively) referenced item lines share one `vatRate` → else 422 `lines.N.refs: invalid`.
-- `POST /api/documents/compute` body `{ lines, vatMode, currency, exchangeRate, roundTotal }` → `{ lines (with base),
+- `POST /api/documents/compute` body `{ lines, vatMode, currency, exchangeRate, roundingMode }` → `{ lines (with base),
   totals }` — no DB writes; the editor uses it for live totals (debounced). Same 422s as save.
 
 ## Defaults on create (fields omitted or null in the POST body)
+**Since 4e** `paymentMethod`, `currency`, the rounding mode and the notes come from the company defaults and
+`roundTotal` is replaced by `roundingMode` — see [defaults.md](defaults.md).
 `issueDate` = today; `taxPointDate` = issueDate; `dueDate` = issueDate + (contact.defaultDueDays ?? company.defaultDueDays);
-`locale` = contact.defaultLocale ?? company.defaultLocale; `currency` = contact.defaultCurrency ?? "CZK";
+`locale` = contact.defaultLocale ?? company.defaultLocale; `currency` = contact.defaultCurrency ?? company.defaultCurrency;
 `bankAccountId` = default account for the currency; `vatMode` = company.vatPayer ? "standard" : "non_payer";
-`paymentMethod` = "bank_transfer"; `roundTotal` = false; new item lines default `vatRate` = default VAT rate (non_payer: "0").
+`paymentMethod` = company.defaultPaymentMethod; `roundingMode` = the company's default for the payment method;
+`headerNote` / `footerNote` = the company's notes of the locale; new item lines default `vatRate` = default VAT rate (non_payer: "0").
 (The POST body may therefore omit those fields; PUT replaces all fields.)
 
 ## Routes
@@ -128,7 +132,7 @@ Field errors
   `exchangeRate: invalid`. All arithmetic is checked (never a 500).
 - Subtotal refs are invalid when empty, out of range, self-referencing, duplicated, pointing at a `text` line, cyclic,
   or mixing VAT rates, or when nested subtotals sum beyond the representable range.
-- Line rules (non-payer rates, subtotal refs, `roundTotal`) run only after all field-level checks pass.
+- Line rules (non-payer rates, subtotal refs) run only after all field-level checks pass.
 - New reason code `below_issued` (counter guard).
 
 Documents
@@ -136,7 +140,7 @@ Documents
 - `contactId` naming a missing contact → `contactId: invalid`. `bankAccountId` naming a missing account, or one whose
   currency differs from the document's → `bankAccountId: invalid` (on save too, not only at issue).
 - `PUT` applies **no** defaults: `issueDate`, `dueDate`, `currency`, `locale`, `vatMode`, `paymentMethod` missing →
-  `required`; `taxPointDate`/`bankAccountId` stay `null` when omitted. Item `vatRate` defaults on both POST and PUT
+  `required`; `taxPointDate`/`bankAccountId` stay `null` when omitted, `roundingMode` → `none` (4e). Item `vatRate` defaults on both POST and PUT
   (and compute); with no default VAT rate configured a missing item `vatRate` is `required`.
 - Number limits: `quantity` / `unitPrice` at most 4 dp and `|x| < 10^12`; `exchangeRate` > 0, at most 6 dp;
   `discountPct` 0..100, 2 dp. `unit` ≤ 20, line `description` ≤ 500 (subtotal description may be empty),
@@ -149,8 +153,8 @@ Documents
 - `GET /api/documents/{id}` returns stored totals; line `base`s are recomputed from the stored lines.
 - `DELETE` / `PUT` of a non-draft → 409 `document_locked`; `issue` of a non-draft → 409 `invalid_state`.
 - `POST /api/documents/compute`: body fields default to `vatMode` = company default, `currency` = `CZK`,
-  `roundTotal` = false. It does **not** validate line text (`description`, `unit`) — only what affects amounts
-  (`quantity`, `unitPrice`, `discountPct`, `vatRate`, `refs`, `kind`, `vatMode`, `currency`, `exchangeRate`, `roundTotal`).
+  `roundingMode` = `none`. It does **not** validate line text (`description`, `unit`) — only what affects amounts
+  (`quantity`, `unitPrice`, `discountPct`, `vatRate`, `refs`, `kind`, `vatMode`, `currency`, `exchangeRate`, `roundingMode`).
   Save and issue keep the full validation.
 
 Issue

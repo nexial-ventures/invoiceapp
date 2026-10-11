@@ -12,7 +12,7 @@ use super::{lines, query, write};
 use crate::document::compute::Totals;
 use crate::document::entity::document::{self, ActiveModel, Entity};
 use crate::document::handlers::received_input::ReceivedData;
-use crate::document::line::{PaymentMethod, Status};
+use crate::document::line::{PaymentMethod, RoundingMode, Status};
 use crate::error::{AppError, number_violation};
 use crate::settings::doc_type::RECEIVED;
 use crate::settings::repo::number_series;
@@ -50,6 +50,10 @@ fn apply(row: &mut ActiveModel, r: Record) -> Totals {
     row.internal_note = Set(d.internal_note);
     row.supplier_snapshot = Set(Some(r.supplier));
     write::apply_totals(row, &r.totals);
+    // Informational: the entered rounding amount is kept as given.
+    row.rounding_mode = Set(RoundingMode::derive(r.totals.total, r.totals.rounding)
+        .as_str()
+        .into());
     row.updated_at = Set(chrono::Utc::now().into());
     r.totals
 }
@@ -91,7 +95,6 @@ async fn create_in(
         locale: Set(locale),
         bank_account_id: Set(None),
         payment_method: Set(PaymentMethod::BankTransfer.as_str().into()),
-        round_total: Set(false),
         created_at: Set(chrono::Utc::now().into()),
         ..Default::default()
     };
