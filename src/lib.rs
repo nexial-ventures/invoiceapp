@@ -7,6 +7,7 @@ pub mod cnb;
 pub mod config;
 pub mod contact;
 pub mod csvio;
+pub mod db;
 pub mod document;
 pub mod download;
 pub mod email;

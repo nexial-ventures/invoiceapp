@@ -95,16 +95,25 @@ snapshot has an IBAN, `payable > 0`. Generated server-side as SVG (crate `qrcode
 
 ## Archive
 
-- Columns on `documents`: `pdf_path text null` (the storage key `documents/{numberYear}/{id}.pdf`),
-  `pdf_sha256 text null`, `pdf_rendered_at timestamptz null`. Written atomically (see [Storage](#storage)).
-- **Issue** (`POST /api/documents/{id}/issue`, all doc types) renders and archives inside the issue transaction after
-  the number and snapshots are assigned; render or storage failure → transaction rolls back, nothing is issued (503
-  `pdf_unavailable` / 502 `pdf_render_failed` / 503 `storage_unavailable`); commit failure → the written file is
-  removed (best effort).
+- Columns on `documents`: `pdf_path text null` (the storage key `documents/{numberYear}/{id}-{sha8}-{nonce}.pdf`,
+  first 8 hex digits of the sha256 + 8 random hex digits, a new key per write attempt; archives written before the
+  change keep `documents/{numberYear}/{id}.pdf` — `pdf_path` is what
+  counts), `pdf_sha256 text null`, `pdf_rendered_at timestamptz null`. Written atomically (see [Storage](#storage)).
+- **Issue** (`POST /api/documents/{id}/issue`, all doc types) never holds a transaction, row lock or pooled
+  connection across the mdcast render or the storage write: (1) a dry-run transaction (always rolled back) applies
+  the issue — number, snapshots, totals — and builds the payload exactly as it will be committed; (2) the payload is
+  rendered and the PDF put under its own new key, outside any transaction; (3) a short transaction applies
+  the issue again (row lock, `updated_at` check, number allocation) and commits only when it yields the same payload,
+  recording the archive in the same commit. Render or storage failure → nothing is issued, no number used (503
+  `pdf_unavailable` / 502 `pdf_render_failed` / 503 `storage_unavailable`). The draft edited or the number taken by
+  another issue while rendering → the object is removed and the issue starts over with the current data (one
+  re-render for an edit; up to 5 re-renders, 20–120 ms apart, when only the number was taken by a concurrent issue of
+  the series); edited again → 409 `conflict`, nothing issued. A failed final transaction or commit → the written
+  object is removed (best effort, only when no row points at it).
 - **DDPP** (auto-issued with a payment): the payment never fails because of PDF. After the payment transaction
   commits, the handler tries to render + archive once (failure logged). A DDPP without an archive is rendered and
-  archived on its first `GET …/pdf` (concurrent first downloads: `UPDATE … WHERE pdf_path IS NULL`, the loser serves
-  its own bytes).
+  archived on its first `GET …/pdf` (render and object write outside any transaction, then `UPDATE … WHERE
+  pdf_path IS NULL`; the loser of concurrent first downloads removes its object and serves the winner's).
 - The archive is **immutable**: never re-rendered, also not after cancel or a design change.
 
 ## Routes
@@ -132,8 +141,9 @@ Fetch the PDF with the Bearer header (blob → object URL); a plain link cannot 
 - 503 `{"code":"pdf_unavailable"}` — mdcast unreachable, token rejected, gateway 502–504.
 - 503 `{"code":"storage_unavailable"}` — the storage (directory or bucket) failed: design listing / download, archive
   write or read. The cause is logged only.
-- 502 `{"code":"pdf_render_failed","detail":"…"}` — mdcast answered but the template failed (typst diagnostics), or a
-  design file is too large. `detail` is the mdcast message (the template is the user's own; no DB/internal data).
+- 502 `{"code":"pdf_render_failed","detail":"…"}` — mdcast answered but the template failed, or a design file is too
+  large. `detail` is mdcast's message: mdcast sanitises it to `render failed (incident <id>)` — the typst diagnostics
+  are only in mdcast's logs, found by the incident id (no DB/internal data either way).
 - Document `pdf` field (added to the Document DTO): `{ sha256, renderedAt } | null`.
 
 ## Configuration
@@ -152,7 +162,7 @@ mdcast HTTP timeout 60 s.
 All files (archives, originals, design overrides) go through one `Storage` (`src/storage/`, crate `object_store`):
 put (returns sha256; atomic — `fs` writes a temp file, fsyncs it, renames and fsyncs the directory; an S3 PUT is
 atomic), get (whole or streamed), delete (idempotent), exists / head, list by prefix. Keys are `/`-separated, never
-contain empty, `.` or `..` segments: `documents/{year}/{id}.pdf`, `documents/{year}/{id}-original-{sha8}.pdf`,
+contain empty, `.` or `..` segments: `documents/{year}/{id}-{sha8}-{nonce}.pdf` (older archives `{id}.pdf`), `documents/{year}/{id}-original-{sha8}-{nonce}.pdf`,
 `design/…`.
 
 - `fs` (default): `INVOICE__STORAGE_DIR`. `s3`: any S3-compatible service; bucket, access key id and secret are
@@ -164,8 +174,12 @@ contain empty, `.` or `..` segments: `documents/{year}/{id}.pdf`, `documents/{ye
 - Virtual-hosted style (`PATH_STYLE=false`) with a custom endpoint puts the bucket into the host
   (`https://s3.example` → `https://{bucket}.s3.example`; unchanged when the host already starts with `{bucket}.`).
 - A leftover `INVOICE__DESIGN_DIR` refuses the start (its files would silently stop applying).
-- A failed original upload or ISDOC import (write or commit) removes the possibly written object again, unless a
-  document row points at that key (keys are content-addressed).
+- A failed issue, original upload or ISDOC / CSV import (write, final transaction or commit) removes the object it
+  wrote, unless a document row points at that key. Every write attempt gets its own key (`…-{sha8}-{nonce}.pdf`), so
+  the cleanup never removes an object another attempt (a double-clicked issue, an identical upload) just wrote.
+- **Crash orphans**: objects are written before the transaction that references them, so a crash (or a lost
+  connection) between the put and the commit leaves an unreferenced object behind. Nothing sweeps them yet; they
+  are harmless (never served) and can be found as `documents/` keys no `pdf_path` / `original_path` points at.
 - `invoice storage migrate --from-dir <old INVOICE__STORAGE_DIR> [--design-dir <old INVOICE__DESIGN_DIR>]` copies
   every non-hidden file into the configured backend (keys = relative paths; the design dir under `design/`), reads
   each one back and compares sha256. Identical objects are skipped (re-runs are no-ops; decided by size + the MD5
@@ -207,8 +221,8 @@ contain empty, `.` or `..` segments: `documents/{year}/{id}.pdf`, `documents/{ye
   serves the winner's stored file (not its own render), so every download returns the archived bytes.
 - **Download**: `download=1` or `download=true` → `attachment`. The filename stem is reduced to `[A-Za-z0-9._-]`
   (others → `_`). A missing archive file → 500 `{"code":"internal"}`.
-- **Error detail**: `detail` is only returned for genuine template failures (mdcast `render_failed`, i.e. typst
-  diagnostics of the user's template) and our own design checks (file > 10 MB, non-UTF-8 `invoice.typ`). Any other
+- **Error detail**: `detail` is only returned for genuine template failures (mdcast `render_failed`, whose message
+  mdcast sanitises to `render failed (incident <id>)`) and our own design checks (file > 10 MB, non-UTF-8 `invoice.typ`). Any other
   mdcast failure (its 500 / `internal`, `payload_too_large`, an undecodable or unexpected answer) is 502
   `pdf_render_failed` **without** `detail`; the upstream body is logged only.
 - **Design**: font files are bundled too (request `fonts` are keys into the bundle); `invoice.typ` is sent as the
@@ -224,3 +238,8 @@ contain empty, `.` or `..` segments: `documents/{year}/{id}.pdf`, `documents/{ye
 - **Preview**: VAT mode `standard` and CZK regardless of the company's payer flag; due date = today + 14 days;
   supplier placeholder "Vaše firma s.r.o." / "Your Company Ltd." when the company name is empty; the bank is the
   default CZK account; VS = the sample number.
+- **Deferred for the invite-only test phase** (reasonable, invited users; mdcast load and hostile templates are not
+  a concern yet): no instance-wide cap on concurrent mdcast renders, no per-space preview rate limit / one preview in
+  flight per space, no shorter timeout for previews (all renders use the 60 s client timeout), and no fuel /
+  recursion / output caps on the MiniJinja e-mail templates (only their size limits). Revisit before opening
+  registration to the public.

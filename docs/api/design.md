@@ -51,7 +51,8 @@ are never re-rendered (1d). All routes are on a space host, **admin+** (Settings
   **embedded ∪ live ∪ draft (minus deletions)**; render errors as 1d (`502 pdf_render_failed` with `detail`).
 - `POST /api/pdf/design/activate` → `200 { version }`: (1) renders the sample with the draft set in **both**
   locales, **without** holding the lock — a template failure → 422 `{"code":"design_invalid","detail":"<locale>:
-  <mdcast message>"}` and nothing changes; then under the lock: (2) the draft must still be the one rendered (same
+  <mdcast message>"}` (the message is mdcast's sanitised `render failed (incident <id>)`; the typst diagnostics are in
+  mdcast's logs) and nothing changes; then under the lock: (2) the draft must still be the one rendered (same
   revision, deletions and stored draft files), else 409 `{"code":"draft_changed"}` and nothing changes; (3) writes
   the new live set: deletes the draft deletions, copies draft files to `design/` (server-side copies); (4) copies the
   resulting live set to `design-versions/{id}/` and inserts the version row; (5) clears the deletions and commits;

@@ -3,7 +3,8 @@
 
 use axum::Router;
 use axum::body::Body;
-use axum::http::{HeaderMap, Method, StatusCode, header};
+use axum::extract::Request;
+use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use invoice::auth::{crypto, session, users};
 use invoice::space::{Role, SpaceId};
 use sea_orm::{ActiveModelTrait, ConnectionTrait, DatabaseConnection, Set};
@@ -120,4 +121,21 @@ pub async fn accept(
 pub async fn show(app: &Router, token: &str) -> (StatusCode, Value) {
     let uri = format!("/api/invites/accept?token={token}");
     on(app, Method::GET, TEST_HOST, &uri, As::Nobody, None).await
+}
+
+/// `app` as seen by space beta: every request goes to beta's host with
+/// beta's token, so the shared helpers (which use the default host and
+/// token) act in beta.
+pub fn as_beta(app: &Router) -> Router {
+    app.clone().layer(axum::middleware::map_request(
+        |mut req: Request| async move {
+            let h = req.headers_mut();
+            h.insert(header::HOST, HeaderValue::from_static(B_HOST));
+            if h.contains_key(header::AUTHORIZATION) {
+                let bearer = HeaderValue::from_str(&format!("Bearer {B_TOKEN}")).expect("header");
+                h.insert(header::AUTHORIZATION, bearer);
+            }
+            req
+        },
+    ))
 }

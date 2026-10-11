@@ -4,7 +4,8 @@ mod common;
 
 use axum::http::{Method, StatusCode};
 use common::documents::{
-    create_contact, create_doc, dead_url, get_doc, id, issuable, issue, item, set_company,
+    archive_rel, create_contact, create_doc, dead_url, get_doc, id, issuable, issue, item,
+    set_company,
 };
 use common::mdcast::{PdfEnv, get_raw};
 use common::{TestDb, call};
@@ -41,7 +42,7 @@ async fn issue_archives_the_pdf() {
     let path = env
         .storage
         .path()
-        .join(db.key(&format!("documents/2026/{}.pdf", id(&doc))));
+        .join(db.key(&archive_rel(&db.conn, &doc).await));
     let stored = std::fs::read(&path).expect("archived file exists");
     assert_eq!(stored, render.pdf);
     let sha = doc["pdf"]["sha256"].as_str().expect("sha256");

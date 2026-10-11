@@ -107,6 +107,11 @@ async fn export(
             Some(AccessMode::ReadOnly),
         )
         .await?;
+    // The snapshot lives as long as the client takes to read the body.
+    if let Err(e) = crate::db::allow_idle(&txn).await {
+        export_load::rollback(txn, "export").await;
+        return Err(e.into());
+    }
     let ids = match ids(&txn, space, select).await {
         Ok(ids) => ids,
         Err(e) => {

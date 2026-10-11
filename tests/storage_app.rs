@@ -50,7 +50,7 @@ async fn archive_and_design(storage: TestStorage) {
     assert!(render.assets.contains(&"logo.png".to_string()));
     assert!(!render.assets.iter().any(|a| a.contains("hidden")));
 
-    let key = db.key(&format!("documents/2026/{}.pdf", id(&doc)));
+    let key = db.key(&common::documents::archive_rel(&db.conn, &doc).await);
     assert_eq!(env.storage.bytes(&key).await, Some(render.pdf.clone()));
     let (status, headers, bytes) = get_raw(&app, &format!("/api/documents/{}/pdf", id(&doc))).await;
     assert_eq!(status, StatusCode::OK);

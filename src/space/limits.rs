@@ -159,9 +159,14 @@ pub async fn check_room(
 
 /// Serialize the quota checks of the space until the transaction ends, so
 /// two concurrent uploads cannot both pass on the same remaining space.
-/// Callers take it last, after their own row locks, and then only write to
-/// storage and commit — nothing waits on it while holding a lock it needs.
+/// Callers take it last, after their own row locks: document writes have
+/// already put their object and only commit; a design upload still writes
+/// to the storage while holding it. Waiting behind such a put can outlast
+/// the pool's 30 s `statement_timeout`, so the rest of this transaction —
+/// already short, or deliberately waiting on the storage — runs without it.
 pub async fn lock(txn: &impl ConnectionTrait, space: SpaceId) -> Result<(), AppError> {
+    txn.execute_unprepared("SET LOCAL statement_timeout = 0")
+        .await?;
     txn.execute(Statement::from_sql_and_values(
         txn.get_database_backend(),
         "SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))",

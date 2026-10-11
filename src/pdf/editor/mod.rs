@@ -177,8 +177,15 @@ async fn rollback(txn: DatabaseTransaction) {
     }
 }
 
+/// The design lock is held across storage copies and deletes, which may
+/// leave the connection idle in the transaction longer than the pool's 30 s.
 async fn begin(db: &DatabaseConnection) -> Result<DatabaseTransaction, AppError> {
-    Ok(db.begin().await?)
+    let txn = db.begin().await?;
+    if let Err(e) = crate::db::allow_idle(&txn).await {
+        rollback(txn).await;
+        return Err(e.into());
+    }
+    Ok(txn)
 }
 
 #[cfg(test)]

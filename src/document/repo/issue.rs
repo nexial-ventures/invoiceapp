@@ -1,27 +1,26 @@
 //! `draft → issued`: validation, exchange rate, numbering, snapshots, totals.
 
-use chrono::{DateTime, Datelike, FixedOffset, NaiveDate};
+use bytes::Bytes;
+use chrono::{DateTime, FixedOffset, NaiveDate};
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, DatabaseTransaction, Set, TransactionTrait};
+use sea_orm::{DatabaseConnection, TransactionTrait};
 use uuid::Uuid;
 
-use anyhow::Context as _;
-
-use super::{advance_sources, context, credit, ddpp_correction, lines, meta, query, view, write};
+use super::{advance_sources, context, issue_apply, meta, original, query, view};
 use crate::cnb::{self, CnbClient};
 use crate::contact::entity::contact;
 use crate::document::advance::{self, AdvanceCtx};
 use crate::document::compute::{Evaluated, Params};
 use crate::document::custom_fields;
 use crate::document::entity::document;
-use crate::document::handlers::dto::{BankSnapshot, PartySnapshot};
+use crate::document::handlers::dto::PartySnapshot;
 use crate::document::handlers::input;
 use crate::document::line::{LineData, PaymentMethod, Status, VatMode};
-use crate::error::{AppError, FieldErrors, number_violation};
+use crate::error::{AppError, FieldErrors};
 use crate::pdf::{PdfService, archive};
 use crate::settings::doc_type::{DocType, ISSUED};
 use crate::settings::entity::{bank_account, company};
-use crate::settings::repo::{company as company_repo, number_series};
+use crate::settings::repo::company as company_repo;
 use crate::space::SpaceId;
 
 /// The exchange rate an issued document uses.
@@ -69,23 +68,42 @@ pub async fn fetch_rate(
     }
 }
 
-/// Everything resolved before the transaction (incl. the ČNB call, which must
-/// not run while the row is locked).
-struct Prepared {
-    doc_type: DocType,
-    seen_updated_at: DateTime<FixedOffset>,
-    lines: Vec<LineData>,
+/// Everything resolved outside any transaction (incl. the ČNB call, which
+/// must not run while the row is locked).
+pub(super) struct Prepared {
+    pub(super) doc_type: DocType,
+    pub(super) imported: bool,
+    pub(super) seen_updated_at: DateTime<FixedOffset>,
+    pub(super) lines: Vec<LineData>,
     /// `None` only for a simplified document without a contact.
-    customer: Option<contact::Model>,
-    bank: Option<bank_account::Model>,
-    company: company::Model,
-    rate: Rate,
-    params: Params,
-    evaluated: Evaluated,
+    pub(super) customer: Option<contact::Model>,
+    pub(super) bank: Option<bank_account::Model>,
+    pub(super) company: company::Model,
+    pub(super) rate: Rate,
+    pub(super) params: Params,
+    pub(super) evaluated: Evaluated,
 }
 
-/// Issue the draft and archive its PDF in the same transaction: a render
-/// failure leaves the draft (and the number counter) untouched.
+/// Issue attempts when the draft is edited while rendering: the first plus
+/// one re-render, then 409 `conflict`.
+const EDIT_ATTEMPTS: usize = 2;
+/// Re-renders when only the number moved (another issue of the series
+/// committed first) — cheap to lose, so a busier budget.
+const NUMBER_RETRIES: usize = 5;
+
+/// Issue the draft with its archived PDF, without holding a transaction,
+/// row lock or pooled connection across the mdcast render or the storage
+/// write:
+/// 1. a dry run (transaction rolled back) applies the issue and builds the
+///    PDF payload exactly as it will be committed — number included;
+/// 2. the payload is rendered and the PDF written under a new per-attempt
+///    key, outside any transaction;
+/// 3. a short transaction applies the issue again (row lock, `updated_at`
+///    check, number allocation) and commits only when it yields the same
+///    payload, recording the archive with it.
+///
+/// A render or storage failure → nothing issued, no number used. A changed
+/// document or number → the object is removed and the issue starts over.
 pub async fn issue(
     db: &DatabaseConnection,
     cnb: &CnbClient,
@@ -94,6 +112,65 @@ pub async fn issue(
     id: Uuid,
     today: NaiveDate,
 ) -> Result<(), AppError> {
+    let (mut edits, mut races) = (0, 0);
+    while edits < EDIT_ATTEMPTS && races <= NUMBER_RETRIES {
+        let p = prepare(db, cnb, space, id, today).await?;
+        // Imported documents never get our rendered PDF.
+        if p.imported {
+            let txn = db.begin().await?;
+            let result = issue_apply::apply(&txn, space, id, &p).await;
+            return issue_apply::finish(txn, result.map(|()| true))
+                .await
+                .map(|_| ());
+        }
+        let planned = issue_apply::plan(db, space, id, &p).await?;
+        let bytes = Bytes::from(pdf.render(planned.payload).await?);
+        let rel = archive::put(pdf, planned.year, id, &bytes).await?;
+        let txn = match db.begin().await {
+            Ok(txn) => txn,
+            Err(e) => {
+                pdf.storage().remove(&rel).await;
+                return Err(e.into());
+            }
+        };
+        let result =
+            issue_apply::commit_planned(&txn, space, id, &p, &planned.json, &rel, &bytes).await;
+        match issue_apply::finish(txn, result).await {
+            Ok(true) => return Ok(()),
+            // Same draft, different payload: another issue took the number.
+            Ok(false) => {
+                original::remove_unreferenced(db, pdf, &rel).await;
+                races += 1;
+                tokio::time::sleep(backoff()).await;
+            }
+            // The draft was edited while rendering: start over with it.
+            Err(AppError::Conflict(_)) => {
+                original::remove_unreferenced(db, pdf, &rel).await;
+                edits += 1;
+            }
+            Err(e) => {
+                original::remove_unreferenced(db, pdf, &rel).await;
+                return Err(e);
+            }
+        }
+    }
+    Err(AppError::Conflict("document changed while issuing".into()))
+}
+
+/// 20–120 ms, so issues that lost the same number race do not collide again.
+fn backoff() -> std::time::Duration {
+    let jitter = u64::from(uuid::Uuid::new_v4().as_bytes()[0]) % 100;
+    std::time::Duration::from_millis(20 + jitter)
+}
+
+/// Validate the draft and resolve what the issue needs (no transaction).
+async fn prepare(
+    db: &DatabaseConnection,
+    cnb: &CnbClient,
+    space: SpaceId,
+    id: Uuid,
+    today: NaiveDate,
+) -> Result<Prepared, AppError> {
     let doc = query::find(db, space, id).await?;
     if view::status(&doc)? != Status::Draft {
         return Err(AppError::InvalidState);
@@ -132,7 +209,8 @@ pub async fn issue(
         sources: &sources,
     };
     let evaluated = input::evaluate(&mut lines, params, &adv, None)?;
-    let prepared = Prepared {
+    Ok(Prepared {
+        imported: doc.imported,
         doc_type,
         lines,
         seen_updated_at: doc.updated_at,
@@ -142,24 +220,7 @@ pub async fn issue(
         rate,
         params,
         evaluated,
-    };
-    let txn = db.begin().await?;
-    let stored = match issue_in(&txn, space, id, prepared, pdf).await {
-        Ok(stored) => stored,
-        Err(e) => {
-            if let Err(r) = txn.rollback().await {
-                tracing::warn!(error = %r, "rollback issue");
-            }
-            return Err(e);
-        }
-    };
-    if let Err(e) = txn.commit().await {
-        if let Some(rel) = stored {
-            pdf.storage().remove(&rel).await;
-        }
-        return Err(e.into());
-    }
-    Ok(())
+    })
 }
 
 /// The issue validations (422 with every failing field).
@@ -270,106 +331,8 @@ pub(crate) fn customer(c: &contact::Model) -> PartySnapshot {
     }
 }
 
-fn json<T: serde::Serialize>(v: &T) -> Result<serde_json::Value, AppError> {
+pub(super) fn json<T: serde::Serialize>(v: &T) -> Result<serde_json::Value, AppError> {
     Ok(serde_json::to_value(v).map_err(anyhow::Error::from)?)
-}
-
-async fn issue_in(
-    txn: &DatabaseTransaction,
-    space: SpaceId,
-    id: Uuid,
-    p: Prepared,
-    pdf: &PdfService,
-) -> Result<Option<String>, AppError> {
-    let doc = query::lock(txn, space, id).await?;
-    if view::status(&doc)? != Status::Draft {
-        return Err(AppError::InvalidState);
-    }
-    // Edited between validation and the lock: what we validated is stale.
-    if doc.updated_at != p.seen_updated_at {
-        return Err(AppError::Conflict("document changed while issuing".into()));
-    }
-    let mut totals = p.evaluated.totals;
-    advance_sources::lock_and_recheck(txn, space, id, &p.lines).await?;
-    // An imported correction documents amounts as they were: no cap.
-    if p.doc_type.is_correction() && !doc.imported {
-        let original = doc
-            .related_document_id
-            .context("correction without its original")?;
-        match p.doc_type {
-            DocType::CreditNote => credit::check_cap(txn, space, id, original, &totals).await?,
-            // No cap, but the original must still be correctable.
-            DocType::DebitNote => {
-                credit::locked_original(txn, space, original).await?;
-            }
-            DocType::AdvanceCreditNote => {
-                ddpp_correction::check_issue(txn, space, id, original, &mut totals, p.params)
-                    .await?
-            }
-            _ => {}
-        }
-    } else if p.doc_type == DocType::AdvanceCreditNote {
-        // An imported correction linked to a DDPP counts in its net too.
-        ddpp_correction::check_linked(txn, &doc).await?;
-    }
-    // An imported document keeps its own number and never moves the counter.
-    let (number, seq) = match (&doc.number, doc.imported) {
-        (Some(n), true) => (n.clone(), None),
-        (None, true) => return Err(AppError::field("number", "required")),
-        (_, false) => {
-            let (n, seq) =
-                number_series::allocate_number(txn, space, p.doc_type, doc.issue_date.year())
-                    .await?;
-            (n, Some(seq))
-        }
-    };
-    let mut row: document::ActiveModel = doc.clone().into();
-    row.status = Set(Status::Issued.as_str().into());
-    row.variable_symbol = Set(Some(
-        doc.variable_symbol
-            .clone()
-            .unwrap_or_else(|| variable_symbol(&number)),
-    ));
-    row.number = Set(Some(number));
-    row.number_year = Set(Some(doc.issue_date.year()));
-    row.number_seq = Set(seq);
-    row.exchange_rate = Set(p.rate.rate);
-    row.exchange_rate_date = Set(p.rate.date);
-    row.exchange_rate_source = Set(p.rate.source.map(str::to_string));
-    row.supplier_snapshot = Set(Some(json(&supplier(&p.company))?));
-    row.customer_snapshot = Set(p
-        .customer
-        .as_ref()
-        .map(|c| json(&customer(c)))
-        .transpose()?);
-    row.bank_snapshot = Set(p
-        .bank
-        .as_ref()
-        .map(|b| {
-            json(&BankSnapshot {
-                account_number: b.account_number.clone(),
-                iban: b.iban.clone(),
-                bic: b.bic.clone(),
-            })
-        })
-        .transpose()?);
-    write::apply_totals(&mut row, &totals);
-    row.updated_at = Set(chrono::Utc::now().into());
-    row.update(txn)
-        .await
-        .map_err(|e| number_violation(e, || AppError::NumberTaken))?;
-    if !advance::referenced_ids(&p.lines).is_empty() {
-        lines::replace(txn, id, &p.lines).await?;
-    }
-    lines::replace_recap(txn, id, &totals).await?;
-    // Imported documents never get our rendered PDF.
-    if doc.imported {
-        return Ok(None);
-    }
-    // The render runs while the document row (and counter) stay locked, up to
-    // the 60 s mdcast timeout: accepted for a single-user app, because it is
-    // what makes "mdcast down → nothing issued, no number used" atomic.
-    archive::archive_in(txn, pdf, id).await
 }
 
 #[cfg(test)]

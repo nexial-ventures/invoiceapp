@@ -17,11 +17,12 @@ use crate::settings::doc_type::RECEIVED;
 use crate::space::{SpaceId, limits};
 use crate::storage;
 
-/// `documents/{year}/{id}-original-{sha8}.pdf`: content-addressed, so a
-/// replacement never overwrites the committed file.
-pub fn relative_path(year: i32, id: Uuid, sha256: &str) -> String {
+/// `documents/{year}/{id}-original-{sha8}-{nonce}.pdf`: a new key per write
+/// attempt, so a replacement never overwrites the committed file and a failed
+/// attempt's cleanup never removes another attempt's object.
+pub fn relative_path(year: i32, id: Uuid, sha256: &str, nonce: &str) -> String {
     let short = sha256.get(..8).unwrap_or(sha256);
-    format!("documents/{year}/{id}-original-{short}.pdf")
+    format!("documents/{year}/{id}-original-{short}-{nonce}.pdf")
 }
 
 /// Received documents and imported issued ones (any status); a native
@@ -34,9 +35,10 @@ fn allowed(doc: &document::Model) -> Result<(), AppError> {
     }
 }
 
-/// Best effort: remove an object a failed write or rollback may have left —
-/// but only when no document points at it. Keys are content-addressed, so a
-/// re-upload of identical content shares its key with the stored row.
+/// Best effort: remove an object a failed write, rollback or commit may have
+/// left — but only when no document of the space points at it. New keys
+/// carry a per-attempt nonce, so this only ever finds the caller's own
+/// object; the reference check guards keys written before nonces existed.
 pub async fn remove_unreferenced<C: ConnectionTrait>(db: &C, pdf: &PdfService, key: &str) {
     let storage = pdf.storage();
     let referenced = document::Entity::find()
@@ -55,10 +57,38 @@ pub async fn remove_unreferenced<C: ConnectionTrait>(db: &C, pdf: &PdfService, k
     }
 }
 
+/// A stored original: its per-upload key, digest and size.
+pub struct Original {
+    pub rel: String,
+    pub sha256: String,
+    pub size: i64,
+}
+
+impl Original {
+    pub fn new(year: i32, id: Uuid, bytes: &[u8]) -> Result<Self, AppError> {
+        let sha256 = storage::sha256_hex(bytes);
+        Ok(Self {
+            rel: relative_path(year, id, &sha256, &storage::nonce()),
+            sha256,
+            size: i64::try_from(bytes.len()).map_err(|_| AppError::TooLarge)?,
+        })
+    }
+
+    /// Point `row` at this original.
+    pub fn apply(&self, row: &mut document::ActiveModel, now: chrono::DateTime<chrono::Utc>) {
+        row.original_path = Set(Some(self.rel.clone()));
+        row.original_sha256 = Set(Some(self.sha256.clone()));
+        row.original_size = Set(Some(self.size));
+        row.original_uploaded_at = Set(Some(now.into()));
+    }
+}
+
 /// Store `bytes` (already checked to be a PDF) as the document's original,
-/// replacing any previous one. The row is updated and the new file written
-/// inside the transaction; the old file is removed only after the commit,
-/// the new one (when unreferenced) if the write or the commit fails.
+/// replacing any previous one. The object is written **before** the
+/// transaction (under a new per-upload key, so it never overwrites a
+/// committed file): no row lock is held across the storage call. The old
+/// file is removed only after the commit, the new one (when unreferenced) if
+/// the transaction fails — also on 422 `quota_exceeded` (checked in it).
 pub async fn put(
     db: &DatabaseConnection,
     pdf: &PdfService,
@@ -66,21 +96,32 @@ pub async fn put(
     bytes: Vec<u8>,
 ) -> Result<(), AppError> {
     ensure_usage(db, pdf.space_id(), pdf.storage()).await?;
-    let txn = db.begin().await?;
-    let (rel, previous) = match put_in(&txn, pdf.space_id(), id, &bytes).await {
-        Ok(paths) => paths,
-        Err(e) => return Err(rollback(txn, e).await),
+    let doc = query::find(db, pdf.space_id(), id).await?;
+    allowed(&doc)?;
+    let year = doc.number_year.unwrap_or(doc.issue_date.year());
+    let original = Original::new(year, id, &bytes)?;
+    pdf.storage().put(&original.rel, Bytes::from(bytes)).await?;
+    let txn = match db.begin().await {
+        Ok(txn) => txn,
+        Err(e) => {
+            // No row can point at the fresh key yet: it is ours to drop.
+            pdf.storage().remove(&original.rel).await;
+            return Err(e.into());
+        }
     };
-    if let Err(e) = pdf.storage().put(&rel, Bytes::from(bytes)).await {
-        let e = rollback(txn, e.into()).await;
-        remove_unreferenced(db, pdf, &rel).await;
-        return Err(e);
-    }
+    let previous = match put_in(&txn, pdf.space_id(), id, &original).await {
+        Ok(previous) => previous,
+        Err(e) => {
+            let e = rollback(txn, e).await;
+            remove_unreferenced(db, pdf, &original.rel).await;
+            return Err(e);
+        }
+    };
     if let Err(e) = txn.commit().await {
-        remove_unreferenced(db, pdf, &rel).await;
+        remove_unreferenced(db, pdf, &original.rel).await;
         return Err(e.into());
     }
-    if let Some(old) = previous.filter(|old| *old != rel) {
+    if let Some(old) = previous.filter(|old| *old != original.rel) {
         pdf.storage().remove(&old).await;
     }
     Ok(())
@@ -93,33 +134,29 @@ async fn rollback(txn: DatabaseTransaction, e: AppError) -> AppError {
     e
 }
 
-/// Updates the row; returns the new key and the previously stored one.
+/// Updates the row; returns the previously stored key.
 async fn put_in(
     txn: &DatabaseTransaction,
     space: SpaceId,
     id: Uuid,
-    bytes: &[u8],
-) -> Result<(String, Option<String>), AppError> {
+    original: &Original,
+) -> Result<Option<String>, AppError> {
     let doc = query::lock(txn, space, id).await?;
     allowed(&doc)?;
-    let sha256 = storage::sha256_hex(bytes);
-    let year = doc.number_year.unwrap_or(doc.issue_date.year());
-    let rel = relative_path(year, id, &sha256);
     let previous = doc.original_path.clone();
     let freed = doc
         .original_size
         .map_or(0, |n| u64::try_from(n).unwrap_or(0));
-    let size = i64::try_from(bytes.len()).map_err(|_| AppError::TooLarge)?;
     let now = chrono::Utc::now();
     let mut row: document::ActiveModel = doc.into();
-    row.original_path = Set(Some(rel.clone()));
-    row.original_sha256 = Set(Some(sha256));
-    row.original_size = Set(Some(size));
-    row.original_uploaded_at = Set(Some(now.into()));
+    original.apply(&mut row, now);
     row.updated_at = Set(now.into());
     row.update(txn).await?;
-    limits::check_documents(txn, space, bytes.len() as u64, freed).await?;
-    Ok((rel, previous))
+    // Last, under the space's quota lock; a refusal rolls back and the
+    // caller removes the object it put.
+    let added = u64::try_from(original.size).unwrap_or(0);
+    limits::check_documents(txn, space, added, freed).await?;
+    Ok(previous)
 }
 
 /// Idempotent; the file is removed after the commit (best effort).
@@ -155,8 +192,8 @@ mod tests {
     #[test]
     fn original_path() {
         assert_eq!(
-            relative_path(2026, Uuid::nil(), "ba7816bf8f01cfea"),
-            "documents/2026/00000000-0000-0000-0000-000000000000-original-ba7816bf.pdf"
+            relative_path(2026, Uuid::nil(), "ba7816bf8f01cfea", "0a1b2c3d"),
+            "documents/2026/00000000-0000-0000-0000-000000000000-original-ba7816bf-0a1b2c3d.pdf"
         );
     }
 }

@@ -8,6 +8,7 @@ pub mod credit;
 pub mod ddpp;
 pub mod ddpp_correction;
 pub mod issue;
+mod issue_apply;
 pub mod lifecycle;
 pub mod lines;
 pub mod meta;

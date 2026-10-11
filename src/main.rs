@@ -9,6 +9,7 @@ use invoice::auth::google::Google;
 use invoice::auth::ratelimit::RateLimiter;
 use invoice::cnb::CnbClient;
 use invoice::config::{Config, DbConfig};
+use invoice::db;
 use invoice::email::Mailer;
 use invoice::migration::{Migrator, MigratorTrait};
 use invoice::pdf::{PdfRoot, design};
@@ -142,10 +143,22 @@ async fn connect(url: &str) -> Result<DatabaseConnection> {
 
 async fn serve() -> Result<()> {
     let cfg = Config::from_env()?;
-    let db = connect(cfg.database_url.expose()).await?;
-    Migrator::up(&db, None)
+    // Migrations on their own connection: the pool's 30 s statement timeout
+    // is for requests, not for a long schema change.
+    let migrations = connect(cfg.database_url.expose()).await?;
+    Migrator::up(&migrations, None)
         .await
         .context("apply pending migrations")?;
+    migrations
+        .close()
+        .await
+        .context("close migration connection")?;
+    let db = Database::connect(db::pool_options(
+        cfg.database_url.expose(),
+        cfg.db_max_connections,
+    ))
+    .await
+    .context("connect to database (INVOICE__DATABASE_URL)")?;
 
     let storage = Storage::new(&cfg.storage)?;
     tokio::spawn(probe(storage.clone()));
