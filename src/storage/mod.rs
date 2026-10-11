@@ -208,6 +208,31 @@ impl Storage {
         })
     }
 
+    /// Server-side copy of `from` to `to` (replacing it): S3 `CopyObject`,
+    /// on `fs` a hard link renamed into place — a later write of either key
+    /// replaces its file and never changes the other.
+    pub async fn copy(&self, from: &str, to: &str) -> Result<(), Error> {
+        let (src, dst) = (parse(from)?, parse(to)?);
+        self.store
+            .copy(&src, &dst)
+            .await
+            .map_err(|e| map_err(from, e))
+    }
+
+    /// The sha256 of the object, streamed (never buffered whole).
+    pub async fn sha256(&self, key: &str) -> Result<String, Error> {
+        let mut stream = self.get_stream(key).await?.stream;
+        let mut hasher = Sha256::new();
+        while let Some(chunk) = stream.next().await {
+            hasher.update(chunk.map_err(|e| map_err(key, e))?);
+        }
+        Ok(hasher
+            .finalize()
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect())
+    }
+
     /// Idempotent: a missing object is not an error.
     pub async fn delete(&self, key: &str) -> Result<(), Error> {
         let path = parse(key)?;

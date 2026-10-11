@@ -61,7 +61,8 @@ pub async fn remove(storage: &Storage, path: &str) -> Result<bool, crate::storag
     Ok(true)
 }
 
-fn embedded() -> BTreeMap<String, u64> {
+/// The embedded default files by path, with their sizes.
+pub(crate) fn embedded() -> BTreeMap<String, u64> {
     DefaultDesign::iter()
         .filter(|p| !p.split('/').any(is_hidden))
         .filter_map(|p| {
@@ -71,7 +72,7 @@ fn embedded() -> BTreeMap<String, u64> {
         .collect()
 }
 
-fn embedded_bytes(path: &str) -> anyhow::Result<Bytes> {
+pub(crate) fn embedded_bytes(path: &str) -> anyhow::Result<Bytes> {
     Ok(
         match DefaultDesign::get(path)
             .with_context(|| format!("embedded design file {path} vanished"))?
@@ -84,18 +85,60 @@ fn embedded_bytes(path: &str) -> anyhow::Result<Bytes> {
     )
 }
 
-/// The stored overrides by design path.
-async fn custom(storage: &Storage) -> Result<BTreeMap<String, Object>, AppError> {
-    Ok(storage
-        .list(DESIGN_PREFIX)
-        .await?
+/// The stored files under the directory `prefix` by relative path (hidden
+/// ones skipped).
+pub(crate) async fn stored(
+    storage: &Storage,
+    prefix: &str,
+) -> Result<BTreeMap<String, Object>, crate::storage::Error> {
+    Ok(by_path(storage.list(prefix).await?, prefix))
+}
+
+/// A listing of `prefix` by relative path (hidden ones skipped).
+pub(crate) fn by_path(objects: Vec<Object>, prefix: &str) -> BTreeMap<String, Object> {
+    objects
         .into_iter()
-        .filter_map(|o| Some((design_path(&o.key)?.to_string(), o)))
-        .collect())
+        .filter_map(|o| Some((rel_key(&o.key, prefix)?.to_string(), o)))
+        .collect()
+}
+
+/// Which stored files override the embedded default: the directory `base`
+/// minus the paths in `deleted`, then `top` over it. Renders use
+/// [`Layers::LIVE`]; the draft preview / activation check put the draft on
+/// top of the live set, a restore check uses a version as `base`.
+#[derive(Debug, Clone, Copy)]
+pub struct Layers<'a> {
+    pub base: &'a str,
+    pub deleted: &'a [String],
+    pub top: Option<&'a str>,
+}
+
+impl Layers<'static> {
+    pub const LIVE: Layers<'static> = Layers {
+        base: DESIGN_PREFIX,
+        deleted: &[],
+        top: None,
+    };
+}
+
+impl Layers<'_> {
+    async fn overrides(&self, storage: &Storage) -> Result<BTreeMap<String, Object>, AppError> {
+        let mut files = stored(storage, self.base).await?;
+        files.retain(|path, _| !self.deleted.contains(path));
+        if let Some(top) = self.top {
+            files.extend(stored(storage, top).await?);
+        }
+        Ok(files)
+    }
 }
 
 /// The effective set for `GET /api/pdf/design`, sorted by path.
 pub async fn list(storage: &Storage) -> Result<Vec<DesignFile>, AppError> {
+    Ok(effective(&stored(storage, DESIGN_PREFIX).await?))
+}
+
+/// Embedded ∪ the listed live files `custom` (by design path).
+pub fn effective(custom: &BTreeMap<String, Object>) -> Vec<DesignFile> {
     let mut files: BTreeMap<String, DesignFile> = embedded()
         .into_iter()
         .map(|(path, size)| {
@@ -107,15 +150,15 @@ pub async fn list(storage: &Storage) -> Result<Vec<DesignFile>, AppError> {
             (path, file)
         })
         .collect();
-    for (path, o) in custom(storage).await? {
+    for (path, o) in custom {
         let file = DesignFile {
             path: path.clone(),
             source: Source::Custom,
             size: o.version.size,
         };
-        files.insert(path, file);
+        files.insert(path.clone(), file);
     }
-    Ok(files.into_values().collect())
+    files.into_values().collect()
 }
 
 fn is_font(path: &str) -> bool {
@@ -150,6 +193,12 @@ impl Cache {
     fn retain(&self, scope: &str, keys: &[String]) {
         let mut map = self.0.lock().unwrap_or_else(|e| e.into_inner());
         map.retain(|k, _| !k.starts_with(&format!("{scope}|")) || keys.contains(k));
+    }
+
+    /// Forget every cached file of `scope` (a design activation, restore or
+    /// reset of that space).
+    pub fn invalidate(&self, scope: &str) {
+        self.retain(scope, &[]);
     }
 
     /// Cached files (tests check what was downloaded).
@@ -213,13 +262,26 @@ fn too_large(path: &str, size: u64) -> Result<(), AppError> {
     Ok(())
 }
 
-/// Read the effective set. A file over 10 MB fails the render
+/// Read the effective live set. A file over 10 MB fails the render
 /// (`pdf_render_failed`, checked before any download); an unreachable
 /// storage is `storage_unavailable`.
 pub async fn load(storage: &Storage, cache: &Cache, scope: &str) -> Result<Design, AppError> {
-    let custom = custom(storage).await?;
-    let keys: Vec<String> = custom.values().map(|o| scoped_key(scope, &o.key)).collect();
-    cache.retain(scope, &keys);
+    load_layers(storage, cache, scope, Layers::LIVE).await
+}
+
+/// Read embedded ∪ `layers`. Only live files go through the cache, and only
+/// a load of the live set evicts its entries.
+pub async fn load_layers(
+    storage: &Storage,
+    cache: &Cache,
+    scope: &str,
+    layers: Layers<'_>,
+) -> Result<Design, AppError> {
+    let custom = layers.overrides(storage).await?;
+    if layers.base == DESIGN_PREFIX && layers.top.is_none() && layers.deleted.is_empty() {
+        let keys: Vec<String> = custom.values().map(|o| scoped_key(scope, &o.key)).collect();
+        cache.retain(scope, &keys);
+    }
     let mut files = BTreeMap::new();
     for (path, size) in embedded() {
         if path == QR_IMAGE || custom.contains_key(&path) {
@@ -234,7 +296,14 @@ pub async fn load(storage: &Storage, cache: &Cache, scope: &str) -> Result<Desig
             continue;
         }
         too_large(path, o.version.size)?;
-        files.insert(path.clone(), cache.fetch(storage, scope, o).await?);
+        // Only live files are cached: a draft or version is read for one
+        // check and would otherwise linger until the next live render.
+        let bytes = if design_path(&o.key).is_some() {
+            cache.fetch(storage, scope, o).await?
+        } else {
+            storage.get(&o.key).await?
+        };
+        files.insert(path.clone(), bytes);
     }
     let template = files
         .remove(TEMPLATE)

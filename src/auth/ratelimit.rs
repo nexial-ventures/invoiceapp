@@ -1,6 +1,6 @@
 //! In-memory sliding-window rate limits (per instance): login failures,
-//! password checks and the e-mail-sending auth routes. 429 `rate_limited` +
-//! `Retry-After`.
+//! password checks, the e-mail-sending auth routes and design activations.
+//! 429 `rate_limited` + `Retry-After`.
 //!
 //! Attempts are **reserved** before the slow work (argon2, DB) — check and
 //! record of every bucket under one lock — so a concurrent burst cannot slip
@@ -92,6 +92,13 @@ pub const INVITE_USER: Limit = Limit {
 pub const INVITE_SPACE: Limit = Limit {
     name: "invite-space",
     max: 50,
+    window: HOUR,
+};
+
+/// Design activations and restores per space (each costs two renders).
+pub const DESIGN_SPACE: Limit = Limit {
+    name: "design-space",
+    max: 10,
     window: HOUR,
 };
 

@@ -11,6 +11,7 @@ import type {
   CustomField,
   CustomFieldInput,
   DesignInfo,
+  DesignVersion,
   DocType,
   NumberSeries,
   VatRate,
@@ -107,13 +108,57 @@ export const useNumberSeriesStore = defineStore("settings/numberSeries", () => {
   return { series, load, savePattern, setCounter };
 });
 
-/** Read-only: the design dir is re-read by the server on every render, so this reloads on each visit. */
+/**
+ * The design is reloaded on each visit (`invoice design push` edits live behind the UI's back) and after
+ * every change: the server's answer is not merged, the quota and the version list move with it.
+ */
 export const useDesignStore = defineStore("settings/design", () => {
   const design = ref<DesignInfo | null>(null);
+  const versions = ref<DesignVersion[]>([]);
 
   async function load(): Promise<void> {
+    [design.value, versions.value] = await Promise.all([pdfApi.design(), pdfApi.versions()]);
+  }
+
+  async function reloadDesign(): Promise<void> {
     design.value = await pdfApi.design();
   }
 
-  return { design, load };
+  // Draft changes leave live and the history alone; activation, restore and reset replace live and add a version.
+  async function upload(path: string, file: Blob): Promise<void> {
+    await pdfApi.uploadDraftFile(path, file);
+    await reloadDesign();
+  }
+  async function removeDraftFile(path: string): Promise<void> {
+    await pdfApi.removeDraftFile(path);
+    await reloadDesign();
+  }
+  async function discard(): Promise<void> {
+    await pdfApi.discardDraft();
+    await reloadDesign();
+  }
+  async function activate(): Promise<void> {
+    await pdfApi.activate();
+    await load();
+  }
+  async function restore(id: string): Promise<void> {
+    await pdfApi.restore(id);
+    await load();
+  }
+  async function reset(): Promise<void> {
+    await pdfApi.reset();
+    await load();
+  }
+
+  return {
+    design,
+    versions,
+    load,
+    upload,
+    removeDraftFile,
+    discard,
+    activate,
+    restore,
+    reset,
+  };
 });

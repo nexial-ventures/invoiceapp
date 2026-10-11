@@ -1,20 +1,25 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import type { DocLocale } from "@/api/types";
 import ErrorDetail from "@/components/ErrorDetail.vue";
 import { useAction } from "@/composables/useAction";
 import { usePdf } from "@/composables/usePdf";
-import { formatBytes } from "@/lib/bytes";
+import DesignDraftPanel from "../components/design/DesignDraftPanel.vue";
+import DesignFilesTable from "../components/design/DesignFilesTable.vue";
+import DesignHistory from "../components/design/DesignHistory.vue";
+import DesignQuota from "../components/design/DesignQuota.vue";
 import { pdfApi } from "../api";
 import { useDesignStore } from "../stores";
 
-const { t, locale } = useI18n();
+const { t } = useI18n();
 const store = useDesignStore();
 const { error: loadError, run } = useAction();
 const { busy, error: previewError, detail, open } = usePdf();
 
 onMounted(() => void run(store.load));
+
+const draftPanel = ref<InstanceType<typeof DesignDraftPanel> | null>(null);
 
 const preview = (l: DocLocale) => open(() => pdfApi.preview(l));
 
@@ -54,35 +59,15 @@ const previews: { locale: DocLocale; label: string }[] = [
       </div>
     </section>
 
-    <div v-if="store.design" class="card overflow-x-auto !p-0">
-      <table class="table">
-        <caption class="px-3 pt-3 text-left text-sm font-medium">{{ t("pdf.design.files") }}</caption>
-        <thead>
-          <tr>
-            <th>{{ t("pdf.design.path") }}</th>
-            <th>{{ t("pdf.design.source") }}</th>
-            <th class="text-right">{{ t("pdf.design.size") }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="f in store.design.files" :key="f.path" data-test="design-file">
-            <td class="font-mono">{{ f.path }}</td>
-            <td>
-              <span
-                class="badge"
-                :class="{ '!bg-gray-100 !text-gray-700 dark:!bg-gray-800 dark:!text-gray-300': f.source === 'default' }"
-                :data-test="`source-${f.source}`"
-              >
-                {{ t(`pdf.design.sources.${f.source}`) }}
-              </span>
-            </td>
-            <td class="text-right whitespace-nowrap">{{ formatBytes(f.size, locale) }}</td>
-          </tr>
-          <tr v-if="store.design.files.length === 0">
-            <td colspan="3" class="py-8 text-center text-gray-500">{{ t("pdf.design.empty") }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <template v-if="store.design">
+      <DesignQuota :quota="store.design.quota" class="card" />
+      <DesignFilesTable
+        :files="store.design.files"
+        @replace="(path) => draftPanel?.pick(path)"
+        @delete="(path) => draftPanel?.remove(path)"
+      />
+      <DesignDraftPanel ref="draftPanel" />
+      <DesignHistory />
+    </template>
   </div>
 </template>

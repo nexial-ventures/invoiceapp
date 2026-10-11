@@ -1,0 +1,57 @@
+{
+  "quota": "Design storage: {used} of {limit}",
+  "quotaHint": "Counts the live files, the draft and the kept versions.",
+  "download": "Download",
+  "replace": "Replace",
+  "delete": "Delete",
+  "draft": {
+    "title": "Draft",
+    "hint": "Uploaded files replace the live ones only on activation. Try the draft with a preview first; activation renders it in both languages and changes nothing on an error.",
+    "file": "File",
+    "path": "Target path",
+    "pathHint": "Lowercase letters, digits and . _ -, at most one folder (e.g. fonts/inter.ttf). Extensions: .typ, .toml, .ttf, .otf, .woff2, .svg, .png, .jpg, .jpeg.",
+    "upload": "Upload to draft",
+    "uploading": "Uploading…",
+    "pathInvalid": "Invalid path or file extension.",
+    "tooLarge": "The file is larger than 10 MB.",
+    "changes": "Pending changes",
+    "empty": "The draft is empty.",
+    "updated": "Edited {date} ({by})",
+    "kinds": {
+      "added": "added",
+      "replaced": "replaced",
+      "deleted": "deleted"
+    },
+    "remove": "Remove from draft",
+    "previewCs": "Draft preview CZ",
+    "previewEn": "Draft preview EN",
+    "activate": "Activate",
+    "activated": "The draft is live.",
+    "discard": "Discard draft",
+    "confirmDiscard": "Really discard all changes of the draft?",
+    "discarded": "Draft discarded."
+  },
+  "history": {
+    "title": "Version history",
+    "hint": "The 10 newest versions are kept. Restoring replaces the live files with the version; the draft stays as it is.",
+    "number": "Version",
+    "kind": "Kind",
+    "author": "Author",
+    "time": "Time",
+    "files": "Files",
+    "current": "current",
+    "kinds": {
+      "activation": "activation",
+      "revert": "restore",
+      "default": "default design"
+    },
+    "restore": "Restore",
+    "confirmRestore": "Restore version {number}? The live files are replaced with its content.",
+    "restored": "Version {number} restored.",
+    "reset": "Revert to the default design",
+    "confirmReset": "Delete all custom files and use the default design? Restoring a version undoes it.",
+    "resetDone": "The default design is in use.",
+    "empty": "No versions yet."
+  },
+  "deletedUser": "deleted user"
+}

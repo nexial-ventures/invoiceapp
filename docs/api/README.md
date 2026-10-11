@@ -39,6 +39,7 @@ Later phases add more codes (`document_locked`, `invalid_state`, `cnb_unavailabl
 | [mfa.md](mfa.md) | TOTP second factor, recovery codes, space MFA policy, step-up (4c) |
 | [google.md](google.md) | Sign in with Google (OIDC + PKCE), handoff to space hosts, password-less accounts (4d) |
 | [defaults.md](defaults.md) | document defaults per space (company), rounding modes none / half / unit (4e) |
+| [design.md](design.md) | per-space PDF design: upload, draft, preview, activation, versions (4f) |
 
 Each part ends with a "Clarifications (as implemented)" section — the authoritative record of behaviour beyond the
 original contract. Keep every file under 400 lines; add a new part rather than growing one past the cap.

@@ -121,6 +121,10 @@ snapshot has an IBAN, `payable > 0`. Generated server-side as SVG (crate `qrcode
   `draft: false`, number `{YYYY}0001`-style sample. `locale` missing → company `defaultLocale`; invalid → 422.
 - `GET /api/pdf/design` → `{ storage: "fs" | "s3", files: [ { path, source: "custom" | "default", size } ] }`
   (effective set, sorted by path; `custom` = from the storage's `design/`).
+  4f extends this response with `draft` and `quota` and adds draft / activation / version routes (admin+):
+  [design.md](design.md). Renders (issue, preview) read the live set only; the draft preview and the activation /
+  restore checks render with an overlay (`design::Layers`; draft and version files bypass the cache, only live files
+  are cached), and an activation / restore / reset invalidates the space's design cache.
 
 Fetch the PDF with the Bearer header (blob → object URL); a plain link cannot carry the token.
 

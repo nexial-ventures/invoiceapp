@@ -1,6 +1,6 @@
 import { ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { errorMessageKey } from "@/lib/formErrors";
+import { errorDetailOf, errorMessageKey } from "@/lib/formErrors";
 
 /** Translates any thrown error into a user-facing message. */
 export function useErrorText() {
@@ -11,21 +11,24 @@ export function useErrorText() {
   };
 }
 
-/** Runs an async action and keeps the last failure as a translated message. */
+/** Runs an async action and keeps the last failure as a translated message plus the server's `detail`. */
 export function useAction() {
   const errorText = useErrorText();
   const error = ref<string | null>(null);
+  const detail = ref<string | null>(null);
 
   async function run(action: () => Promise<void>): Promise<boolean> {
     error.value = null;
+    detail.value = null;
     try {
       await action();
       return true;
     } catch (err) {
       error.value = errorText(err);
+      detail.value = errorDetailOf(err);
       return false;
     }
   }
 
-  return { error, run, errorText };
+  return { error, detail, run, errorText };
 }

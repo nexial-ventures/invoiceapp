@@ -18,7 +18,10 @@ export class ApiError extends Error {
 }
 
 export interface RequestOptions extends Omit<RequestInit, "body"> {
-  /** Serialized as JSON; a `FormData` goes out as multipart (the browser sets the boundary). */
+  /**
+   * Serialized as JSON; a `FormData` goes out as multipart (the browser sets the boundary), a `Blob` / `File`
+   * as the raw body (its own type as `Content-Type`).
+   */
   body?: unknown;
   /**
    * A 401 is an expected answer here (the session probe, the login itself), so it must
@@ -65,8 +68,8 @@ async function send(path: string, options: RequestOptions, accept: string): Prom
 
   const headers = new Headers(extraHeaders);
   headers.set("Accept", accept);
-  const multipart = body instanceof FormData;
-  if (body !== undefined && !multipart) headers.set("Content-Type", "application/json");
+  const raw = body instanceof FormData || body instanceof Blob;
+  if (body !== undefined && !raw) headers.set("Content-Type", "application/json");
 
   let res: Response;
   try {
@@ -74,7 +77,7 @@ async function send(path: string, options: RequestOptions, accept: string): Prom
       ...init,
       credentials: "same-origin",
       headers,
-      body: body === undefined ? undefined : multipart ? body : JSON.stringify(body),
+      body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
     });
   } catch {
     throw new ApiError(0, "network");

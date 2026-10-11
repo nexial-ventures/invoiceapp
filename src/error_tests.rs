@@ -314,3 +314,36 @@ async fn mfa_errors() {
         )
     );
 }
+
+#[tokio::test]
+async fn design_errors() {
+    let unprocessable = StatusCode::UNPROCESSABLE_ENTITY;
+    assert_eq!(
+        body(AppError::DesignInvalid("en: unknown variable".into())).await,
+        (
+            unprocessable,
+            serde_json::json!({ "code": "design_invalid", "detail": "en: unknown variable" })
+        )
+    );
+    assert_eq!(
+        body(AppError::DraftEmpty).await,
+        (unprocessable, serde_json::json!({ "code": "draft_empty" }))
+    );
+    for (err, code) in [
+        (AppError::DesignBusy, "design_busy"),
+        (AppError::DraftChanged, "draft_changed"),
+        (AppError::VersionIncomplete, "version_incomplete"),
+    ] {
+        assert_eq!(
+            body(err).await,
+            (StatusCode::CONFLICT, serde_json::json!({ "code": code }))
+        );
+    }
+    assert_eq!(
+        body(AppError::QuotaExceeded("49.5 / 50 MB".into())).await,
+        (
+            unprocessable,
+            serde_json::json!({ "code": "quota_exceeded", "detail": "49.5 / 50 MB" })
+        )
+    );
+}

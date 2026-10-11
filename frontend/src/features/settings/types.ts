@@ -88,11 +88,13 @@ export interface NumberSeries {
   nextNumberPreview: string;
 }
 
-/** `GET /api/pdf/design` — the effective design files (built-in ∪ storage keys `design/…`), sorted by path. */
+/** `GET /api/pdf/design` — the live design (built-in ∪ storage keys `design/…`, sorted by path), the draft and the quota. */
 export interface DesignInfo {
   /** The storage backend the custom files come from. */
   storage: "fs" | "s3";
   files: DesignFile[];
+  draft: DesignDraft | null;
+  quota: DesignQuota;
 }
 export interface DesignFile {
   path: string;
@@ -100,6 +102,44 @@ export interface DesignFile {
   source: "custom" | "default";
   /** Bytes. */
   size: number;
+}
+/** Pending changes: uploaded files and live custom files to delete, applied on activation. */
+export interface DesignDraft {
+  files: DesignDraftFile[];
+  deleted: string[];
+  /** Null until a change was recorded. */
+  updatedAt: string | null;
+  updatedBy: DesignAuthor | null;
+}
+export interface DesignDraftFile {
+  path: string;
+  size: number;
+  /** `replaced` = overrides a live file of the same path. */
+  change: "added" | "replaced";
+}
+/** Null in `updatedBy` / `createdBy` when the account is gone. */
+export interface DesignAuthor {
+  email: string;
+  displayName: string;
+}
+/** Bytes over live + draft + kept versions. */
+export interface DesignQuota {
+  used: number;
+  limit: number;
+}
+/** `GET /api/pdf/design/file?source=…`. */
+export type DesignFileSource = "live" | "draft" | "default";
+
+export type DesignVersionKind = "activation" | "revert" | "default";
+/** `GET /api/pdf/design/versions`, newest first; `current` = the live set. */
+export interface DesignVersion {
+  id: string;
+  number: number;
+  kind: DesignVersionKind;
+  createdAt: string;
+  createdBy: DesignAuthor | null;
+  files: { path: string; size: number; sha256: string }[];
+  current: boolean;
 }
 
 export const CATEGORY_KINDS = ["expense", "income"] as const;

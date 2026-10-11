@@ -31,5 +31,11 @@
   "lastOwner": "The only owner cannot be removed or leave the space. Make another member an owner first.",
   "mfaInvalid": "Wrong code.",
   "mfaRequired": "This space requires two-factor authentication, which your account does not have. Turn it on in your account on the main site and sign in again.",
-  "mfaEnabled": "Two-factor authentication is already on."
+  "mfaEnabled": "Two-factor authentication is already on.",
+  "quotaExceeded": "The design storage quota is used up.",
+  "designInvalid": "The design cannot be rendered – nothing was changed.",
+  "draftEmpty": "The draft is empty – there is nothing to activate.",
+  "designBusy": "Another design change is in progress. Try again in a moment.",
+  "draftChanged": "The draft changed during activation. Check it and activate again.",
+  "versionIncomplete": "The files of this version are missing from the storage – it cannot be restored."
 }

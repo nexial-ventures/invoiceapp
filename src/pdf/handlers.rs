@@ -1,14 +1,12 @@
-use axum::Json;
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::header;
 use axum::response::{IntoResponse, Response};
-use serde::{Deserialize, Serialize};
-use utoipa::{IntoParams, ToSchema};
+use serde::Deserialize;
+use utoipa::IntoParams;
 use uuid::Uuid;
 
 use super::archive::{self, PdfBody};
-use super::design::{self, DesignFile};
 use super::format::Locale;
 use super::payload;
 use super::preview::Sample;
@@ -17,6 +15,7 @@ use crate::auth::Read;
 use crate::document::line::Status;
 use crate::error::{AppError, ErrorBody};
 use crate::extract::{ApiPath, ApiQuery};
+use crate::settings::entity::company as company_entity;
 use crate::settings::repo::company;
 
 #[derive(Debug, Default, Deserialize, IntoParams)]
@@ -33,14 +32,6 @@ pub struct PreviewQuery {
     pub locale: Option<String>,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct DesignListing {
-    /// The storage backend the custom files come from: `fs` | `s3`.
-    pub storage: String,
-    pub files: Vec<DesignFile>,
-}
-
 /// Keeps the header value ASCII and free of quotes / path separators.
 pub(crate) fn safe_filename(stem: &str) -> String {
     stem.chars()
@@ -54,7 +45,7 @@ pub(crate) fn safe_filename(stem: &str) -> String {
         .collect()
 }
 
-fn pdf_response(body: PdfBody, stem: &str, download: bool) -> Response {
+pub(crate) fn pdf_response(body: PdfBody, stem: &str, download: bool) -> Response {
     let disposition = format!(
         "{}; filename=\"{}.pdf\"",
         if download { "attachment" } else { "inline" },
@@ -126,10 +117,7 @@ pub async fn preview(
     ApiQuery(q): ApiQuery<PreviewQuery>,
 ) -> Result<Response, AppError> {
     let company = company::get(&state.db, access.space()).await?;
-    let locale = match q.locale.as_deref() {
-        Some(l) => Locale::parse(l).ok_or(AppError::field("locale", "invalid"))?,
-        None => Locale::parse(&company.default_locale).unwrap_or(Locale::Cs),
-    };
+    let locale = preview_locale(&company, q.locale.as_deref())?;
     let sample = Sample::load(&state.db, &company, locale).await?;
     let bytes = state
         .pdf
@@ -143,27 +131,15 @@ pub async fn preview(
     ))
 }
 
-#[utoipa::path(
-    get,
-    path = "/api/pdf/design",
-    tag = "pdf",
-    security(("cookie" = []), ("bearer" = [])),
-    responses(
-        (status = 200, body = DesignListing),
-        (status = 503, description = "`storage_unavailable`", body = ErrorBody),
-    )
-)]
-pub async fn design(
-    State(state): State<AppState>,
-    access: Read,
-) -> Result<Json<DesignListing>, AppError> {
-    let pdf = state.pdf.space(access.space())?;
-    let storage = pdf.storage();
-    let files = design::list(storage).await?;
-    Ok(Json(DesignListing {
-        storage: storage.kind().to_string(),
-        files,
-    }))
+/// The `locale` query value, else the company's `defaultLocale`.
+pub(crate) fn preview_locale(
+    company: &company_entity::Model,
+    raw: Option<&str>,
+) -> Result<Locale, AppError> {
+    Ok(match raw {
+        Some(l) => Locale::parse(l).ok_or(AppError::field("locale", "invalid"))?,
+        None => Locale::parse(&company.default_locale).unwrap_or(Locale::Cs),
+    })
 }
 
 #[cfg(test)]

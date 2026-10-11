@@ -6,15 +6,17 @@
 use std::collections::BTreeMap;
 
 use axum::Json;
-use axum::extract::rejection::{JsonRejection, PathRejection, QueryRejection};
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use sea_orm::{DbErr, RuntimeErr, TransactionError, sqlx};
+use sea_orm::DbErr;
 use serde::Serialize;
 use utoipa::ToSchema;
 
+#[path = "error_convert.rs"]
+mod convert;
 #[path = "error_fields.rs"]
 mod fields;
+pub use convert::{lock_not_available, number_violation, unique_violation};
 pub use fields::FieldErrors;
 
 #[derive(Debug, thiserror::Error)]
@@ -152,6 +154,28 @@ pub enum AppError {
     #[error("template {field} invalid: {detail}")]
     TemplateInvalid { field: &'static str, detail: String },
 
+    /// The design does not render the sample (`detail`: `<locale>: <message>`).
+    #[error("design invalid: {0}")]
+    DesignInvalid(String),
+
+    #[error("the design draft is empty")]
+    DraftEmpty,
+
+    /// The space's design storage quota (`detail`: `<used> / 50 MB`).
+    #[error("quota exceeded: {0}")]
+    QuotaExceeded(String),
+
+    /// Another design change of the space holds its lock.
+    #[error("the design is being changed")]
+    DesignBusy,
+
+    #[error("the draft changed during the check")]
+    DraftChanged,
+
+    /// A version's stored files are missing or differ from its record.
+    #[error("the design version is incomplete")]
+    VersionIncomplete,
+
     #[error("internal error: {0:#}")]
     Internal(#[from] anyhow::Error),
 
@@ -213,73 +237,16 @@ impl AppError {
             Self::SmtpNotConfigured => (StatusCode::SERVICE_UNAVAILABLE, "smtp_not_configured"),
             Self::SmtpFailed(_) => (StatusCode::BAD_GATEWAY, "smtp_failed"),
             Self::TemplateInvalid { .. } => (StatusCode::UNPROCESSABLE_ENTITY, "template_invalid"),
+            Self::DesignInvalid(_) => (StatusCode::UNPROCESSABLE_ENTITY, "design_invalid"),
+            Self::DraftEmpty => (StatusCode::UNPROCESSABLE_ENTITY, "draft_empty"),
+            Self::QuotaExceeded(_) => (StatusCode::UNPROCESSABLE_ENTITY, "quota_exceeded"),
+            Self::DesignBusy => (StatusCode::CONFLICT, "design_busy"),
+            Self::DraftChanged => (StatusCode::CONFLICT, "draft_changed"),
+            Self::VersionIncomplete => (StatusCode::CONFLICT, "version_incomplete"),
             Self::Internal(_) | Self::Database(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "internal")
             }
         }
-    }
-}
-
-/// The name of the unique constraint or index `err` violated, if it is a
-/// unique violation (empty when the driver reports no name).
-pub fn unique_violation(err: &DbErr) -> Option<String> {
-    let (DbErr::Exec(RuntimeErr::SqlxError(sqlx::Error::Database(e)))
-    | DbErr::Query(RuntimeErr::SqlxError(sqlx::Error::Database(e)))) = err
-    else {
-        return None;
-    };
-    e.is_unique_violation()
-        .then(|| e.constraint().unwrap_or_default().to_string())
-}
-
-/// Maps a violation of the unique document-number indexes to `on_number`,
-/// any other error as usual.
-pub fn number_violation(err: DbErr, on_number: impl FnOnce() -> AppError) -> AppError {
-    match unique_violation(&err).as_deref() {
-        Some("documents_issued_number_key" | "documents_received_number_key") => on_number(),
-        _ => err.into(),
-    }
-}
-
-impl From<DbErr> for AppError {
-    /// Unique violations nobody mapped to a field (typically a race on a
-    /// partial unique index) are a client-visible 409, not a 500.
-    fn from(err: DbErr) -> Self {
-        match unique_violation(&err) {
-            Some(msg) => Self::Conflict(msg),
-            None => Self::Database(err),
-        }
-    }
-}
-
-/// For `db.transaction(|txn| …)`, which awaits the rollback when the closure
-/// fails — a dropped `DatabaseTransaction` only queues it.
-impl From<TransactionError<AppError>> for AppError {
-    fn from(err: TransactionError<AppError>) -> Self {
-        match err {
-            TransactionError::Connection(e) => e.into(),
-            TransactionError::Transaction(e) => e,
-        }
-    }
-}
-
-impl From<JsonRejection> for AppError {
-    fn from(rejection: JsonRejection) -> Self {
-        Self::BadRequest(rejection.body_text())
-    }
-}
-
-impl From<QueryRejection> for AppError {
-    fn from(rejection: QueryRejection) -> Self {
-        Self::BadRequest(rejection.body_text())
-    }
-}
-
-/// A path segment that does not parse (e.g. a non-UUID id) cannot name an
-/// existing resource.
-impl From<PathRejection> for AppError {
-    fn from(_: PathRejection) -> Self {
-        Self::NotFound
     }
 }
 
@@ -293,7 +260,8 @@ pub struct ErrorBody {
     pub fields: Option<BTreeMap<String, String>>,
     /// For `mfa_required` after an invitation created the account
     /// (`account_created`), `pdf_render_failed` (the render service's message), `smtp_failed`
-    /// (the SMTP server's response), `template_invalid` (line + message) and a
+    /// (the SMTP server's response), `template_invalid` (line + message),
+    /// `design_invalid` (locale + render message), `quota_exceeded` (usage) and a
     /// `validation` error that names the offending input part (e.g. the CSV
     /// column of a `missing_column` file error).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -335,9 +303,11 @@ impl AppError {
             _ => None,
         };
         let detail = match self {
-            Self::PdfRenderFailed(d) | Self::SmtpFailed(d) | Self::ValidationDetail(_, d) => {
-                Some(d.clone())
-            }
+            Self::PdfRenderFailed(d)
+            | Self::SmtpFailed(d)
+            | Self::ValidationDetail(_, d)
+            | Self::DesignInvalid(d)
+            | Self::QuotaExceeded(d) => Some(d.clone()),
             Self::TemplateInvalid { detail, .. } => Some(detail.clone()),
             Self::MfaRequired {
                 account_created: true,

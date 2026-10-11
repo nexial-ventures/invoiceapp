@@ -81,6 +81,14 @@ const KNOWN_CODES: Record<string, string> = {
   mfa_invalid: "errors.mfaInvalid",
   mfa_required: "errors.mfaRequired",
   mfa_enabled: "errors.mfaEnabled",
+  // PDF design (4f): the quota and the render error come with a `detail`.
+  quota_exceeded: "errors.quotaExceeded",
+  design_invalid: "errors.designInvalid",
+  draft_empty: "errors.draftEmpty",
+  // 409s of the design lock / activation race / a restore whose stored files are gone.
+  design_busy: "errors.designBusy",
+  draft_changed: "errors.draftChanged",
+  version_incomplete: "errors.versionIncomplete",
 };
 
 /** The error is this API answer (`status` + `code`). */

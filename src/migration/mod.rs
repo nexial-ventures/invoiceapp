@@ -21,6 +21,7 @@ mod m20261017_000001_space_invites;
 mod m20261018_000001_mfa;
 mod m20261019_000001_google;
 mod m20261020_000001_defaults;
+mod m20261021_000001_design;
 
 pub struct Migrator;
 
@@ -42,6 +43,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20261018_000001_mfa::Migration),
             Box::new(m20261019_000001_google::Migration),
             Box::new(m20261020_000001_defaults::Migration),
+            Box::new(m20261021_000001_design::Migration),
         ]
     }
 }

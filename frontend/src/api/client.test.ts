@@ -33,6 +33,14 @@ describe("api client", () => {
     await expect(request("/api/auth/register", { method: "POST", body: {} })).resolves.toBeUndefined();
   });
 
+  it("sends a Blob as the raw body", async () => {
+    const fetch = mockFetch(200, {});
+    const file = new Blob(["<svg/>"], { type: "image/svg+xml" });
+    await request("/api/x", { method: "PUT", body: file });
+    expect(fetch.mock.calls[0]?.[1]?.body).toBe(file);
+    expect(sentHeaders(fetch).has("Content-Type")).toBe(false);
+  });
+
   it("serializes a JSON body", async () => {
     const fetch = mockFetch(200, {});
     await request("/api/x", { method: "POST", body: { a: 1 } });
