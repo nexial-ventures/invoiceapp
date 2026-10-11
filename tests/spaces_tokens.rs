@@ -1,10 +1,13 @@
-//! Personal API token routes and expiry (spaces.md, 4a).
+//! Personal API token routes and expiry (spaces.md, 4a); a disabled user's
+//! credentials stop working.
 
 mod common;
 
 use axum::http::{Method, StatusCode};
 use common::auth::{As, member, on, status};
-use common::{TEST_HOST, TEST_TOKEN, TestDb, router};
+use common::members::{session_on, user_id};
+use common::{BASE_HOST, TEST_HOST, TEST_TOKEN, TestDb, router};
+use invoice::auth::session;
 use invoice::space::Role;
 use sea_orm::ConnectionTrait;
 use serde_json::{Value, json};
@@ -176,5 +179,47 @@ async fn expired_tokens_are_refused() {
     assert_eq!(
         (s, j),
         (StatusCode::UNAUTHORIZED, json!({ "code": "unauthorized" }))
+    );
+}
+
+#[tokio::test]
+async fn disabled_user_loses_session_and_tokens() {
+    let db = TestDb::new().await;
+    let app = router(db.conn.clone());
+    let token = member(&db.conn, db.space, "mem@example.com", Role::Member).await;
+    let user = user_id(&db.conn, "mem@example.com").await;
+    let cookie = session_on(&db.conn, db.space, user).await;
+    // A base-host session (no space) is resolved by a separate branch.
+    let base_cookie = session::create(&db.conn, user, None, None, session::Method::Password)
+        .await
+        .expect("base-host session");
+    let calls = [
+        (TEST_HOST, "/api/contacts", As::Bearer(&token)),
+        (TEST_HOST, "/api/contacts", As::Cookie(&cookie)),
+        (BASE_HOST, "/api/auth/me", As::Cookie(&base_cookie)),
+    ];
+    for (host, uri, who) in calls {
+        let (s, j) = on(&app, Method::GET, host, uri, who, None).await;
+        assert_eq!(s, StatusCode::OK, "{host}{uri} works before: {j}");
+    }
+
+    db.conn
+        .execute_unprepared(&format!(
+            "UPDATE users SET disabled = true WHERE id = '{user}'"
+        ))
+        .await
+        .expect("disable");
+    for (host, uri, who) in calls {
+        let (s, j) = on(&app, Method::GET, host, uri, who, None).await;
+        assert_eq!(
+            (s, j),
+            (StatusCode::UNAUTHORIZED, json!({ "code": "unauthorized" })),
+            "{host}{uri}"
+        );
+    }
+    assert_eq!(
+        status(&app, Method::GET, "/api/contacts", TEST_TOKEN, None).await,
+        StatusCode::OK,
+        "other users unaffected"
     );
 }

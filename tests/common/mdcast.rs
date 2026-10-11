@@ -15,6 +15,7 @@ use axum::extract::State;
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::post;
+use invoice::pdf::PdfRoot;
 use serde_json::{Value, json};
 
 /// One successful render as the mock saw it.
@@ -25,6 +26,8 @@ pub struct Rendered {
     pub template: String,
     /// Asset manifest keys, sorted.
     pub assets: Vec<String>,
+    /// Asset manifest key → content digest (tells same-named files apart).
+    pub digests: std::collections::BTreeMap<String, String>,
     pub fonts: Vec<String>,
     /// The bytes answered.
     pub pdf: Vec<u8>,
@@ -125,6 +128,10 @@ async fn render(State(m): State<MdcastMock>, body: Bytes) -> Response {
             .unwrap_or_default()
             .to_string(),
         assets: keys,
+        digests: assets
+            .iter()
+            .filter_map(|(k, d)| Some((k.clone(), d.as_str()?.to_string())))
+            .collect(),
         fonts: req["fonts"]
             .as_array()
             .map(|a| {
@@ -219,6 +226,17 @@ impl PdfEnv {
         storage: invoice::storage::Storage,
     ) -> Router {
         let pdf = super::pdf_service(url, storage);
+        Self::app(db, pdf)
+    }
+
+    /// The app rendering against this mock, plus its PDF service (its
+    /// shared design cache is inspectable).
+    pub fn router_and_pdf(&self, db: sea_orm::DatabaseConnection) -> (Router, PdfRoot) {
+        let pdf = super::pdf_service(&self.url, self.storage.storage.clone());
+        (Self::app(db, pdf.clone()), pdf)
+    }
+
+    fn app(db: sea_orm::DatabaseConnection, pdf: PdfRoot) -> Router {
         super::app(super::state(
             db,
             invoice::ares::DEFAULT_ARES_URL,

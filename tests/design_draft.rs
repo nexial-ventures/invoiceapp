@@ -9,6 +9,7 @@ use bytes::Bytes;
 use common::auth::{As, member, on, seed_space};
 use common::design::{listing, paths, template, upload, upload_as, upload_ok};
 use common::mdcast::{PdfEnv, get_raw};
+use common::members::{B_HOST, B_TOKEN};
 use common::{TEST_HOST, TestDb, call};
 use invoice::space::Role;
 use serde_json::{Value, json};
@@ -289,8 +290,6 @@ async fn editor_routes_are_admin_only() {
 
 #[tokio::test]
 async fn design_keys_stay_in_their_space() {
-    const B_TOKEN: &str = "inv_0d0d0d0d_ZGVzaWduLWJldGEtdG9rZW4tc2VjcmV0LTAxMjM0NTY3ODk";
-    const B_HOST: &str = "beta.localhost:3000";
     let db = TestDb::new().await;
     let (beta, _) = seed_space(&db.conn, "beta", "beta@example.com", Some(B_TOKEN)).await;
     let env = PdfEnv::new();

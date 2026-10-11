@@ -15,6 +15,8 @@ use super::auth::{As, exchange, on, request, session_cookie, store_token};
 
 /// Space beta's host (a second space for isolation checks).
 pub const B_HOST: &str = "beta.localhost:3000";
+/// The token `seed_space(.., "beta", .., Some(B_TOKEN))` stores for beta's owner.
+pub const B_TOKEN: &str = "inv_0b0b0b0b_YmV0YS1zcGFjZS10b2tlbi1zZWNyZXQtMDEyMzQ1Njc4OWFi";
 
 pub async fn user_id(conn: &DatabaseConnection, email: &str) -> Uuid {
     users::find_by_email(conn, email)
