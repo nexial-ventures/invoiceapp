@@ -5,7 +5,7 @@ use chrono::{Duration, Utc};
 use sea_orm::sea_query::Expr;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    Set, TransactionTrait,
+    Set, Statement, TransactionTrait,
 };
 use uuid::Uuid;
 
@@ -102,16 +102,43 @@ pub async fn set_password(
 }
 
 /// Mark the e-mail verified (verify link, password reset, invitation,
-/// Google). A Google account linked while the address was unproven is
-/// dropped: whoever linked it was not shown to own the address.
+/// Google). A second factor or Google account set up while the address was
+/// unproven is dropped — TOTP secret, pending setup, recovery codes, pending
+/// logins, the Google link: whoever set them up was not shown to own the
+/// address. A no-op for an already verified user.
 pub async fn mark_verified(db: &impl ConnectionTrait, user_id: Uuid) -> Result<(), AppError> {
-    user::Entity::update_many()
-        .col_expr(user::Column::EmailVerifiedAt, Expr::value(Utc::now()))
-        .col_expr(user::Column::GoogleSub, Expr::value(None::<String>))
-        .filter(user::Column::Id.eq(user_id))
-        .filter(user::Column::EmailVerifiedAt.is_null())
-        .exec(db)
-        .await?;
+    verify(db, user_id, false).await
+}
+
+/// [`mark_verified`] for a user who has just proved their TOTP with a code
+/// in the same transaction (an invitation accept): that second factor is
+/// theirs and stays; only the Google link set up while unverified goes.
+pub async fn mark_verified_keeping_mfa(
+    db: &impl ConnectionTrait,
+    user_id: Uuid,
+) -> Result<(), AppError> {
+    verify(db, user_id, true).await
+}
+
+async fn verify(db: &impl ConnectionTrait, user_id: Uuid, keep_mfa: bool) -> Result<(), AppError> {
+    let stmt = |sql: &str| {
+        Statement::from_sql_and_values(db.get_database_backend(), sql, [user_id.into()])
+    };
+    let sql = if keep_mfa {
+        "UPDATE users SET email_verified_at = now(), google_sub = NULL \
+         WHERE id = $1 AND email_verified_at IS NULL"
+    } else {
+        "UPDATE users SET email_verified_at = now(), google_sub = NULL, totp_secret = NULL, \
+         totp_pending = NULL, totp_pending_expires_at = NULL, totp_last_step = NULL \
+         WHERE id = $1 AND email_verified_at IS NULL"
+    };
+    let res = db.execute(stmt(sql)).await?;
+    if res.rows_affected() == 1 && !keep_mfa {
+        db.execute(stmt("DELETE FROM recovery_codes WHERE user_id = $1"))
+            .await?;
+        db.execute(stmt("DELETE FROM mfa_logins WHERE user_id = $1"))
+            .await?;
+    }
     Ok(())
 }
 

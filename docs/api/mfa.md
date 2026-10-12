@@ -25,7 +25,9 @@ a TOTP code is accepted (login, step-up). Regenerating replaces all.
   user's spaces with the policy on).
 - `POST /api/account/mfa/setup { password }` → `{ secret, otpauthUri }`; stores the secret as *pending* (encrypted,
   10 min); a new setup replaces it. Already enabled → 409 `{"code":"mfa_enabled"}`. Wrong password → 422
-  `password: invalid` (login bucket).
+  `password: invalid` (login bucket). An **unverified** user → 403 `email_unverified` (setup and enable; checked
+  right after the session rule): a second factor is set up only on a proven address. Verifying an address later
+  drops any TOTP, pending setup and recovery codes set up before ([auth.md](auth.md)).
 - `POST /api/account/mfa/enable { code }` → `{ recoveryCodes: [10] }`; the pending secret becomes active. No / expired
   pending → 422 `code: expired`; wrong code → 422 `code: invalid`.
 - `POST /api/account/mfa/disable { password, code }` → 204. Removes the secret and recovery codes. **Allowed even

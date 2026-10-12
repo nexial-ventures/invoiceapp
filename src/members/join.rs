@@ -65,12 +65,14 @@ pub async fn join(
     if !repo::may_grant(txn, space, invite.invited_by, role).await? {
         return Ok(Joined::Refused);
     }
+    let mut code_proved = false;
     let user_id = match who {
         Joiner::Existing(id) => {
-            if let Some(c) = code
-                && !verify::check(txn, c.verifier, id, c.code, c.buckets).await?
-            {
-                return Ok(Joined::WrongCode);
+            if let Some(c) = code {
+                if !verify::check(txn, c.verifier, id, c.code, c.buckets).await? {
+                    return Ok(Joined::WrongCode);
+                }
+                code_proved = true;
             }
             id
         }
@@ -81,7 +83,13 @@ pub async fn join(
                 .id
         }
     };
-    users::mark_verified(txn, user_id).await?;
+    // A TOTP just proved in this transaction is the user's own: keep it
+    // (wiping it would leave a member without TOTP in a requiring space).
+    if code_proved {
+        users::mark_verified_keeping_mfa(txn, user_id).await?;
+    } else {
+        users::mark_verified(txn, user_id).await?;
+    }
     repo::join(txn, space, user_id, &invite.role).await?;
     Ok(Joined::Member(user_id))
 }

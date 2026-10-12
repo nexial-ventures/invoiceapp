@@ -55,6 +55,16 @@ impl Authed {
         }
     }
 
+    /// 403 `email_unverified` until the user proved the address: credentials
+    /// set up before that (password, TOTP, Google link) could belong to
+    /// whoever registered someone else's address.
+    pub fn require_verified(&self) -> Result<(), AppError> {
+        match self.user.email_verified_at {
+            Some(_) => Ok(()),
+            None => Err(AppError::EmailUnverified),
+        }
+    }
+
     /// The space scope at `min` role or above.
     pub fn scope(&self, min: Role) -> Result<Scope, AppError> {
         let m = self.space.as_ref().ok_or(AppError::NotFound)?;

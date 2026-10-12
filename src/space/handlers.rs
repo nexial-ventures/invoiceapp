@@ -84,9 +84,7 @@ pub async fn create(
     if !state.registration {
         return Err(AppError::SpaceCreationDisabled);
     }
-    if authed.user.email_verified_at.is_none() {
-        return Err(AppError::EmailUnverified);
-    }
+    authed.require_verified()?;
     let mut e = FieldErrors::new();
     let slug = e.check("slug", slug::validate(&input.slug));
     let name = e.check("name", v::required_text(&input.name, 200));

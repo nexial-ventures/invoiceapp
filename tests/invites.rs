@@ -4,7 +4,7 @@
 mod common;
 
 use axum::http::{Method, StatusCode};
-use common::auth::{As, mail, mail_app, mail_text, member, on, seed_space};
+use common::auth::{As, mail, mail_app, mail_text, mail_token, member, on, seed_space};
 use common::members::{B_HOST, count, invite, link_token, show};
 use common::smtp::EmailEnv;
 use common::{OWNER_EMAIL, TEST_HOST, TEST_TOKEN, TestDb, router};
@@ -33,14 +33,13 @@ async fn invitation_is_mailed_and_listed() {
     assert_eq!(j["email"], "nova@example.com");
     assert_eq!(j["role"], "member");
     assert_eq!(j["emailSent"], true);
+    assert!(
+        j.get("url").is_none(),
+        "with SMTP the link goes only by e-mail"
+    );
     assert_eq!(
         j["invitedBy"],
         json!({ "email": OWNER_EMAIL, "displayName": "Test User" })
-    );
-    let url = j["url"].as_str().expect("url").to_string();
-    assert!(
-        url.starts_with("http://acme.localhost:3000/invite?token="),
-        "{url}"
     );
     let created = chrono::DateTime::parse_from_rfc3339(j["createdAt"].as_str().expect("createdAt"))
         .expect("rfc3339");
@@ -51,8 +50,11 @@ async fn invitation_is_mailed_and_listed() {
     let m = mail(&env.smtp, 1).await;
     assert_eq!(m.rcpt, ["<nova@example.com>"]);
     let text = mail_text(&m);
+    let first = mail_token(&m, "invite");
     assert!(
-        text.contains(&url) && text.contains("Space acme") && text.contains("Test User"),
+        text.contains(&format!("http://acme.localhost:3000/invite?token={first}"))
+            && text.contains("Space acme")
+            && text.contains("Test User"),
         "{text}"
     );
     assert!(text.contains("member"), "{text}");
@@ -68,19 +70,19 @@ async fn invitation_is_mailed_and_listed() {
 
     // Resend: a new token, mailed again (cs by default), the old link dies.
     let id = j["id"].as_str().expect("id");
-    let old = link_token(&j["url"]);
     let uri = format!("/api/invites/{id}/resend");
     let (s, r) = on(&app, Method::POST, TEST_HOST, &uri, OWNER, None).await;
     assert_eq!(
-        (s, r["emailSent"].clone()),
-        (StatusCode::OK, json!(true)),
+        (s, r["emailSent"].clone(), r.get("url")),
+        (StatusCode::OK, json!(true), None),
         "{r}"
     );
-    assert_ne!(link_token(&r["url"]), old);
-    assert_eq!(show(&app, &old).await.0, StatusCode::NOT_FOUND);
-    assert_eq!(show(&app, &link_token(&r["url"])).await.0, StatusCode::OK);
     let m = mail(&env.smtp, 2).await;
     assert!(mail_text(&m).contains("vás zve"), "{}", mail_text(&m));
+    let second = mail_token(&m, "invite");
+    assert_ne!(second, first);
+    assert_eq!(show(&app, &first).await.0, StatusCode::NOT_FOUND);
+    assert_eq!(show(&app, &second).await.0, StatusCode::OK);
 }
 
 #[tokio::test]
@@ -91,6 +93,13 @@ async fn without_smtp_the_invitation_is_created_but_not_mailed() {
     assert_eq!(
         (s, j["emailSent"].clone()),
         (StatusCode::CREATED, json!(false))
+    );
+    let url = j["url"]
+        .as_str()
+        .expect("without SMTP the link is returned");
+    assert!(
+        url.starts_with("http://acme.localhost:3000/invite?token="),
+        "{url}"
     );
     assert_eq!(show(&app, &link_token(&j["url"])).await.0, StatusCode::OK);
 }

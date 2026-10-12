@@ -63,6 +63,10 @@ pub enum AppError {
     #[error("rate limited")]
     RateLimited(u64),
 
+    /// The password hashing capacity stayed saturated (argon2 gate, 503).
+    #[error("busy")]
+    Busy,
+
     #[error("not found")]
     NotFound,
 
@@ -215,6 +219,7 @@ impl AppError {
             Self::MfaEnabled => (StatusCode::CONFLICT, "mfa_enabled"),
             Self::Csrf => (StatusCode::FORBIDDEN, "csrf"),
             Self::RateLimited(_) => (StatusCode::TOO_MANY_REQUESTS, "rate_limited"),
+            Self::Busy => (StatusCode::SERVICE_UNAVAILABLE, "busy"),
             Self::NotFound => (StatusCode::NOT_FOUND, "not_found"),
             Self::BadRequest(_) => (StatusCode::BAD_REQUEST, "bad_request"),
             Self::Validation(_) | Self::ValidationDetail(..) => {
@@ -287,6 +292,7 @@ impl AppError {
                 tracing::warn!(error = %self, "PDF render failed")
             }
             Self::StorageUnavailable(_) => tracing::error!(error = %self, "storage failed"),
+            Self::Busy => tracing::warn!("password hashing saturated, request refused"),
             Self::SmtpFailed(_) => tracing::warn!(error = %self, "e-mail not sent"),
             Self::BadRequest(_) | Self::Conflict(_) => tracing::debug!(error = %self, "rejected"),
             _ => {}

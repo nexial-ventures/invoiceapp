@@ -11,7 +11,9 @@ without a password, `user.hasPassword` / `googleLinked`: [google.md](google.md).
   (2a), `From` = the configured sender.
 - `INVOICE__TRUST_FORWARDED` (default `false`): take the client IP for rate limits from the **last**
   `X-Forwarded-For` hop (behind a reverse proxy that appends to the header — earlier hops are client-controlled);
-  otherwise the socket address.
+  otherwise the socket address. Behind a proxy it **must** be `true` and the app port must not be reachable
+  directly (else every client shares the proxy's buckets, or a direct client forges the header). With `false`, the
+  first request that carries `X-Forwarded-For` logs one warning (once per process).
 - `INVOICE__API_TOKEN` is removed (startup ignores it; `.env.example` and docs drop it).
 - **Bootstrap = registration.** There is no CLI user / space creation; the first user registers like anyone else
   (enable registration, register, disable it if wanted — this also disables creating further spaces, including for
@@ -30,8 +32,14 @@ created through Google that has not set one (4d) —, email_verified_at, disable
 - `POST /api/auth/verify { token }` → 204 (sets `email_verified_at`); invalid / expired / used → 422
   `token: invalid`. Tokens: 32 random bytes, stored sha256, single use, 24 h.
 - `POST /api/auth/verify/resend { email }` → 202 always (rate limited).
-- An unverified user can log in to the base host but cannot create a space (403 `email_unverified`) and cannot log
-  in to a space host.
+- An unverified user can log in to the base host but cannot create a space, change the password, set up TOTP
+  (`/api/account/mfa/setup`, `/enable`) or link Google (403 `email_unverified`), and cannot log in to a space host.
+  Whoever registered an address they do not own must not leave credentials on the account its owner later proves.
+- When an unverified account becomes verified (verify link, password reset, invitation accept, the Google claim),
+  everything second-factor set up before is dropped in the same statement: TOTP secret, pending setup, last step,
+  recovery codes, pending logins, a Google link (security review M1). Exception: an invitation accept whose step-up
+  TOTP code was checked in the same transaction keeps the TOTP and recovery codes (the user just proved them; only
+  the Google link goes) — a member of a space requiring TOTP must not lose it by joining.
 
 ## Login and sessions (base host and space hosts)
 - `POST /api/auth/login { email, password }` → 204 + session cookie. On a space host the user must be a member of
@@ -43,18 +51,21 @@ created through Google that has not set one (4d) —, email_verified_at, disable
   on the host it was created for (the base host or its space).
 - Expiry: idle **14 days** (sliding; `last_seen_at` written at most once a minute), absolute **90 days**.
 - `POST /api/auth/logout` → 204, deletes the session, clears the cookie.
-- `POST /api/auth/sessions/revoke-others` → 204, deletes all other sessions of the user (all hosts).
+- `POST /api/auth/sessions/revoke-others` → 204, deletes all other sessions of the user (all hosts), the pending
+  TOTP logins and **every API token of the user (all spaces)**.
 - `GET /api/auth/me` → `{ user: { id, email, displayName, emailVerified }, space: { slug, name, role } | null }`
   (session or token; 401 without).
 - Moving between spaces = a link to the other host; each host needs its own login (no handoff).
 
 ## Password
-- `POST /api/account/password { currentPassword, newPassword }` (session only) → 204; wrong current → 422
-  `currentPassword: invalid`; revokes the user's other sessions.
+- `POST /api/account/password { currentPassword, newPassword }` (session only, verified user — else 403
+  `email_unverified`) → 204; wrong current → 422 `currentPassword: invalid`; revokes the user's other sessions and
+  **all their API tokens** (all spaces).
 - `POST /api/auth/password-reset { email }` (any known host) → 202 always; a known verified-or-not user gets
   `{baseUrl}/reset?token=…` (1 h, single use, sha256 stored).
 - `POST /api/auth/password-reset/confirm { token, password }` → 204; sets the password, marks the e-mail verified
-  (the link proved it), revokes **all** sessions. API tokens stay valid.
+  (the link proved it), revokes **all** sessions, pending logins and **API tokens** (all spaces) — a reset follows a
+  suspected compromise, and a token minted by whoever had the password must die with it (security review M2).
 
 ## CSRF
 Cookie-authenticated `POST` / `PUT` / `PATCH` / `DELETE` must carry an `Origin` equal to the request's own origin
@@ -66,6 +77,15 @@ way when an `Origin` is present (a cross-site form post is refused).
 429 `{"code":"rate_limited"}` with `Retry-After`:
 - login: 5 failures / 15 min per e-mail, 20 / 15 min per IP;
 - register, verify/resend, password-reset: 5 / hour per IP and 3 / hour per e-mail.
+
+Rate-limit keys: an IPv4 client by its address, an **IPv6 client by its /64** (one subscriber usually holds a
+whole /64 and could rotate addresses through it); an IPv4-mapped IPv6 address counts as the IPv4 one.
+
+Password hashing (argon2id, ~19 MiB and a core each) runs under a global cap: at most 2 × the available cores
+(min 2) hashes / verifications at once; a request that cannot start one within ~2 s → **503 `{"code":"busy"}`**
+(nothing consumed — a reset token stays valid, a login / own-password / invite-accept attempt is refunded from the
+login buckets). An `X-Forwarded-For` hop with a port (`203.0.113.7:51234`, `[2001:db8::1]:443`) is read as its
+address; an unparsable last hop falls back to the socket address and logs one warning.
 
 Nothing secret (password, cookie, token, reset / verify token) is ever logged.
 
@@ -132,7 +152,8 @@ Nothing secret (password, cookie, token, reset / verify token) is ever logged.
   the host's slug lookup); `last_seen_at` / `last_used_at` are written at most once a minute.
 - Request logs record method + path only (never the query string: the SPA's `/verify?token=…` / `/reset?token=…`
   pages); no password, cookie, token or verify / reset token is logged anywhere.
-- New error codes: 401 `invalid_credentials`, 403 `forbidden`, `email_unverified`, `csrf`, 429 `rate_limited`.
+- New error codes: 401 `invalid_credentials`, 403 `forbidden`, `email_unverified`, `csrf`, 429 `rate_limited`,
+  503 `busy` (password hashing saturated).
 - `GET /api/auth/check` (the old token check) is removed; the SPA uses `GET /api/auth/me`.
 - **4d** ([google.md](google.md)): `password_hash` is nullable. A password login of an account without a password
   runs the dummy verification and answers 401 `invalid_credentials` (as a wrong password). Sessions record
@@ -141,3 +162,12 @@ Nothing secret (password, cookie, token, reset / verify token) is ever logged.
   own-password check (password change aside) answers 422 `password: not_set` for an account without one, and
   counts nothing in the login bucket. `GET /api/context` gains `google`; `me.user` gains `hasPassword`,
   `googleLinked`.
+- **Accepted risks** (decided with the product owner):
+  - *No instance-wide e-mail limit*: register, verify/resend and password-reset are limited per IP and per address
+    (invitations per inviter and space, [members.md](members.md)), but many clients together can still make the
+    instance send a lot of mail through its SMTP. Mitigation: open registration only to vetted users at first, or
+    keep `INVOICE__REGISTRATION=false`.
+  - *PDF template isolation is mdcast's*: a space's design (typst templates uploaded by its admins,
+    [design.md](design.md)) is rendered by the mdcast service; the app does not sandbox it. The operator must run
+    a sandboxed mdcast (no file system or network access beyond the request, resource limits) — otherwise a
+    template could read or reach what the mdcast process can.

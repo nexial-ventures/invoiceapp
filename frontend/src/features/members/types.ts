@@ -23,10 +23,12 @@ export interface Invite {
   expiresAt: string;
 }
 
-/** `POST /api/invites` and `POST /api/invites/{id}/resend`: the link is returned only here. */
+/**
+ * `POST /api/invites` and `POST /api/invites/{id}/resend`. With SMTP the link goes only to the invitee's
+ * mailbox (`emailSent: true`, no `url`); without SMTP it is returned here once for the inviter to pass on.
+ */
 export interface SentInvite extends Invite {
-  url: string;
-  /** false = no SMTP on the instance; the inviter has to pass the link on. */
+  url?: string;
   emailSent: boolean;
 }
 

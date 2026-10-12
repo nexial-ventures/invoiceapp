@@ -34,8 +34,8 @@ pub struct ChangeInput {
     security(("cookie" = [])),
     request_body = ChangeInput,
     responses(
-        (status = 204, description = "Changed (or set: an account without a password, within 10 min of a Google login); the user's other sessions are revoked"),
-        (status = 403, description = "`forbidden` with a token", body = ErrorBody),
+        (status = 204, description = "Changed (or set: an account without a password, within 10 min of a Google login); the user's other sessions, pending logins and API tokens (all spaces) are revoked"),
+        (status = 403, description = "`forbidden` with a token, `email_unverified` (use the password reset, which verifies the address)", body = ErrorBody),
         (status = 422, description = "`currentPassword: invalid | required` (`required`: no password yet and no Google login within 10 min), `newPassword: too_short | too_long`, `code: required | invalid` (users with TOTP)", body = ErrorBody),
         (status = 429, description = "`rate_limited` (login bucket)", body = ErrorBody),
     )
@@ -46,6 +46,7 @@ pub async fn change(
     ApiJson(input): ApiJson<ChangeInput>,
 ) -> Result<StatusCode, AppError> {
     let current = authed.require_session()?;
+    authed.require_verified()?;
     let mut e = FieldErrors::new();
     e.check("newPassword", super::password(&input.new_password));
     if authed.user.password_hash.is_none() {
@@ -126,7 +127,7 @@ pub struct ResetInput {
     tag = "auth",
     request_body = ResetInput,
     responses(
-        (status = 204, description = "Password set, e-mail verified, every session revoked"),
+        (status = 204, description = "Password set, e-mail verified, every session, pending login and API token revoked"),
         (status = 422, description = "`token: invalid`, `password: too_short | too_long`", body = ErrorBody),
         (status = 429, description = "`rate_limited` (per IP)", body = ErrorBody),
     )

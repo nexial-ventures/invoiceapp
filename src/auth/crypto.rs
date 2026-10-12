@@ -1,13 +1,16 @@
 //! Secrets: random tokens, their sha256 digests, argon2id passwords, the
 //! personal API token format. Nothing here ever logs a secret.
 
-use std::sync::LazyLock;
+use std::num::NonZeroUsize;
+use std::sync::{Arc, LazyLock};
+use std::time::Duration;
 
 use anyhow::{Context as _, anyhow};
 use argon2::Argon2;
 use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use tokio::sync::Semaphore;
 
 use crate::error::AppError;
 
@@ -84,16 +87,66 @@ fn verify_blocking(password: &str, hash: &str) -> bool {
 static DUMMY_HASH: LazyLock<Option<String>> =
     LazyLock::new(|| hash_blocking("dummy password that nobody has").ok());
 
-pub async fn hash_password(password: String) -> Result<String, AppError> {
-    tokio::task::spawn_blocking(move || hash_blocking(&password))
+/// A cap on concurrent argon2 runs (each costs ~19 MiB and a core): a burst
+/// of logins must not exhaust memory or starve the blocking pool. A caller
+/// that cannot get a permit within `wait` gets 503 `busy`.
+struct Gate {
+    permits: Arc<Semaphore>,
+    wait: Duration,
+}
+
+impl Gate {
+    fn new(permits: usize, wait: Duration) -> Self {
+        Self {
+            permits: Arc::new(Semaphore::new(permits)),
+            wait,
+        }
+    }
+
+    async fn run<T, F>(&self, f: F) -> Result<T, AppError>
+    where
+        T: Send + 'static,
+        F: FnOnce() -> T + Send + 'static,
+    {
+        let permit = tokio::time::timeout(self.wait, self.permits.clone().acquire_owned())
+            .await
+            .map_err(|_| AppError::Busy)?
+            .map_err(|_| AppError::Busy)?;
+        // The permit moves into the task: a cancelled request does not free
+        // it while argon2 is still running.
+        Ok(tokio::task::spawn_blocking(move || {
+            let _permit = permit;
+            f()
+        })
         .await
-        .context("password hashing task")?
+        .context("password hashing task")?)
+    }
+}
+
+/// Two argon2 runs per core, at least two.
+fn gate_permits(parallelism: Option<NonZeroUsize>) -> usize {
+    parallelism
+        .map_or(1, NonZeroUsize::get)
+        .saturating_mul(2)
+        .max(2)
+}
+
+static GATE: LazyLock<Gate> = LazyLock::new(|| {
+    Gate::new(
+        gate_permits(std::thread::available_parallelism().ok()),
+        Duration::from_secs(2),
+    )
+});
+
+/// 503 `busy` when the argon2 gate stays full for 2 s.
+pub async fn hash_password(password: String) -> Result<String, AppError> {
+    GATE.run(move || hash_blocking(&password)).await?
 }
 
 /// Verify `password` against `hash`; `None` runs the dummy verification and
-/// returns `false`.
+/// returns `false`. 503 `busy` when the argon2 gate stays full for 2 s.
 pub async fn verify_password(password: String, hash: Option<String>) -> Result<bool, AppError> {
-    Ok(tokio::task::spawn_blocking(move || match hash {
+    GATE.run(move || match hash {
         Some(h) => verify_blocking(&password, &h),
         None => {
             if let Some(dummy) = DUMMY_HASH.as_deref() {
@@ -103,7 +156,6 @@ pub async fn verify_password(password: String, hash: Option<String>) -> Result<b
         }
     })
     .await
-    .context("password verification task")?)
 }
 
 #[cfg(test)]
@@ -144,6 +196,30 @@ mod tests {
         assert_eq!(parse_bearer("Basic tok"), None);
         assert_eq!(parse_bearer("Bearer "), None);
         assert_eq!(parse_bearer("tok"), None);
+    }
+
+    #[test]
+    fn gate_permits_scale_with_cores() {
+        assert_eq!(gate_permits(None), 2);
+        assert_eq!(gate_permits(NonZeroUsize::new(1)), 2);
+        assert_eq!(gate_permits(NonZeroUsize::new(8)), 16);
+    }
+
+    #[tokio::test]
+    async fn a_full_gate_answers_busy() {
+        let gate = Arc::new(Gate::new(1, Duration::from_millis(50)));
+        let (tx, rx) = std::sync::mpsc::channel::<()>();
+        let held = {
+            let gate = gate.clone();
+            tokio::spawn(async move { gate.run(move || rx.recv().is_ok()).await })
+        };
+        while gate.permits.available_permits() > 0 {
+            tokio::task::yield_now().await;
+        }
+        assert!(matches!(gate.run(|| 1).await, Err(AppError::Busy)));
+        tx.send(()).expect("release");
+        assert!(held.await.expect("join").expect("ran"));
+        assert_eq!(gate.run(|| 7).await.expect("free again"), 7);
     }
 
     #[tokio::test]

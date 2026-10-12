@@ -21,5 +21,6 @@
   "last_owner": "The last owner has to stay an owner.",
   "wrong_code": "Wrong code.",
   "expired": "Expired.",
+  "too_late": "Cannot outlive the token you are signed in with.",
   "not_set": "The account has no password set."
 }

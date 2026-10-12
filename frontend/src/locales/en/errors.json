@@ -26,6 +26,7 @@
   "forbidden": "You are not allowed to do this.",
   "csrf": "The request was refused (invalid origin). Reload the page and try again.",
   "rateLimited": "Too many attempts. Please try again later.",
+  "busy": "The server is busy right now. Please try again in a moment.",
   "emailUnverified": "Verify your e-mail first.",
   "spaceCreationDisabled": "Creating new spaces is disabled on this instance.",
   "invalidCredentials": "Wrong e-mail or password.",

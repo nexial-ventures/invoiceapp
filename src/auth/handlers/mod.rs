@@ -48,21 +48,22 @@ pub async fn check_password(
     };
     let bucket = [(crate::auth::ratelimit::LOGIN_EMAIL, user.email.as_str())];
     state.limiter.reserve(&bucket)?;
-    if !crate::auth::crypto::verify_password(password, Some(hash)).await? {
+    let verified = crate::auth::crypto::verify_password(password, Some(hash)).await;
+    if !state.limiter.refund_if_busy(&bucket, verified)? {
         return Ok(Err("invalid"));
     }
     state.limiter.refund(&bucket);
     Ok(Ok(()))
 }
 
-/// The client IP for rate limits (see `ratelimit::client_ip`).
+/// The client IP for rate limits (see `client_ip::client_ip`).
 pub struct ClientIp(pub String);
 
 impl FromRequestParts<AppState> for ClientIp {
     type Rejection = AppError;
 
     async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, AppError> {
-        Ok(Self(crate::auth::ratelimit::client_ip(
+        Ok(Self(crate::auth::client_ip::client_ip(
             parts,
             state.trust_forwarded,
         )))

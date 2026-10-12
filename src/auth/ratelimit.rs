@@ -10,13 +10,8 @@
 //! amortized cost per request.
 
 use std::collections::{HashMap, VecDeque};
-use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-
-use axum::extract::ConnectInfo;
-use axum::http::HeaderMap;
-use axum::http::request::Parts;
 
 use crate::error::AppError;
 
@@ -183,6 +178,20 @@ impl RateLimiter {
         }
     }
 
+    /// Pass `result` through; an `Err(Busy)` (the argon2 gate was full, the
+    /// password was never checked) first gives the reservation back — an
+    /// attempt that did not happen must not count.
+    pub fn refund_if_busy<T>(
+        &self,
+        buckets: &[(Limit, &str)],
+        result: Result<T, AppError>,
+    ) -> Result<T, AppError> {
+        if matches!(result, Err(AppError::Busy)) {
+            self.refund(buckets);
+        }
+        result
+    }
+
     fn reserve_at(&self, buckets: &[(Limit, &str)], now: Instant) -> Result<(), AppError> {
         let mut inner = self.0.lock().unwrap_or_else(|e| e.into_inner());
         inner.sweep(now);
@@ -224,35 +233,6 @@ fn prune(events: &mut VecDeque<Instant>, window: Duration, now: Instant) {
     {
         events.pop_front();
     }
-}
-
-/// The client IP: with a trusted reverse proxy the **last** `X-Forwarded-For`
-/// hop (the one our proxy appended — earlier hops are client-controlled),
-/// else the socket address; `"unknown"` when neither exists (in-process
-/// test requests).
-pub fn client_ip(parts: &Parts, trust_forwarded: bool) -> String {
-    if trust_forwarded && let Some(ip) = forwarded_ip(&parts.headers) {
-        return ip.to_string();
-    }
-    parts
-        .extensions
-        .get::<ConnectInfo<SocketAddr>>()
-        .map(|c| c.0.ip().to_string())
-        .unwrap_or_else(|| "unknown".to_string())
-}
-
-fn forwarded_ip(headers: &HeaderMap) -> Option<IpAddr> {
-    headers
-        .get_all("x-forwarded-for")
-        .iter()
-        .next_back()?
-        .to_str()
-        .ok()?
-        .rsplit(',')
-        .next()?
-        .trim()
-        .parse()
-        .ok()
 }
 
 #[cfg(test)]
@@ -323,17 +303,34 @@ mod tests {
     }
 
     #[test]
-    fn long_keys_are_cut_on_a_char_boundary() {
-        let k = Inner::key(LIM, &"ž".repeat(400));
-        assert!(k.1.len() <= MAX_KEY);
+    fn busy_gives_the_reservation_back() {
+        let rl = RateLimiter::default();
+        let t0 = Instant::now();
+        let b = [(LIM, "k")];
+        rl.reserve_at(&b, t0).expect("1");
+        assert!(matches!(
+            rl.refund_if_busy(&b, Err::<(), _>(AppError::Busy)),
+            Err(AppError::Busy)
+        ));
+        // The busy attempt was given back: two more fit the limit of 2.
+        rl.reserve_at(&b, t0).expect("2");
+        rl.reserve_at(&b, t0).expect("3");
+        rl.refund(&b);
+        assert!(
+            rl.refund_if_busy(&b, Err::<(), _>(AppError::NotFound))
+                .is_err()
+        );
+        rl.reserve_at(&b, t0).expect("4");
+        assert!(
+            rl.reserve_at(&b, t0).is_err(),
+            "other errors keep the reservation"
+        );
+        assert_eq!(rl.refund_if_busy(&b, Ok(5)).expect("ok"), 5);
     }
 
     #[test]
-    fn forwarded_for_last_hop() {
-        let mut h = HeaderMap::new();
-        h.insert("x-forwarded-for", "6.6.6.6, 203.0.113.7".parse().unwrap());
-        assert_eq!(forwarded_ip(&h), "203.0.113.7".parse().ok());
-        h.insert("x-forwarded-for", "garbage".parse().unwrap());
-        assert_eq!(forwarded_ip(&h), None);
+    fn long_keys_are_cut_on_a_char_boundary() {
+        let k = Inner::key(LIM, &"ž".repeat(400));
+        assert!(k.1.len() <= MAX_KEY);
     }
 }

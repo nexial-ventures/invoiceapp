@@ -134,9 +134,10 @@ pub async fn delete_by_cookie(db: &impl ConnectionTrait, cookie: &str) -> Result
     Ok(())
 }
 
-/// Every session of the user except `keep` (all hosts), and every pending
-/// TOTP login of the user (a password change / reset or "sign out
-/// elsewhere" must also end a half-finished login).
+/// Every session of the user except `keep` (all hosts), every pending TOTP
+/// login and every API token of the user (all spaces): a password change /
+/// reset or "sign out elsewhere" must end every other credential, also a
+/// half-finished login or a token minted by whoever had access.
 pub async fn delete_others(
     db: &impl ConnectionTrait,
     user_id: Uuid,
@@ -144,6 +145,10 @@ pub async fn delete_others(
 ) -> Result<(), AppError> {
     super::entity::mfa_login::Entity::delete_many()
         .filter(super::entity::mfa_login::Column::UserId.eq(user_id))
+        .exec(db)
+        .await?;
+    super::entity::api_token::Entity::delete_many()
+        .filter(super::entity::api_token::Column::UserId.eq(user_id))
         .exec(db)
         .await?;
     let mut q = Entity::delete_many().filter(Column::UserId.eq(user_id));

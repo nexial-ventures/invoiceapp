@@ -172,6 +172,11 @@ For MCP and scripts. A token belongs to **one user in one space** and works only
   `required`, unknown → `invalid`, above the caller's effective role → `too_high`. List / create responses:
   `expiresAt` the date or null, `createdAt` / `lastUsedAt` RFC 3339; `user` only in admin+ listings; `POST`
   returns the item plus `token`. Lists are oldest first. A token created with a token belongs to the token's user.
+- **A token cannot outlive the token that minted it**: when the caller authenticates with a token that has an
+  `expiresAt`, the new token's `expiresAt` must be ≤ it — later or null (no expiry) → 422 `expiresAt: too_late`
+  (`invalid` wins for a past date). A caller token without expiry, or a session, sets no cap.
+- A user's API tokens (all spaces) are deleted by a password change, a password reset and
+  `sessions/revoke-others` ([auth.md](auth.md)).
 - A Bearer request **with** a foreign `Origin` → 403 `csrf` (the stricter reading of auth.md's CSRF rule); without
   `Origin` it is unaffected.
 - Members are added through invitations since 4b ([members.md](members.md)); the role tests still write

@@ -101,11 +101,12 @@ pub async fn login(
     };
     // An account without a password (Google only) runs the dummy
     // verification: refused like a wrong password.
-    let ok = crypto::verify_password(
+    let verified = crypto::verify_password(
         input.password,
         user.as_ref().and_then(|u| u.password_hash.clone()),
     )
-    .await?;
+    .await;
+    let ok = state.limiter.refund_if_busy(&buckets, verified)?;
     let space = host.space_id();
     let user = match user {
         Some(u) if ok && may_sign_in(&state.db, &u, space).await? => u,
@@ -169,13 +170,17 @@ pub async fn logout(State(state): State<AppState>, authed: Authed) -> Result<Res
     )
 }
 
-/// Delete every other session of the user, on all hosts (session only).
+/// Delete every other session of the user, on all hosts, and all the
+/// user's API tokens (session only).
 #[utoipa::path(
     post,
     path = "/api/auth/sessions/revoke-others",
     tag = "auth",
     security(("cookie" = [])),
-    responses((status = 204), (status = 403, description = "`forbidden` with a token", body = ErrorBody))
+    responses(
+        (status = 204, description = "Other sessions, pending logins and every API token of the user (all spaces) revoked"),
+        (status = 403, description = "`forbidden` with a token", body = ErrorBody),
+    )
 )]
 pub async fn revoke_others(
     State(state): State<AppState>,

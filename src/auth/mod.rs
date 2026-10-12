@@ -2,6 +2,7 @@
 //! Contracts: `docs/api/auth.md`, `docs/api/spaces.md`, `docs/api/mfa.md`,
 //! `docs/api/google.md`.
 
+pub mod client_ip;
 pub mod crypto;
 pub mod ctx;
 pub mod entity;

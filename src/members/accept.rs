@@ -114,7 +114,8 @@ async fn sign_in(
     };
     let buckets = [(LOGIN_EMAIL, user.email.as_str()), (LOGIN_IP, ip)];
     state.limiter.reserve(&buckets)?;
-    let ok = crypto::verify_password(password, Some(hash)).await?;
+    let verified = crypto::verify_password(password, Some(hash)).await;
+    let ok = state.limiter.refund_if_busy(&buckets, verified)?;
     if !ok || user.disabled {
         return Err(AppError::InvalidCredentials);
     }

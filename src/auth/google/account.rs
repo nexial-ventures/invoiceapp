@@ -244,9 +244,7 @@ pub async fn link(
 ) -> Result<Json<LinkStart>, AppError> {
     state.google.as_ref().ok_or(AppError::NotFound)?;
     authed.require_session()?;
-    if authed.user.email_verified_at.is_none() {
-        return Err(AppError::EmailUnverified);
-    }
+    authed.require_verified()?;
     confirm(&state, &authed, input).await?;
     let grant = users::issue_token(&state.db, authed.user.id, TokenKind::GoogleLink).await?;
     Ok(Json(LinkStart {
