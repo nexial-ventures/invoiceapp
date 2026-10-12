@@ -1,13 +1,11 @@
 import type { DocLocale } from "@/api/types";
+import type { Narrow, Wire } from "@/api/wire";
 
-/** `GET /api/settings/email` — SMTP comes from env only; `replyTo` is the company e-mail. */
-export interface EmailSettings {
-  configured: boolean;
-  /** The operator's kill switch (`INVOICE__EMAIL_DISABLED`): nothing can be sent. */
-  disabled: boolean;
-  from: string | null;
-  replyTo: string | null;
-}
+/**
+ * `GET /api/settings/email` — SMTP comes from env only; `replyTo` is the company e-mail;
+ * `disabled` = the operator's kill switch (`INVOICE__EMAIL_DISABLED`): nothing can be sent.
+ */
+export type EmailSettings = Wire<"EmailStatus">;
 
 /** One locale's effective template; `custom` = an override exists in storage. */
 export interface EmailTemplate {
@@ -27,23 +25,10 @@ export interface TemplateText {
   body: string;
 }
 
-export interface AttachmentInfo {
-  available: boolean;
-  filename: string;
-}
+export type AttachmentInfo = Wire<"AttachmentInfo">;
 
 /** `GET /api/documents/{id}/email` — the send dialog prefill. */
-export interface EmailPrefill {
-  configured: boolean;
-  disabled: boolean;
-  locale: DocLocale;
-  to: string[];
-  cc: string[];
-  bcc: string[];
-  subject: string;
-  body: string;
-  attachments: { pdf: AttachmentInfo; isdoc: AttachmentInfo };
-}
+export type EmailPrefill = Narrow<Wire<"Prefill">, { locale: DocLocale }>;
 
 export interface SendEmailInput {
   to: string[];

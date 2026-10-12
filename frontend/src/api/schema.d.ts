@@ -2473,7 +2473,10 @@ export interface components {
             to: string[];
         };
         EmailStatus: {
+            /** @description SMTP is configured (`INVOICE__SMTP__HOST`). */
             configured: boolean;
+            /** @description `INVOICE__EMAIL_DISABLED`: sending is switched off by the operator. */
+            disabled: boolean;
             /** @description `INVOICE__SMTP__FROM` as configured. */
             from?: string | null;
             /** @description The company e-mail (`Reply-To`). */
@@ -2854,6 +2857,8 @@ export interface components {
             body: string;
             cc: string[];
             configured: boolean;
+            /** @description `INVOICE__EMAIL_DISABLED`: sending → 503 `email_disabled`. */
+            disabled: boolean;
             locale: string;
             subject: string;
             to: string[];
@@ -3115,8 +3120,15 @@ export interface components {
         };
         SentInvite: components["schemas"]["Invite"] & {
             /**
+             * @description The e-mail was skipped because sending is disabled
+             *     (`INVOICE__EMAIL_DISABLED`); resend once it is enabled again.
+             */
+            emailDisabled: boolean;
+            /**
              * @description `true` = the e-mail is queued (failures are logged), no `url`;
-             *     `false` = no SMTP, the `url` is returned instead.
+             *     `false` = no SMTP, the `url` is returned instead — or e-mail is
+             *     disabled (`INVOICE__EMAIL_DISABLED`, skipped and logged, no `url`:
+             *     resend once it is enabled again).
              */
             emailSent: boolean;
             /**
@@ -3368,7 +3380,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description `rate_limited` (login bucket) */
+            /** @description `rate_limited` (login / code bucket) */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -3427,7 +3439,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description `rate_limited` (login bucket) */
+            /** @description `rate_limited` (login / code bucket) */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -3504,7 +3516,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description `rate_limited` (login bucket) */
+            /** @description `rate_limited` (login / code bucket) */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -3564,7 +3576,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description `rate_limited` (login bucket) */
+            /** @description `rate_limited` (code bucket) */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -3624,7 +3636,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description `rate_limited` (login bucket) */
+            /** @description `rate_limited` (login / code bucket) */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -3733,7 +3745,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description `rate_limited` (login bucket) */
+            /** @description `rate_limited` (login / code bucket) */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -5282,8 +5294,17 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description `to` / `cc` / `bcc` (`required`, `to.N`: `invalid`, `too_long` over 50 recipients), `subject` (`required`, `too_long`, `invalid`), `body` (`too_long`), `attachPdf` (`invalid`) */
+            /** @description `to` / `cc` / `bcc` (`required`, `to.N`: `invalid`, `too_long` over 10 recipients), `subject` (`required`, `too_long`, `invalid`), `body` (`too_long`), `attachPdf` (`invalid`) */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `rate_limited` + `Retry-After`: the space's or the user's e-mails per hour / day are used up */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5300,7 +5321,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description `smtp_not_configured`, `pdf_unavailable`, `storage_unavailable` */
+            /** @description `email_disabled`, `smtp_not_configured`, `pdf_unavailable`, `storage_unavailable` */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -6314,7 +6335,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description `rate_limited`: 20 invitation e-mails / h per user, 50 / h per space */
+            /** @description `rate_limited`: 20 invitations / h per user, 50 / h per space; with SMTP also the space's and the user's e-mail limits */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -6511,7 +6532,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description `rate_limited`: 20 invitation e-mails / h per user, 50 / h per space */
+            /** @description `rate_limited`: 20 invitations / h per user, 50 / h per space; with SMTP also the space's and the user's e-mail limits */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -7913,6 +7934,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            /** @description `rate_limited` + `Retry-After`: the space's or the user's e-mails per hour / day are used up */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
             /** @description `smtp_failed` (+ `detail`) */
             502: {
                 headers: {
@@ -7922,7 +7952,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description `smtp_not_configured` */
+            /** @description `email_disabled`, `smtp_not_configured` */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -8215,7 +8245,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description `rate_limited` (login bucket, code checks) */
+            /** @description `rate_limited` (login / code bucket) */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -8264,7 +8294,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description `rate_limited` (login bucket) */
+            /** @description `rate_limited` (login / code bucket) */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -8359,7 +8389,7 @@ export interface operations {
                     "application/json": components["schemas"]["SpaceInfo"];
                 };
             };
-            /** @description `space_creation_disabled` (`INVOICE__REGISTRATION` off), `email_unverified` */
+            /** @description `space_creation_disabled` (`INVOICE__REGISTRATION` off), `email_unverified`, `space_limit` (owns `INVOICE__MAX_SPACES_PER_USER` spaces they created) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8437,7 +8467,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description `rate_limited` (login bucket, code checks) */
+            /** @description `rate_limited` (login / code bucket) */
             429: {
                 headers: {
                     [name: string]: unknown;
