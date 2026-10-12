@@ -63,7 +63,7 @@ pub async fn update_draft(
     doc: &document::Model,
     input: DocumentInput,
 ) -> Result<(), AppError> {
-    if view::status(doc)? != Status::Draft {
+    if doc.status != Status::Draft {
         return Err(AppError::DocumentLocked);
     }
     let ctx = context::load(&state.db, space, &input, today(), Some(doc)).await?;

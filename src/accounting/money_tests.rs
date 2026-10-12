@@ -3,8 +3,10 @@ use serde_json::json;
 use super::*;
 use crate::accounting::doc::amount;
 use crate::accounting::settings::AccountingSettings;
-use crate::csvio::test_doc::{d, date, doc, recap, snapshot};
+use crate::document::doc_type::DocType;
 use crate::document::entity::{document, vat_recap};
+use crate::document::line::{Direction, PaymentMethod, VatMode};
+use crate::export::test_doc::{d, date, doc, recap, snapshot};
 
 fn ctx(settings: serde_json::Value) -> Ctx {
     let settings: AccountingSettings = serde_json::from_value(settings).expect("settings");
@@ -102,7 +104,7 @@ fn codes_and_a_long_number() {
         { "direction": "issued", "docType": "invoice", "accounting": "3Fv",
           "classificationVat": "UD", "numberSeries": "FV" }]}}));
     let mut doc = doc();
-    doc.payment_method = "other".into();
+    doc.payment_method = PaymentMethod::Other;
     let (_, x) = render(&source(&doc, &[], None), &c);
     has(
         &x,
@@ -134,7 +136,7 @@ fn codes_and_a_long_number() {
 fn credit_note_negative_with_original() {
     let original = doc();
     let mut note = doc();
-    note.doc_type = "credit_note".into();
+    note.doc_type = DocType::CreditNote;
     note.number = Some("D-1".into());
     note.rounding = Decimal::ZERO;
     let recap = [recap(&note, "21", "100", "21")];
@@ -153,7 +155,7 @@ fn credit_note_negative_with_original() {
 #[test]
 fn ddpp_lists() {
     let mut doc = doc();
-    doc.doc_type = "advance_credit_note".into();
+    doc.doc_type = DocType::AdvanceCreditNote;
     doc.number = Some("ODD-1".into());
     doc.customer_snapshot = None;
     let (list, x) = render(
@@ -172,8 +174,8 @@ fn ddpp_lists() {
         ],
     );
     assert!(!x.contains("DodOdb"), "no snapshot: {x}");
-    doc.doc_type = "advance_tax_doc".into();
-    doc.direction = "received".into();
+    doc.doc_type = DocType::AdvanceTaxDoc;
+    doc.direction = Direction::Received;
     let (list, x) = render(&source(&doc, &[], None), &plain());
     assert_eq!(list, List::ReceivedDpp);
     has(&x, &["<FaktPrij_DPP>", "<Druh>D</Druh>"]);
@@ -183,7 +185,7 @@ fn ddpp_lists() {
 #[test]
 fn received_eur_invoice() {
     let mut doc = doc();
-    doc.direction = "received".into();
+    doc.direction = Direction::Received;
     doc.number = Some("PF-7".into());
     doc.supplier_number = Some("FV-42".into());
     doc.currency = "EUR".into();
@@ -269,7 +271,7 @@ fn blank_partner_ids_left_out() {
 #[test]
 fn non_deductible_received() {
     let mut doc = doc();
-    doc.direction = "received".into();
+    doc.direction = Direction::Received;
     doc.vat_deductible = false;
     let c = |nd: Option<&str>| {
         ctx(json!({ "money": { "codes": [
@@ -292,7 +294,7 @@ fn non_deductible_received() {
 #[test]
 fn vat_free_other_rates_and_limits() {
     let mut doc = doc();
-    doc.vat_mode = "non_payer".into();
+    doc.vat_mode = VatMode::NonPayer;
     doc.rounding = Decimal::ZERO;
     let (_, x) = render(
         &source(&doc, &[recap(&doc, "21", "500", "0")], None),
@@ -303,8 +305,8 @@ fn vat_free_other_rates_and_limits() {
         "{x}"
     );
 
-    doc.vat_mode = "standard".into();
-    doc.doc_type = "simplified".into();
+    doc.vat_mode = VatMode::Standard;
+    doc.doc_type = DocType::Simplified;
     let (_, x) = render(
         &source(&doc, &[recap(&doc, "10", "100", "10")], None),
         &plain(),

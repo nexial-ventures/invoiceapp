@@ -9,7 +9,7 @@ use uuid::Uuid;
 use super::format::Locale;
 use super::payload::{Input, RateInfo};
 use crate::document::entity::document;
-use crate::document::line::{Status, VatMode};
+use crate::document::line::Status;
 use crate::document::repo::issue::{customer, supplier};
 use crate::document::repo::{context, query, view};
 use crate::document::snapshot::{BankSnapshot, PartySnapshot};
@@ -98,12 +98,11 @@ impl Source {
         let d = &self.doc;
         let locale = Locale::parse(&d.locale)
             .with_context(|| format!("document {} has unknown locale", d.id))?;
-        let vat_mode = VatMode::parse(&d.vat_mode)
-            .with_context(|| format!("document {} has unknown vat mode", d.id))?;
+        let vat_mode = d.vat_mode;
         Ok(Input {
             locale,
             status: d.status,
-            doc_type: &d.doc_type,
+            doc_type: d.doc_type.as_str(),
             vat_mode,
             number: d.number.as_deref(),
             issue_date: d.issue_date,
@@ -113,7 +112,7 @@ impl Source {
                 .with_context(|| format!("document {} has no due date", d.id))?,
             currency: &d.currency,
             rate: self.rate,
-            payment_method: &d.payment_method,
+            payment_method: d.payment_method.as_str(),
             variable_symbol: d.variable_symbol.as_deref(),
             constant_symbol: d.constant_symbol.as_deref(),
             order_ref: d.order_ref.as_deref(),

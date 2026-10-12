@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { toAccountingDraft, toAccountingSettings, validateAccounting } from "./accounting";
-import type { AccountingSettings } from "./types";
+import type { AccountingLimits, AccountingSettings } from "./types";
+
+/** What the server returns in `limits`. */
+const LIMITS: AccountingLimits = { pohoda: { code: 19, numberSeries: 19 }, money: { code: 10, numberSeries: 5 } };
 
 const settings: AccountingSettings = {
   pohoda: {
@@ -12,6 +15,17 @@ const settings: AccountingSettings = {
     codes: [{ direction: "issued", docType: "simplified", accounting: "1Zj", classificationVat: "U", numberSeries: "ZD", classificationVatNonDeductible: null }],
   },
 };
+
+describe("accounting limits", () => {
+  it("come from the server's limits, not a client copy", () => {
+    const draft = toAccountingDraft(null);
+    draft.pohoda.rows[0]!.accounting = "x".repeat(4);
+    draft.pohoda.rows[0]!.numberSeries = "x".repeat(3);
+    const tight: AccountingLimits = { pohoda: { code: 3, numberSeries: 3 }, money: LIMITS.money };
+    expect(validateAccounting(draft, tight)).toEqual({ "pohoda.codes.0.accounting": "too_long" });
+    expect(validateAccounting(draft, LIMITS)).toEqual({});
+  });
+});
 
 describe("accounting draft", () => {
   it("lays out every direction × doc type in display order, missing rows empty", () => {
@@ -78,7 +92,7 @@ describe("accounting draft", () => {
     const draft = toAccountingDraft(null);
     draft.pohoda.rows[3]!.classificationVat = "x".repeat(20);
     draft.pohoda.rows[4]!.accounting = ` ${"y".repeat(19)} `;
-    expect(validateAccounting(draft)).toEqual({ "pohoda.codes.3.classificationVat": "too_long" });
+    expect(validateAccounting(draft, LIMITS)).toEqual({ "pohoda.codes.3.classificationVat": "too_long" });
   });
 
   it("flags Money codes over 10 characters and number series over 5", () => {
@@ -88,7 +102,7 @@ describe("accounting draft", () => {
     draft.money.rows[7]!.classificationVatNonDeductible = "x".repeat(11);
     draft.money.rows[2]!.numberSeries = "x".repeat(5);
     draft.money.rows[3]!.numberSeries = "x".repeat(6);
-    expect(validateAccounting(draft)).toEqual({
+    expect(validateAccounting(draft, LIMITS)).toEqual({
       "money.codes.1.classificationVat": "too_long",
       "money.codes.7.classificationVatNonDeductible": "too_long",
       "money.codes.3.numberSeries": "too_long",

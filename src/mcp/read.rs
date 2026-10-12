@@ -13,12 +13,12 @@ use crate::catalog::handlers::dto::CatalogItem;
 use crate::catalog::repo::items as catalog_repo;
 use crate::contact::handlers::dto::{Contact, ContactList};
 use crate::contact::repo::contacts as contact_repo;
+use crate::document::line::Direction;
 use crate::document::repo::payments as payment_repo;
 use crate::document::service::{compute_totals, list_page};
 use crate::document::wire::compute_input::ComputeInput;
 use crate::document::wire::dto::{DocumentSummary, ListQuery, Payment};
 use crate::error::AppError;
-use crate::settings::doc_type::{ISSUED, RECEIVED};
 use crate::settings::handlers::bank_accounts::BankAccount;
 use crate::settings::handlers::company::Company;
 use crate::settings::handlers::number_series::NumberSeries;
@@ -172,7 +172,7 @@ impl InvoiceMcp {
 }
 
 fn summary_value(s: &DocumentSummary) -> Result<Value, AppError> {
-    let url = pdf_url(s.id, &s.direction, s.imported, s.has_pdf);
+    let url = pdf_url(s.id, s.direction, s.imported, s.has_pdf);
     Ok(with(to_value(s)?, "pdfUrl", url))
 }
 
@@ -182,13 +182,11 @@ async fn list_documents(
     args: JsonObject,
 ) -> Result<Value, AppError> {
     let p: params::ListDocuments = parse(args)?;
-    let direction = p.direction.trim();
-    if direction != ISSUED && direction != RECEIVED {
-        return Err(AppError::field("direction", "invalid"));
-    }
+    let direction = Direction::parse(p.direction.trim())
+        .ok_or_else(|| AppError::field("direction", "invalid"))?;
     let (term, limit, offset) = paging(p.q, p.limit, p.offset);
     let query = ListQuery {
-        direction: Some(direction.to_string()),
+        direction: Some(direction.as_str().into()),
         doc_type: p.doc_type.map(|t| t.trim().to_string()),
         status: p.status,
         payment_state: p.payment_state,

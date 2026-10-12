@@ -4,8 +4,9 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+use crate::document::doc_type::DocType;
+use crate::document::line::Direction;
 use crate::error::{AppError, FieldErrors};
-use crate::settings::doc_type::{DocType, ISSUED, RECEIVED};
 use crate::validation as v;
 
 /// The document types the accounting exports hold (no proforma).
@@ -17,8 +18,6 @@ pub const EXPORTED: [DocType; 6] = [
     DocType::AdvanceCreditNote,
     DocType::Simplified,
 ];
-
-pub const DIRECTIONS: [&str; 2] = [ISSUED, RECEIVED];
 
 /// An accounting program the export writes for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -61,6 +60,51 @@ pub struct AccountingSettings {
     pub pohoda: ProgramSettings,
     #[serde(default)]
     pub money: ProgramSettings,
+}
+
+/// Both responses: the settings plus the length limits `PUT` enforces, so
+/// the form need not copy them.
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+pub struct AccountingResponse {
+    #[serde(flatten)]
+    pub settings: AccountingSettings,
+    pub limits: AccountingLimits,
+}
+
+/// Longest code per program, in characters after trimming.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, ToSchema)]
+pub struct AccountingLimits {
+    pub pohoda: CodeLimits,
+    pub money: CodeLimits,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CodeLimits {
+    /// `accounting`, `classificationVat`, `classificationVatNonDeductible`.
+    pub code: usize,
+    pub number_series: usize,
+}
+
+impl CodeLimits {
+    fn of(program: Program) -> Self {
+        Self {
+            code: program.code_max(),
+            number_series: program.series_max(),
+        }
+    }
+}
+
+impl From<AccountingSettings> for AccountingResponse {
+    fn from(settings: AccountingSettings) -> Self {
+        Self {
+            settings,
+            limits: AccountingLimits {
+                pohoda: CodeLimits::of(Program::Pohoda),
+                money: CodeLimits::of(Program::Money),
+            },
+        }
+    }
 }
 
 /// The `PUT` body: a section present replaces that section (`{}` clears
@@ -111,9 +155,9 @@ pub struct CodeRow {
 }
 
 impl CodeRow {
-    fn empty(direction: &str, doc_type: DocType) -> Self {
+    fn empty(direction: Direction, doc_type: DocType) -> Self {
         Self {
-            direction: direction.into(),
+            direction: direction.as_str().into(),
             doc_type: doc_type.as_str().into(),
             accounting: None,
             classification_vat: None,
@@ -139,7 +183,7 @@ impl ProgramSettings {
         let mut codes: Vec<CodeRow> = Vec::new();
         for (i, r) in self.codes.iter().enumerate() {
             let f = |name: &str| format!("{key}.codes.{i}.{name}");
-            let direction = DIRECTIONS.into_iter().find(|d| *d == r.direction.trim());
+            let direction = Direction::parse(r.direction.trim());
             let direction = e.check(&f("direction"), direction.ok_or("invalid"));
             let doc_type = e.check(&f("docType"), exported(r.doc_type.trim()).ok_or("invalid"));
             let accounting = e.check(&f("accounting"), code(&r.accounting));
@@ -148,7 +192,7 @@ impl ProgramSettings {
                 &f("classificationVatNonDeductible"),
                 code(&r.classification_vat_non_deductible).and_then(|c| {
                     match (c.is_some(), direction) {
-                        (true, Some(ISSUED)) => Err("invalid"),
+                        (true, Some(Direction::Issued)) => Err("invalid"),
                         _ => Ok(c),
                     }
                 }),
@@ -162,7 +206,7 @@ impl ProgramSettings {
             };
             if codes
                 .iter()
-                .any(|c| c.direction == direction && c.doc_type == doc_type.as_str())
+                .any(|c| c.direction == direction.as_str() && c.doc_type == doc_type.as_str())
             {
                 e.add(&f("docType"), "duplicate");
                 continue;
@@ -181,8 +225,9 @@ impl ProgramSettings {
     /// Every direction × type row, in order (issued first, [`EXPORTED`]
     /// order); missing rows all null, unknown stored rows dropped.
     pub fn full(self) -> Self {
-        let codes = DIRECTIONS
-            .into_iter()
+        let codes = Direction::ALL
+            .iter()
+            .copied()
             .flat_map(|d| EXPORTED.into_iter().map(move |t| (d, t)))
             .map(|(d, t)| {
                 self.row(d, t)
@@ -197,10 +242,10 @@ impl ProgramSettings {
     }
 
     /// The codes of `direction` × `doc_type`.
-    pub fn row(&self, direction: &str, doc_type: DocType) -> Option<&CodeRow> {
+    pub fn row(&self, direction: Direction, doc_type: DocType) -> Option<&CodeRow> {
         self.codes
             .iter()
-            .find(|c| c.direction == direction && c.doc_type == doc_type.as_str())
+            .find(|c| c.direction == direction.as_str() && c.doc_type == doc_type.as_str())
     }
 }
 

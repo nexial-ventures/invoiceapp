@@ -1,7 +1,6 @@
 //! Settings: own company profile, bank accounts, VAT rates, number series,
 //! categories, custom field definitions.
 
-pub mod doc_type;
 pub mod entity;
 pub mod handlers;
 pub mod pattern;

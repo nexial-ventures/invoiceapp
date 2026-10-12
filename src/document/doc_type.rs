@@ -2,11 +2,19 @@
 //! (`documents.doc_type`); the `received*` keys only name the series of the
 //! received documents of each type.
 
+use sea_orm::{DeriveActiveEnum, EnumIter};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+use crate::document::line::Direction;
+
+// Stored as `text` (`documents.doc_type`, `number_series.doc_type`, …); a
+// doc comment here would land in the OpenAPI schema.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema, EnumIter, DeriveActiveEnum,
+)]
 #[serde(rename_all = "snake_case")]
+#[sea_orm(rs_type = "String", db_type = "Text", rename_all = "snake_case")]
 pub enum DocType {
     Invoice,
     CreditNote,
@@ -23,10 +31,6 @@ pub enum DocType {
     ReceivedAdvanceCreditNote,
     ReceivedSimplified,
 }
-
-/// `documents.direction`.
-pub const ISSUED: &str = "issued";
-pub const RECEIVED: &str = "received";
 
 impl DocType {
     /// Every series, in display order.
@@ -107,30 +111,30 @@ impl DocType {
     }
 
     /// The series numbering documents of this type in `direction`.
-    pub fn series(self, direction: &str) -> DocType {
+    pub fn series(self, direction: Direction) -> DocType {
         match (direction, self) {
-            (RECEIVED, DocType::Invoice) => DocType::Received,
-            (RECEIVED, DocType::CreditNote) => DocType::ReceivedCreditNote,
-            (RECEIVED, DocType::DebitNote) => DocType::ReceivedDebitNote,
-            (RECEIVED, DocType::Proforma) => DocType::ReceivedProforma,
-            (RECEIVED, DocType::AdvanceTaxDoc) => DocType::ReceivedAdvanceTaxDoc,
-            (RECEIVED, DocType::AdvanceCreditNote) => DocType::ReceivedAdvanceCreditNote,
-            (RECEIVED, DocType::Simplified) => DocType::ReceivedSimplified,
+            (Direction::Received, DocType::Invoice) => DocType::Received,
+            (Direction::Received, DocType::CreditNote) => DocType::ReceivedCreditNote,
+            (Direction::Received, DocType::DebitNote) => DocType::ReceivedDebitNote,
+            (Direction::Received, DocType::Proforma) => DocType::ReceivedProforma,
+            (Direction::Received, DocType::AdvanceTaxDoc) => DocType::ReceivedAdvanceTaxDoc,
+            (Direction::Received, DocType::AdvanceCreditNote) => DocType::ReceivedAdvanceCreditNote,
+            (Direction::Received, DocType::Simplified) => DocType::ReceivedSimplified,
             _ => self,
         }
     }
 
     /// `(direction, doc_type)` of the documents a series numbers.
-    pub fn numbered(self) -> (&'static str, &'static str) {
+    pub fn numbered(self) -> (Direction, DocType) {
         match self {
-            DocType::Received => (RECEIVED, "invoice"),
-            DocType::ReceivedCreditNote => (RECEIVED, "credit_note"),
-            DocType::ReceivedDebitNote => (RECEIVED, "debit_note"),
-            DocType::ReceivedProforma => (RECEIVED, "proforma"),
-            DocType::ReceivedAdvanceTaxDoc => (RECEIVED, "advance_tax_doc"),
-            DocType::ReceivedAdvanceCreditNote => (RECEIVED, "advance_credit_note"),
-            DocType::ReceivedSimplified => (RECEIVED, "simplified"),
-            other => (ISSUED, other.as_str()),
+            DocType::Received => (Direction::Received, DocType::Invoice),
+            DocType::ReceivedCreditNote => (Direction::Received, DocType::CreditNote),
+            DocType::ReceivedDebitNote => (Direction::Received, DocType::DebitNote),
+            DocType::ReceivedProforma => (Direction::Received, DocType::Proforma),
+            DocType::ReceivedAdvanceTaxDoc => (Direction::Received, DocType::AdvanceTaxDoc),
+            DocType::ReceivedAdvanceCreditNote => (Direction::Received, DocType::AdvanceCreditNote),
+            DocType::ReceivedSimplified => (Direction::Received, DocType::Simplified),
+            other => (Direction::Issued, other),
         }
     }
 }
@@ -148,6 +152,13 @@ mod tests {
                 serde_json::Value::String(d.as_str().into())
             );
         }
+        for d in DocType::ALL {
+            assert_eq!(
+                sea_orm::ActiveEnum::to_value(&d),
+                d.as_str(),
+                "column value"
+            );
+        }
         assert_eq!(DocType::parse("order"), None);
         assert_eq!(DocType::parse_document("received"), None);
         assert_eq!(DocType::parse_document("proforma"), Some(DocType::Proforma));
@@ -156,17 +167,17 @@ mod tests {
     #[test]
     fn series_and_numbered_are_inverse() {
         for d in DocType::ALL.into_iter().filter(|d| d.is_document_type()) {
-            for dir in [ISSUED, RECEIVED] {
+            for dir in [Direction::Issued, Direction::Received] {
                 let s = d.series(dir);
-                assert_eq!(s.numbered(), (dir, d.as_str()));
+                assert_eq!(s.numbered(), (dir, d));
             }
         }
         assert_eq!(
-            DocType::Proforma.series(RECEIVED),
+            DocType::Proforma.series(Direction::Received),
             DocType::ReceivedProforma
         );
         assert_eq!(
-            DocType::AdvanceCreditNote.series(RECEIVED),
+            DocType::AdvanceCreditNote.series(Direction::Received),
             DocType::ReceivedAdvanceCreditNote
         );
         assert_eq!(

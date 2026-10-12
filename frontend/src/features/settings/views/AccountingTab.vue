@@ -32,7 +32,8 @@ onMounted(async () => {
 async function onSubmit() {
   saved.value = false;
   saved.value = await submit(
-    () => validateAccounting(draft.value),
+    // Without loaded limits the form is disabled; the server checks the lengths anyway.
+    () => (store.settings ? validateAccounting(draft.value, store.settings.limits) : {}),
     async () => {
       await store.save(toAccountingSettings(draft.value));
       draft.value = toAccountingDraft(store.settings);

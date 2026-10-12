@@ -6,19 +6,21 @@ use rust_decimal::Decimal;
 use sea_orm::{DatabaseConnection, TransactionTrait};
 use uuid::Uuid;
 
-use super::{advance_sources, context, issue_apply, meta, original, query, view};
+use super::{advance_sources, context, issue_apply, meta, original, query};
 use crate::cnb::{self, CnbClient};
 use crate::contact::entity::contact;
+use crate::currency::is_local;
 use crate::document::advance::{self, AdvanceCtx};
 use crate::document::compute::{Evaluated, Params};
 use crate::document::custom_fields;
+use crate::document::doc_type::DocType;
 use crate::document::entity::document;
-use crate::document::line::{LineData, PaymentMethod, Status, VatMode};
+use crate::document::line::Direction;
+use crate::document::line::{LineData, PaymentMethod, Status};
 use crate::document::model;
 use crate::document::snapshot::PartySnapshot;
 use crate::error::{AppError, FieldErrors};
 use crate::pdf::{PdfService, archive};
-use crate::settings::doc_type::{DocType, ISSUED};
 use crate::settings::entity::{bank_account, company};
 use crate::settings::repo::company as company_repo;
 use crate::space::SpaceId;
@@ -41,7 +43,7 @@ pub async fn fetch_rate(
     date: NaiveDate,
     today: NaiveDate,
 ) -> Result<Rate, AppError> {
-    if currency == "CZK" {
+    if is_local(currency) {
         return Ok(Rate {
             rate: None,
             date: None,
@@ -172,7 +174,7 @@ async fn prepare(
     today: NaiveDate,
 ) -> Result<Prepared, AppError> {
     let doc = query::find(db, space, id).await?;
-    if view::status(&doc)? != Status::Draft {
+    if doc.status != Status::Draft {
         return Err(AppError::InvalidState);
     }
     let doc_type = context::existing(&doc)?.doc_type;
@@ -189,12 +191,12 @@ async fn prepare(
         let date = doc.tax_point_date.unwrap_or(doc.issue_date);
         fetch_rate(db, cnb, &doc.currency, doc.exchange_rate, date, today).await?
     };
-    let vat_mode = VatMode::parse(&doc.vat_mode).ok_or(AppError::field("vatMode", "invalid"))?;
+    let vat_mode = doc.vat_mode;
     let params = Params {
         vat_mode,
-        is_czk: doc.currency == "CZK",
+        is_czk: is_local(&doc.currency),
         exchange_rate: rate.rate,
-        rounding: view::rounding_mode(&doc)?,
+        rounding: doc.rounding_mode,
     };
     // Re-resolve deductions: the stored amounts are a draft-time snapshot.
     let sources = advance_sources::load(db, space, &advance::referenced_ids(&lines)).await?;
@@ -247,7 +249,7 @@ async fn check(
     }
     // Definitions may have changed since the draft was saved.
     let stored = meta::stored_fields(doc);
-    let defs = meta::defs(db, space, ISSUED).await?;
+    let defs = meta::defs(db, space, Direction::Issued).await?;
     custom_fields::validate(&stored, &defs, &stored, &mut e);
     match (doc_type, doc.tax_point_date) {
         (DocType::Proforma, Some(_)) => e.add("taxPointDate", "invalid"),
@@ -264,7 +266,7 @@ async fn check(
     };
     match &bank {
         Some(b) if b.currency != doc.currency => e.add("bankAccountId", "invalid"),
-        None if doc.payment_method == PaymentMethod::BankTransfer.as_str() => {
+        None if doc.payment_method == PaymentMethod::BankTransfer => {
             e.add("bankAccountId", "required")
         }
         _ => {}
@@ -285,7 +287,7 @@ async fn customer_optional(
         (DocType::Simplified, _) => true,
         (DocType::CreditNote | DocType::DebitNote, Some(orig)) if !doc.imported => {
             let orig = query::find(db, space, orig).await?;
-            orig.doc_type == DocType::Simplified.as_str() && orig.customer_snapshot.is_none()
+            orig.doc_type == DocType::Simplified && orig.customer_snapshot.is_none()
         }
         _ => false,
     })

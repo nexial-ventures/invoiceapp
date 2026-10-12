@@ -11,8 +11,9 @@ use sea_orm::{
 };
 use uuid::Uuid;
 
-use super::{ddpp, query, view};
+use super::{ddpp, query};
 use crate::cnb::CnbClient;
+use crate::document::doc_type::DocType;
 use crate::document::entity::document;
 use crate::document::entity::payment::{self, ActiveModel, Column, Entity};
 use crate::document::line::{MAX_AMOUNT, Status};
@@ -141,7 +142,7 @@ pub async fn delete(
                 if !exists {
                     return Err(AppError::NotFound);
                 }
-                if doc.doc_type == "proforma" {
+                if doc.doc_type == DocType::Proforma {
                     ddpp::ensure_not_deducted(txn, id).await?;
                     ddpp::cancel_for_payment(txn, payment_id).await?;
                 }
@@ -159,7 +160,7 @@ async fn locked_issued(
     id: Uuid,
 ) -> Result<document::Model, AppError> {
     let doc = query::lock(txn, space, id).await?;
-    if view::status(&doc)? != Status::Issued || doc.doc_type == NO_PAYMENTS_DOC_TYPE {
+    if doc.status != Status::Issued || doc.doc_type == NO_PAYMENTS_DOC_TYPE {
         return Err(AppError::InvalidState);
     }
     Ok(doc)

@@ -11,14 +11,15 @@ use sea_orm::{
 use uuid::Uuid;
 
 use super::issue::{Rate, fetch_rate, variable_symbol};
-use super::{NewDocument, insert, lines, view};
+use super::{NewDocument, insert, lines};
 use crate::cnb::CnbClient;
 use crate::document::advance::issues_ddpp;
 use crate::document::ddpp::{self, Share};
+use crate::document::doc_type::DocType;
 use crate::document::entity::{document, document_line, payment, vat_recap};
+use crate::document::line::Direction;
 use crate::document::line::{ItemData, LineData, MAX_INPUT, RoundingMode, Status};
 use crate::error::{AppError, number_violation};
-use crate::settings::doc_type::{DocType, ISSUED};
 use crate::settings::repo::number_series;
 use crate::space::SpaceId;
 
@@ -31,11 +32,11 @@ pub fn needed(doc: &document::Model) -> bool {
         .as_ref()
         .and_then(|s| s.get("vatPayer"))
         .and_then(serde_json::Value::as_bool);
-    doc.doc_type == DocType::Proforma.as_str()
-        && doc.direction == ISSUED
+    doc.doc_type == DocType::Proforma
+        && doc.direction == Direction::Issued
         && !doc.imported
-        && doc.status == Status::Issued.as_str()
-        && issues_ddpp(vat_payer, &doc.vat_mode)
+        && doc.status == Status::Issued
+        && issues_ddpp(vat_payer, doc.vat_mode)
 }
 
 /// The DDPP's rate, resolved before the transaction (ČNB must not be called
@@ -94,9 +95,9 @@ pub async fn issue(
     let row = NewDocument {
         id,
         space_id: proforma.space_id,
-        direction: ISSUED.into(),
-        doc_type: DocType::AdvanceTaxDoc.as_str().into(),
-        status: Status::Issued.as_str().into(),
+        direction: Direction::Issued,
+        doc_type: DocType::AdvanceTaxDoc,
+        status: Status::Issued,
         number: Some(number.clone()),
         number_year: Some(year),
         number_seq: Some(seq),
@@ -110,9 +111,9 @@ pub async fn issue(
         exchange_rate_date: rate.date,
         exchange_rate_source: rate.source.map(str::to_string),
         locale: proforma.locale.clone(),
-        vat_mode: proforma.vat_mode.clone(),
+        vat_mode: proforma.vat_mode,
         bank_account_id: proforma.bank_account_id,
-        payment_method: proforma.payment_method.clone(),
+        payment_method: proforma.payment_method,
         variable_symbol: Some(
             proforma
                 .variable_symbol
@@ -125,7 +126,7 @@ pub async fn issue(
         footer_note: None,
         internal_note: None,
         // The DDPP's amounts are the payment itself: never rounded.
-        rounding_mode: RoundingMode::None.as_str().into(),
+        rounding_mode: RoundingMode::None,
         supplier_snapshot: proforma.supplier_snapshot.clone(),
         customer_snapshot: proforma.customer_snapshot.clone(),
         bank_snapshot: proforma.bank_snapshot.clone(),
@@ -185,16 +186,16 @@ pub async fn ensure_not_deducted<C: ConnectionTrait>(db: &C, id: Uuid) -> Result
     if holders.is_empty() {
         return Ok(());
     }
-    let statuses: Vec<String> = document::Entity::find()
+    let statuses: Vec<Status> = document::Entity::find()
         .select_only()
         .column(document::Column::Status)
         .filter(document::Column::Id.is_in(holders))
         .into_tuple()
         .all(db)
         .await?;
-    if statuses.iter().any(|s| s == Status::Issued.as_str()) {
+    if statuses.contains(&Status::Issued) {
         Err(AppError::AdvanceSettled)
-    } else if statuses.iter().any(|s| s == Status::Draft.as_str()) {
+    } else if statuses.contains(&Status::Draft) {
         Err(AppError::AdvanceInUse)
     } else {
         Ok(())
@@ -216,7 +217,7 @@ pub async fn cancel_for_payment(
     else {
         return Ok(());
     };
-    if view::status(&doc)? != Status::Issued {
+    if doc.status != Status::Issued {
         return Ok(());
     }
     ensure_not_deducted(txn, doc.id).await?;
@@ -227,7 +228,7 @@ pub async fn cancel_for_payment(
     };
     let now = chrono::Utc::now().into();
     let mut row: document::ActiveModel = doc.into();
-    row.status = Set(Status::Cancelled.as_str().into());
+    row.status = Set(Status::Cancelled);
     row.cancelled_at = Set(Some(now));
     row.cancel_reason = Set(Some(reason.into()));
     row.updated_at = Set(now);

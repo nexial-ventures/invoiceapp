@@ -4,10 +4,12 @@
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 
+use crate::currency::is_local;
 use crate::document::compute::Totals;
+use crate::document::doc_type::DocType;
+use crate::document::line::Direction;
 use crate::document::line::{LineData, PaymentMethod, VatMode};
 use crate::document::snapshot::{BankSnapshot, PartySnapshot};
-use crate::settings::doc_type::{DocType, ISSUED};
 
 /// An entry error or warning code of the preview / confirm.
 pub type Code = &'static str;
@@ -72,7 +74,7 @@ pub enum IssuedBank {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Plan {
-    pub direction: &'static str,
+    pub direction: Direction,
     pub doc_type: DocType,
     /// Our number (issued) or the supplier's (received).
     pub number: String,
@@ -110,7 +112,7 @@ impl Plan {
     /// The other party: the customer of an issued document, the supplier of
     /// a received one.
     pub fn counterparty(&self) -> Option<&Party> {
-        if self.direction == ISSUED {
+        if self.direction == Direction::Issued {
             self.customer.as_ref()
         } else {
             Some(&self.supplier)
@@ -124,7 +126,7 @@ impl Plan {
     }
 
     pub fn needs_cnb(&self) -> bool {
-        self.currency != "CZK" && self.rate.is_none()
+        !is_local(&self.currency) && self.rate.is_none()
     }
 
     pub fn received_date(&self) -> NaiveDate {

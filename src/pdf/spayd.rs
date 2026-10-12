@@ -7,6 +7,8 @@ use qrcode::{EcLevel, QrCode};
 use rust_decimal::Decimal;
 
 use crate::document::compute::round2;
+use crate::document::doc_type::DocType;
+use crate::document::line::PaymentMethod;
 use crate::document::line::Status;
 
 /// Maximum length of the `MSG` field.
@@ -24,10 +26,10 @@ pub fn applies(
 ) -> bool {
     status == Status::Issued
         && matches!(
-            doc_type,
-            "invoice" | "proforma" | "debit_note" | "simplified"
+            DocType::parse(doc_type),
+            Some(DocType::Invoice | DocType::Proforma | DocType::DebitNote | DocType::Simplified)
         )
-        && payment_method == "bank_transfer"
+        && payment_method == PaymentMethod::BankTransfer.as_str()
         && iban.is_some_and(|i| !i.trim().is_empty())
         && payable > Decimal::ZERO
 }

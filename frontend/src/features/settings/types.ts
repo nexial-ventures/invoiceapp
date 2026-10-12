@@ -83,3 +83,9 @@ export type AccountingProgramSettings = Narrow<Wire<"ProgramSettings">, { codes:
 
 /** `GET/PUT /api/settings/accounting` — GET returns both sections with every direction × doc type row. */
 export type AccountingSettings = Narrow<Wire<"AccountingSettings">, Record<AccountingProgram, AccountingProgramSettings>>;
+
+/** The longest code per program (characters after trim) that `PUT` accepts: `code` for the code columns, `numberSeries` for the series. */
+export type AccountingLimits = Wire<"AccountingLimits">;
+
+/** The `GET` / `PUT /api/settings/accounting` response: the settings plus the server's `limits`. */
+export type AccountingResponse = AccountingSettings & { limits: AccountingLimits };

@@ -6,6 +6,7 @@ use uuid::Uuid;
 use super::received;
 use crate::app::AppState;
 use crate::auth::{Read, Write};
+use crate::document::line::Direction;
 use crate::document::repo::{query, received as received_repo, write};
 use crate::document::service::{compute_totals, create_draft, fetch, list_page, update_draft};
 use crate::document::wire::compute_input::ComputeInput;
@@ -13,7 +14,6 @@ use crate::document::wire::dto::{Computed, Document, DocumentList, ListQuery};
 use crate::document::wire::input::DocumentInput;
 use crate::error::{AppError, ErrorBody};
 use crate::extract::{ApiJson, ApiPath, ApiQuery, from_value};
-use crate::settings::doc_type::RECEIVED;
 
 #[utoipa::path(
     get,
@@ -60,7 +60,7 @@ pub async fn create(
         .get("direction")
         .and_then(|d| d.as_str())
         .map(str::trim);
-    let id = if direction == Some(RECEIVED) {
+    let id = if direction == Some(Direction::Received.as_str()) {
         received::create(&state, access.space(), body).await?
     } else {
         create_draft(&state, access.space(), from_value(body)?).await?
@@ -109,7 +109,7 @@ pub async fn update(
 ) -> Result<Json<Document>, AppError> {
     let space = access.space();
     let doc = query::find(&state.db, space, id).await?;
-    if doc.direction == RECEIVED {
+    if doc.direction == Direction::Received {
         received::update(&state, space, &doc, body).await?;
         return Ok(Json(fetch(&state, space, id).await?));
     }
@@ -136,7 +136,7 @@ pub async fn delete(
 ) -> Result<StatusCode, AppError> {
     let space = access.space();
     let doc = query::find(&state.db, space, id).await?;
-    let original = if doc.direction == RECEIVED {
+    let original = if doc.direction == Direction::Received {
         received_repo::delete(&state.db, space, id).await?
     } else {
         write::delete(&state.db, space, id).await?

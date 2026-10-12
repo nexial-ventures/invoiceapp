@@ -89,7 +89,7 @@ pub async fn document_pdf(
     let pdf = state.pdf.space(access.space())?;
     let (row, body) = archive::document_pdf(&state.db, &pdf, id).await?;
     // An imported draft already has its own number.
-    let unnumbered = row.status == Status::Draft.as_str() && !row.imported;
+    let unnumbered = row.status == Status::Draft && !row.imported;
     let stem = match (&row.number, unnumbered) {
         (Some(number), false) => number.clone(),
         _ => format!("draft-{}", &id.simple().to_string()[..8]),

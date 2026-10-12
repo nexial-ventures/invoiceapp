@@ -3,6 +3,7 @@
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 
+use super::doc_type::DocType;
 use super::line::{PaymentState, Status};
 
 /// Payments are always positive, so `paid >= 0`. A non-positive payable with
@@ -20,16 +21,16 @@ pub fn payment_state(paid: Decimal, payable: Decimal) -> PaymentState {
 }
 
 /// A DDPP documents a payment already received: it has no payments of its own.
-pub const NO_PAYMENTS_DOC_TYPE: &str = "advance_tax_doc";
+pub const NO_PAYMENTS_DOC_TYPE: DocType = DocType::AdvanceTaxDoc;
 
 /// Whether payment state applies: issued, and not a DDPP.
-fn payable_doc(doc_type: &str, status: Status) -> bool {
+fn payable_doc(doc_type: DocType, status: Status) -> bool {
     status == Status::Issued && doc_type != NO_PAYMENTS_DOC_TYPE
 }
 
 /// `paymentState` is only meaningful for issued documents (never a DDPP).
 pub fn document_payment_state(
-    doc_type: &str,
+    doc_type: DocType,
     status: Status,
     paid: Decimal,
     payable: Decimal,
@@ -39,7 +40,7 @@ pub fn document_payment_state(
 
 /// Issued, still owing (unpaid or partial ⇔ `paid < payable`) and past due.
 pub fn is_overdue(
-    doc_type: &str,
+    doc_type: DocType,
     status: Status,
     paid: Decimal,
     payable: Decimal,
@@ -71,19 +72,19 @@ mod tests {
         assert_eq!(payment_state(d(0), d(-5)), PaymentState::Paid);
         assert_eq!(payment_state(d(1), d(-5)), PaymentState::Overpaid);
         assert_eq!(
-            document_payment_state("invoice", Status::Draft, d(0), d(100)),
+            document_payment_state(DocType::Invoice, Status::Draft, d(0), d(100)),
             None
         );
         assert_eq!(
-            document_payment_state("invoice", Status::Cancelled, d(0), d(100)),
+            document_payment_state(DocType::Invoice, Status::Cancelled, d(0), d(100)),
             None
         );
         assert_eq!(
-            document_payment_state("advance_tax_doc", Status::Issued, d(0), d(100)),
+            document_payment_state(DocType::AdvanceTaxDoc, Status::Issued, d(0), d(100)),
             None
         );
         assert_eq!(
-            document_payment_state("proforma", Status::Issued, d(0), d(100)),
+            document_payment_state(DocType::Proforma, Status::Issued, d(0), d(100)),
             Some(PaymentState::Unpaid)
         );
     }
@@ -91,7 +92,7 @@ mod tests {
     #[test]
     fn overdue_rules() {
         let today = date(10);
-        let inv = |s, paid, due| is_overdue("invoice", s, d(paid), d(100), date(due), today);
+        let inv = |s, paid, due| is_overdue(DocType::Invoice, s, d(paid), d(100), date(due), today);
         assert!(inv(Status::Issued, 0, 9));
         assert!(inv(Status::Issued, 50, 9));
         assert!(!inv(Status::Issued, 0, 10));
@@ -99,7 +100,7 @@ mod tests {
         assert!(!inv(Status::Draft, 0, 9));
         assert!(!inv(Status::Cancelled, 0, 9));
         let ddpp = is_overdue(
-            "advance_tax_doc",
+            DocType::AdvanceTaxDoc,
             Status::Issued,
             d(0),
             d(100),

@@ -4,9 +4,9 @@ use super::tests::{contact_with_defaults, ctx, fields};
 use super::*;
 
 fn with_defaults(c: &mut Context) {
-    c.company.default_payment_method = "cash".into();
-    c.company.default_rounding_cash = "half".into();
-    c.company.default_rounding_other = "unit".into();
+    c.company.default_payment_method = PaymentMethod::Cash;
+    c.company.default_rounding_cash = RoundingMode::Half;
+    c.company.default_rounding_other = RoundingMode::Unit;
     c.company.default_currency = "EUR".into();
     c.company.default_header_note_cs = Some("Záhlaví".into());
     c.company.default_header_note_en = Some("Header".into());
@@ -123,18 +123,4 @@ fn unknown_mode_is_invalid() {
         ..Default::default()
     };
     assert!(input.validate(&ctx(true, None)).is_ok());
-}
-
-#[test]
-fn a_corrupt_company_default_is_an_internal_error() {
-    let mut c = ctx(true, None);
-    c.company.default_rounding_other = "whole".into();
-    let err = DocumentInput::default().validate(&c).expect_err("corrupt");
-    assert!(matches!(err, AppError::Internal(_)), "{err:?}");
-    // Not consulted when the request names the mode.
-    let input = DocumentInput {
-        rounding_mode: Some("unit".into()),
-        ..Default::default()
-    };
-    assert!(input.validate(&c).is_ok());
 }

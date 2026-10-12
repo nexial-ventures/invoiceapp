@@ -9,31 +9,31 @@ use sea_orm::{
 };
 use uuid::Uuid;
 
-use super::{advance_sources, context, query, view, write};
+use super::{advance_sources, context, query, write};
 use crate::document::advance::AdvanceCtx;
+use crate::document::doc_type::DocType;
 use crate::document::entity::document;
-use crate::document::line::{AdvanceData, LineData, PaymentMethod, Status};
+use crate::document::line::Direction;
+use crate::document::line::{AdvanceData, LineData, Status};
 use crate::document::model::{self, DocumentData};
-use crate::document::wire::fields::parse_vat_mode;
 use crate::error::AppError;
-use crate::settings::doc_type::{DocType, ISSUED};
 use crate::space::SpaceId;
 
 /// Whether a non-cancelled invoice settles the proforma `id`.
 async fn settled<C: ConnectionTrait>(db: &C, id: Uuid) -> Result<bool, AppError> {
     Ok(document::Entity::find()
         .filter(document::Column::RelatedDocumentId.eq(id))
-        .filter(document::Column::DocType.eq(DocType::Invoice.as_str()))
-        .filter(document::Column::Status.ne(Status::Cancelled.as_str()))
+        .filter(document::Column::DocType.eq(DocType::Invoice))
+        .filter(document::Column::Status.ne(Status::Cancelled))
         .one(db)
         .await?
         .is_some())
 }
 
 fn settleable(doc: &document::Model) -> Result<(), AppError> {
-    if doc.doc_type != DocType::Proforma.as_str()
-        || doc.direction != ISSUED
-        || view::status(doc)? != Status::Issued
+    if doc.doc_type != DocType::Proforma
+        || doc.direction != Direction::Issued
+        || doc.status != Status::Issued
     {
         return Err(AppError::InvalidState);
     }
@@ -46,8 +46,8 @@ async fn advances(db: &DatabaseConnection, p: &document::Model) -> Result<Vec<Uu
     if super::ddpp::needed(p) {
         return Ok(document::Entity::find()
             .filter(document::Column::RelatedDocumentId.eq(p.id))
-            .filter(document::Column::DocType.eq(DocType::AdvanceTaxDoc.as_str()))
-            .filter(document::Column::Status.eq(Status::Issued.as_str()))
+            .filter(document::Column::DocType.eq(DocType::AdvanceTaxDoc))
+            .filter(document::Column::Status.eq(Status::Issued))
             .order_by_asc(document::Column::IssueDate)
             .order_by_asc(document::Column::NumberSeq)
             .all(db)
@@ -107,18 +107,16 @@ pub async fn settle(
         // The invoice's rate is fixed at its own issue (tax point date).
         exchange_rate: None,
         locale: p.locale.clone(),
-        vat_mode: parse_vat_mode(&p.vat_mode)
-            .map_err(|_| anyhow::anyhow!("proforma {proforma_id} has unknown vat mode"))?,
+        vat_mode: p.vat_mode,
         bank_account_id: p.bank_account_id,
-        payment_method: PaymentMethod::parse(&p.payment_method)
-            .unwrap_or(PaymentMethod::BankTransfer),
+        payment_method: p.payment_method,
         variable_symbol: None,
         constant_symbol: p.constant_symbol.clone(),
         order_ref: p.order_ref.clone(),
         header_note: p.header_note.clone(),
         footer_note: p.footer_note.clone(),
         internal_note: None,
-        rounding_mode: view::rounding_mode(&p)?,
+        rounding_mode: p.rounding_mode,
         lines: Vec::new(),
         imported: false,
         number: None,

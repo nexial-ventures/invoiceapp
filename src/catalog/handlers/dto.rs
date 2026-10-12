@@ -9,6 +9,7 @@ use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use crate::catalog::entity::item;
+use crate::currency::LOCAL_CURRENCY;
 use crate::document::line::MAX_INPUT;
 use crate::error::{AppError, FieldErrors};
 use crate::num_parse::decimal;
@@ -95,7 +96,7 @@ impl CatalogItemInput {
             currency: e
                 .check(
                     "currency",
-                    v::currency(self.currency.as_deref().unwrap_or("CZK")),
+                    v::currency(self.currency.as_deref().unwrap_or(LOCAL_CURRENCY)),
                 )
                 .unwrap_or_default(),
             vat_rate: e

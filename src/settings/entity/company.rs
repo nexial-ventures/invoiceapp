@@ -1,5 +1,7 @@
 use sea_orm::entity::prelude::*;
 
+use crate::document::line::{PaymentMethod, RoundingMode};
+
 /// The own company profile — one row per space, created with the space.
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
 #[sea_orm(table_name = "company")]
@@ -20,11 +22,9 @@ pub struct Model {
     pub registration: Option<String>,
     pub default_due_days: i32,
     pub default_locale: String,
-    /// `none` | `half` | `unit` (CHECK-constrained).
-    pub default_rounding_cash: String,
-    pub default_rounding_other: String,
-    /// `bank_transfer` | `cash` | `card` | `other` (CHECK-constrained).
-    pub default_payment_method: String,
+    pub default_rounding_cash: RoundingMode,
+    pub default_rounding_other: RoundingMode,
+    pub default_payment_method: PaymentMethod,
     pub default_currency: String,
     pub default_header_note_cs: Option<String>,
     pub default_header_note_en: Option<String>,

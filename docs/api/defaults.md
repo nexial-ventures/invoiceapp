@@ -101,7 +101,10 @@ defaultFooterNote: { cs: string|null, en: string|null },   // ≤ 2000 each
   narrower list of supported currencies; `usd` is accepted although the company may have no USD bank account.
 - **Corrupt stored values** (an unknown company default or document mode despite the CHECK constraints) are an
   internal error (logged, 500 `internal`) everywhere — company GET / PUT, MCP `get_settings`, create defaults,
-  document views — via the shared `parse_stored` of the enum; never a silent fallback.
+  document views, exports — never a silent fallback. The columns are typed (`ActiveEnum`), so a value outside the enum
+  fails already when the row is decoded: the request answers 500 `internal`, and the log names the enum and the value,
+  not the row id. A corrupt row in an export chunk therefore aborts the whole export (500) instead of being skipped
+  like a document whose CSV row cannot be built.
 - **Storage:** `company.default_rounding_cash` / `_other` / `default_payment_method` (CHECK-constrained text),
   `default_currency`, `default_header_note_cs|en`, `default_footer_note_cs|en`; NOT NULL columns have DB
   defaults, so the per-space seed (`INSERT INTO company (space_id)`) is unchanged. The migration's `down` sets

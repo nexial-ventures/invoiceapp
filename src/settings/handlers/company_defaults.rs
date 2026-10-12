@@ -5,7 +5,6 @@ use sea_orm::ActiveValue::Set;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::document::defaults;
 use crate::document::line::{PaymentMethod, RoundingMode};
 use crate::document::rounding;
 use crate::error::FieldErrors;
@@ -108,13 +107,13 @@ impl DefaultsUpdate {
     /// Set the given fields on the row; the others stay untouched.
     pub fn apply(self, row: &mut company::ActiveModel) {
         if let Some(m) = self.rounding_cash {
-            row.default_rounding_cash = Set(m.as_str().into());
+            row.default_rounding_cash = Set(m);
         }
         if let Some(m) = self.rounding_other {
-            row.default_rounding_other = Set(m.as_str().into());
+            row.default_rounding_other = Set(m);
         }
         if let Some(m) = self.payment_method {
-            row.default_payment_method = Set(m.as_str().into());
+            row.default_payment_method = Set(m);
         }
         if let Some(c) = self.currency {
             row.default_currency = Set(c);
@@ -134,11 +133,10 @@ impl TryFrom<&company::Model> for DocDefaults {
     type Error = anyhow::Error;
 
     fn try_from(m: &company::Model) -> anyhow::Result<Self> {
-        let (cash, other) = defaults::rounding_modes(m)?;
         Ok(Self {
-            default_rounding_cash: cash,
-            default_rounding_other: other,
-            default_payment_method: defaults::payment_method(m)?,
+            default_rounding_cash: m.default_rounding_cash,
+            default_rounding_other: m.default_rounding_other,
+            default_payment_method: m.default_payment_method,
             default_currency: m.default_currency.clone(),
             default_header_note: LocaleNotes {
                 cs: m.default_header_note_cs.clone(),

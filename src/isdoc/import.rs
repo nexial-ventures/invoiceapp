@@ -15,6 +15,8 @@ use super::parse::Code;
 use crate::app::AppState;
 use crate::auth::Write;
 use crate::cnb;
+use crate::currency::is_local;
+use crate::document::line::Direction;
 use crate::document::repo::issue::Rate;
 use crate::error::{AppError, ErrorBody};
 use crate::import::category::CategoryRef;
@@ -22,7 +24,6 @@ use crate::import::store::{self, Options};
 use crate::import::wire::{self, Confirmed, PreviewEntry};
 use crate::import::{form, lookup};
 use crate::pdf::PdfService;
-use crate::settings::doc_type::RECEIVED;
 use crate::settings::entity::category;
 use crate::space::{SpaceId, limits};
 use crate::time::today;
@@ -99,7 +100,7 @@ async fn check_category(
 /// The ISDOC rate (manual), else ČNB for the tax point (`rate_unavailable`).
 async fn rate(state: &AppState, r: &Ready) -> Result<Rate, Code> {
     let p = &r.plan;
-    if p.currency == "CZK" {
+    if is_local(&p.currency) {
         return Ok(Rate {
             rate: None,
             date: None,
@@ -136,7 +137,7 @@ fn entry_options(input: &OptionsInput, r: &Ready) -> Options {
             .then(|| p.due_date.unwrap_or(p.issue_date)),
         category: input
             .category_id
-            .filter(|_| p.direction == RECEIVED)
+            .filter(|_| p.direction == Direction::Received)
             .map(CategoryRef::Id),
         vat_deductible: input.vat_deductible.unwrap_or(true),
     }

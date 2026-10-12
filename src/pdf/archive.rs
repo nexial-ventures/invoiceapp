@@ -8,10 +8,10 @@ use uuid::Uuid;
 
 use super::{PdfService, payload, source};
 use crate::document::entity::document;
+use crate::document::line::Direction;
 use crate::document::line::Status;
 use crate::document::repo::{original, query};
 use crate::error::AppError;
-use crate::settings::doc_type::RECEIVED;
 use crate::storage::{self, Download};
 
 /// `documents/{numberYear}/{id}-{sha8}-{nonce}.pdf`: a new key per write
@@ -151,8 +151,8 @@ pub fn spawn_archive_ddpp(db: DatabaseConnection, pdf: PdfService, id: Uuid) {
 
 /// Received and imported documents are never rendered: their PDF is the
 /// uploaded original, if any.
-pub fn serves_original(direction: &str, imported: bool) -> bool {
-    direction == RECEIVED || imported
+pub fn serves_original(direction: Direction, imported: bool) -> bool {
+    direction == Direction::Received || imported
 }
 
 /// The PDF for `GET /api/documents/{id}/pdf`: a received or imported
@@ -165,12 +165,12 @@ pub async fn document_pdf(
     id: Uuid,
 ) -> Result<(document::Model, PdfBody), AppError> {
     let row = query::find(db, pdf.space_id(), id).await?;
-    if serves_original(&row.direction, row.imported) {
+    if serves_original(row.direction, row.imported) {
         let rel = row.original_path.as_deref().ok_or(AppError::PdfMissing)?;
         let body = PdfBody::Stored(pdf.storage().get_stream(rel).await?);
         return Ok((row, body));
     }
-    if row.status == Status::Draft.as_str() {
+    if row.status == Status::Draft {
         let (row, bytes) = render(db, pdf, id).await?;
         return Ok((row, PdfBody::Rendered(bytes)));
     }

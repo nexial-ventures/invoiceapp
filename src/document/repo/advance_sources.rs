@@ -7,10 +7,12 @@ use anyhow::Context as _;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use uuid::Uuid;
 
-use super::{ddpp_correction, view};
+use super::ddpp_correction;
 use crate::document::advance::{self, AdvanceSource};
 use crate::document::correction::net_recap;
+use crate::document::doc_type::DocType;
 use crate::document::entity::{document, document_line, vat_recap};
+use crate::document::line::Direction;
 use crate::document::line::{AdvanceRow, LineData, Status};
 use crate::error::{AppError, FieldErrors};
 use crate::space::SpaceId;
@@ -33,8 +35,8 @@ async fn referencing<C: ConnectionTrait>(
         .select_only()
         .column(document::Column::Id)
         .filter(document::Column::Id.is_in(holders))
-        .filter(document::Column::DocType.eq("invoice"))
-        .filter(document::Column::Status.ne(Status::Cancelled.as_str()))
+        .filter(document::Column::DocType.eq(DocType::Invoice))
+        .filter(document::Column::Status.ne(Status::Cancelled))
         .into_tuple::<Uuid>()
         .all(db)
         .await?
@@ -56,7 +58,7 @@ async fn deducted_recaps<'a, C: ConnectionTrait>(
     let (mut ids, mut ddpps) = (Vec::new(), Vec::new());
     for d in docs {
         ids.push(d.id);
-        if d.doc_type == "advance_tax_doc" {
+        if d.doc_type == DocType::AdvanceTaxDoc {
             ddpps.push(d.id);
         }
     }
@@ -91,7 +93,7 @@ pub async fn load<C: ConnectionTrait>(
     let docs = document::Entity::find()
         .filter(document::Column::SpaceId.eq(space))
         .filter(document::Column::Id.is_in(ids.to_vec()))
-        .filter(document::Column::Direction.eq(crate::settings::doc_type::ISSUED))
+        .filter(document::Column::Direction.eq(Direction::Issued))
         .all(db)
         .await?;
     let mut recaps = deducted_recaps(db, docs.iter()).await?;
@@ -106,8 +108,8 @@ pub async fn load<C: ConnectionTrait>(
         let recap = recaps.remove(&d.id).unwrap_or_default();
         let source = AdvanceSource {
             id: d.id,
-            status: view::status(&d)?,
-            issues_ddpp: advance::issues_ddpp(vat_payer, &d.vat_mode),
+            status: d.status,
+            issues_ddpp: advance::issues_ddpp(vat_payer, d.vat_mode),
             recap,
             referenced_by: refs
                 .iter()
@@ -161,16 +163,18 @@ pub async fn lock_and_recheck<C: ConnectionTrait>(
         let doc = locked
             .get(&a.document_id)
             .context("advance document vanished")?;
-        if view::status(doc)? != Status::Issued {
+        if doc.status != Status::Issued {
             e.add(&field, "invalid");
         } else if refs
             .iter()
             .any(|(adv, holder)| *adv == a.document_id && *holder != document_id)
         {
             e.add(&field, "duplicate");
-        } else if doc.doc_type == "proforma" && a.recap.first().map(|r| r.base) != Some(doc.paid) {
+        } else if doc.doc_type == DocType::Proforma
+            && a.recap.first().map(|r| r.base) != Some(doc.paid)
+        {
             return Err(AppError::Conflict("proforma payments changed".into()));
-        } else if doc.doc_type == "advance_tax_doc"
+        } else if doc.doc_type == DocType::AdvanceTaxDoc
             && fresh.get(&a.document_id).unwrap_or(&Vec::new()) != &a.recap
         {
             return Err(AppError::Conflict("DDPP corrected meanwhile".into()));

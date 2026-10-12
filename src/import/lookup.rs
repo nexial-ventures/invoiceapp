@@ -11,11 +11,12 @@ use uuid::Uuid;
 
 use super::model::{ContactRule, Party, Plan};
 use crate::contact::entity::contact;
+use crate::document::doc_type::DocType;
 use crate::document::entity::document::{Column, Entity};
+use crate::document::line::Direction;
 use crate::document::line::Status;
 use crate::document::meta::related_types;
 use crate::error::AppError;
-use crate::settings::doc_type::{DocType, ISSUED};
 use crate::space::SpaceId;
 
 /// Identity of a party: its IČO, else its name.
@@ -107,8 +108,8 @@ pub async fn duplicate<C: ConnectionTrait>(
     let q = Entity::find()
         .filter(Column::SpaceId.eq(space))
         .filter(Column::Direction.eq(plan.direction));
-    let q = if plan.direction == ISSUED {
-        q.filter(Column::DocType.eq(plan.doc_type.as_str()))
+    let q = if plan.direction == Direction::Issued {
+        q.filter(Column::DocType.eq(plan.doc_type))
             .filter(Column::Number.eq(plan.number.as_str()))
     } else {
         q.filter(Column::SupplierNumber.eq(plan.number.as_str()))
@@ -136,16 +137,16 @@ pub async fn related<C: ConnectionTrait>(
     let Some(reference) = &plan.original_ref else {
         return Ok(None);
     };
-    let types = targets(plan.doc_type);
+    let types = related_types(plan.doc_type);
     if types.is_empty() {
         return Ok(None);
     }
     let q = Entity::find()
         .filter(Column::SpaceId.eq(space))
         .filter(Column::Direction.eq(plan.direction))
-        .filter(Column::DocType.is_in(types))
-        .filter(Column::Status.eq(Status::Issued.as_str()));
-    let q = if plan.direction == ISSUED {
+        .filter(Column::DocType.is_in(types.iter().copied()))
+        .filter(Column::Status.eq(Status::Issued));
+    let q = if plan.direction == Direction::Issued {
         q.filter(Column::Number.eq(reference.as_str()))
     } else {
         q.filter(Column::SupplierNumber.eq(reference.as_str()))
@@ -161,7 +162,7 @@ pub async fn related<C: ConnectionTrait>(
 /// Batch identity of a document: two entries with the same one are the
 /// same document.
 pub fn identity(plan: &Plan) -> String {
-    if plan.direction == ISSUED {
+    if plan.direction == Direction::Issued {
         format!("issued|{}|{}", plan.doc_type.as_str(), plan.number)
     } else {
         format!("received|{}|{}", party_key(&plan.supplier), plan.number)
@@ -172,8 +173,9 @@ pub fn identity(plan: &Plan) -> String {
 pub fn is_original_of(plan: &Plan, other: &Plan) -> bool {
     plan.original_ref.as_deref() == Some(other.number.as_str())
         && plan.direction == other.direction
-        && targets(plan.doc_type).contains(&other.doc_type.as_str())
-        && (plan.direction == ISSUED || party_key(&plan.supplier) == party_key(&other.supplier))
+        && related_types(plan.doc_type).contains(&other.doc_type)
+        && (plan.direction == Direction::Issued
+            || party_key(&plan.supplier) == party_key(&other.supplier))
 }
 
 /// Import order: originals before the documents linking to them (every

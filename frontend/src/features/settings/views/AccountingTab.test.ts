@@ -3,7 +3,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia } from "pinia";
 import { i18n } from "@/i18n";
 import { calls, mockFetchRoutes, reply } from "@/test-utils";
-import { ACCOUNTING_DIRECTIONS, ACCOUNTING_DOC_TYPES, type AccountingSettings } from "../types";
+import { ACCOUNTING_DIRECTIONS, ACCOUNTING_DOC_TYPES, type AccountingLimits, type AccountingResponse, type AccountingSettings } from "../types";
 import AccountingTab from "./AccountingTab.vue";
 
 const emptySection = () => ({
@@ -12,7 +12,8 @@ const emptySection = () => ({
     ACCOUNTING_DOC_TYPES.map((docType) => ({ direction, docType, accounting: null, classificationVat: null, numberSeries: null, classificationVatNonDeductible: null })),
   ),
 });
-const settings = (): AccountingSettings => ({ pohoda: emptySection(), money: emptySection() });
+const LIMITS: AccountingLimits = { pohoda: { code: 19, numberSeries: 19 }, money: { code: 10, numberSeries: 5 } };
+const settings = (): AccountingResponse => ({ pohoda: emptySection(), money: emptySection(), limits: LIMITS });
 
 const company = { name: "Acme", ico: "27074358" };
 
@@ -83,7 +84,7 @@ describe("AccountingTab", () => {
       "GET /api/settings/company": company,
       "PUT /api/settings/accounting": (body: unknown) => {
         saved.push(body);
-        return body;
+        return { ...(body as object), limits: LIMITS };
       },
     });
     const w = await mountTab();
@@ -126,7 +127,7 @@ describe("AccountingTab", () => {
       "GET /api/settings/company": company,
       "PUT /api/settings/accounting": (body: unknown) => {
         saved.push(body as Record<string, unknown>);
-        return body;
+        return { ...(body as object), limits: LIMITS };
       },
     });
     const w = await mountTab();
@@ -205,5 +206,22 @@ describe("AccountingTab", () => {
     expect(w.find("fieldset").attributes("disabled")).toBeUndefined();
     expect(input(w, "pohoda-ico").placeholder).toBe("");
     expect(w.find('[data-test="accounting-error"]').exists()).toBe(false);
+  });
+
+  it("checks lengths against the limits the server sent, before any PUT", async () => {
+    const fetch = mockFetchRoutes({
+      "GET /api/settings/accounting": { ...settings(), limits: { ...LIMITS, money: { code: 3, numberSeries: 2 } } },
+      "GET /api/settings/company": company,
+      "PUT /api/settings/accounting": (body: unknown) => ({ ...(body as object), limits: LIMITS }),
+    });
+    const w = await mountTab();
+    await w.find('[data-test="money-0-accounting"]').setValue("abcd");
+    await w.find('[data-test="money-0-numberSeries"]').setValue("ab");
+    await w.find("form").trigger("submit");
+    await flushPromises();
+
+    expect(calls(fetch)).not.toContain("PUT /api/settings/accounting");
+    expect(w.find('[data-test="money-0-accounting"]').attributes("aria-invalid")).toBe("true");
+    expect(w.find('[data-test="money-0-numberSeries"]').attributes("aria-invalid")).not.toBe("true");
   });
 });

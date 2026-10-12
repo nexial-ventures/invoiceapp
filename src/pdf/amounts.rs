@@ -9,6 +9,8 @@ use rust_decimal::Decimal;
 use super::format::{self, Locale};
 use super::labels::{self, Labels};
 use super::payload::{Input, PdfLine, Recap, RecapRow, TotalRow};
+use crate::currency::{LOCAL_CURRENCY, is_local};
+use crate::document::doc_type::DocType;
 use crate::document::line::VatMode;
 use crate::document::wire::dto::Line;
 
@@ -69,7 +71,7 @@ impl Fmt<'_> {
     }
 
     fn czk(&self, x: Decimal) -> String {
-        format::money(x * self.sign, "CZK", self.locale)
+        format::money(x * self.sign, LOCAL_CURRENCY, self.locale)
     }
 }
 
@@ -166,7 +168,7 @@ fn vat_recap_czk(i: &Input, f: &Fmt, l: &Labels) -> anyhow::Result<Option<Recap>
     let Some(rate) = i.rate else {
         return Ok(None);
     };
-    if i.currency == "CZK" || i.vat_mode != VatMode::Standard {
+    if is_local(i.currency) || i.vat_mode != VatMode::Standard {
         return Ok(None);
     }
     let mut rows = Vec::new();
@@ -216,7 +218,7 @@ fn total_row(label: &str, value: String, strong: bool) -> TotalRow {
 /// amounts before the deduction, the deduction, then the payable.
 fn totals(i: &Input, f: &Fmt, l: &Labels, show_vat: bool) -> anyhow::Result<Vec<TotalRow>> {
     let t = i.totals;
-    if i.doc_type == "advance_tax_doc" {
+    if i.doc_type == DocType::AdvanceTaxDoc.as_str() {
         return Ok(vec![
             total_row(l.total_excl_vat, f.money(t.base), false),
             total_row(l.vat, f.money(t.vat), false),
@@ -257,7 +259,9 @@ pub fn build(i: &Input, l: &Labels, show_vat: bool) -> anyhow::Result<Amounts> {
     let f = Fmt {
         locale: i.locale,
         currency: i.currency,
-        sign: Decimal::from(crate::document::wire::dto::sign(i.doc_type)),
+        sign: Decimal::from(
+            crate::document::doc_type::DocType::parse_document(i.doc_type).map_or(1, |t| t.sign()),
+        ),
     };
     let has_discount = i
         .lines

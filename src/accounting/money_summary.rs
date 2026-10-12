@@ -78,7 +78,7 @@ pub fn write(x: &mut Xml, rates: &Rates, rounding: Decimal, sign: Decimal) -> an
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::csvio::test_doc::d;
+    use crate::export::test_doc::d;
 
     fn render(rates: &Rates, rounding: &str, sign: &str) -> anyhow::Result<String> {
         let mut x = Xml::fragment();

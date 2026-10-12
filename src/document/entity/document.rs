@@ -1,5 +1,8 @@
 use sea_orm::entity::prelude::*;
 
+use crate::document::doc_type::DocType;
+use crate::document::line::{Direction, PaymentMethod, RoundingMode, Status, VatMode};
+
 /// Document header. Totals (`total_base` … `total_czk`) are recomputed and
 /// stored on every save; `paid` is the payment sum, kept in step by the
 /// payment writes. Snapshots are filled at issue and never change afterwards.
@@ -9,9 +12,9 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
     pub space_id: Uuid,
-    pub direction: String,
-    pub doc_type: String,
-    pub status: String,
+    pub direction: Direction,
+    pub doc_type: DocType,
+    pub status: Status,
     pub number: Option<String>,
     pub number_year: Option<i32>,
     pub number_seq: Option<i32>,
@@ -27,17 +30,16 @@ pub struct Model {
     pub exchange_rate_date: Option<Date>,
     pub exchange_rate_source: Option<String>,
     pub locale: String,
-    pub vat_mode: String,
+    pub vat_mode: VatMode,
     pub bank_account_id: Option<Uuid>,
-    pub payment_method: String,
+    pub payment_method: PaymentMethod,
     pub variable_symbol: Option<String>,
     pub constant_symbol: Option<String>,
     pub order_ref: Option<String>,
     pub header_note: Option<String>,
     pub footer_note: Option<String>,
     pub internal_note: Option<String>,
-    /// `none` | `half` | `unit` (CHECK-constrained).
-    pub rounding_mode: String,
+    pub rounding_mode: RoundingMode,
     pub supplier_snapshot: Option<Json>,
     pub customer_snapshot: Option<Json>,
     pub bank_snapshot: Option<Json>,

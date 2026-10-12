@@ -4,7 +4,7 @@ mod common;
 
 use axum::http::{Method, StatusCode};
 use common::{TestDb, call, router};
-use invoice::settings::doc_type::DocType;
+use invoice::document::doc_type::DocType;
 use invoice::settings::repo::number_series::allocate_number;
 use sea_orm::TransactionTrait;
 use serde_json::{Value, json};

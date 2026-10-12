@@ -5,7 +5,9 @@ use rust_decimal::Decimal;
 use serde_json::json;
 use uuid::Uuid;
 
+use crate::document::doc_type::DocType;
 use crate::document::entity::{document, vat_recap};
+use crate::document::line::{Direction, PaymentMethod, RoundingMode, Status, VatMode};
 
 pub fn d(s: &str) -> Decimal {
     s.parse().expect("decimal")
@@ -31,9 +33,9 @@ pub fn doc() -> document::Model {
     document::Model {
         id: Uuid::new_v4(),
         space_id: Uuid::nil(),
-        direction: "issued".into(),
-        doc_type: "invoice".into(),
-        status: "issued".into(),
+        direction: Direction::Issued,
+        doc_type: DocType::Invoice,
+        status: Status::Issued,
         number: Some("2026000001".into()),
         number_year: Some(2026),
         number_seq: Some(1),
@@ -47,16 +49,16 @@ pub fn doc() -> document::Model {
         exchange_rate_date: None,
         exchange_rate_source: None,
         locale: "cs".into(),
-        vat_mode: "standard".into(),
+        vat_mode: VatMode::Standard,
         bank_account_id: None,
-        payment_method: "bank_transfer".into(),
+        payment_method: PaymentMethod::BankTransfer,
         variable_symbol: Some("2026000001".into()),
         constant_symbol: None,
         order_ref: None,
         header_note: Some("Hlavička".into()),
         footer_note: None,
         internal_note: Some("Interní".into()),
-        rounding_mode: "unit".into(),
+        rounding_mode: RoundingMode::Unit,
         supplier_snapshot: Some(snapshot("Dodavatel s.r.o.", "44444443")),
         customer_snapshot: Some(snapshot("Odběratel a.s.", "12345679")),
         bank_snapshot: None,

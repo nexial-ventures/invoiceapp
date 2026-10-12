@@ -7,6 +7,7 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 use uuid::Uuid;
 
+use crate::document::line::Direction;
 use crate::error::AppError;
 use crate::paging::ListQuery as Paging;
 use crate::pdf::archive::serves_original;
@@ -36,7 +37,12 @@ pub fn paging(
 /// Where the client downloads the PDF (same Bearer token), relative to the
 /// server origin; `None` when `GET …/pdf` would answer `pdf_missing` (a
 /// received / imported document without an uploaded original).
-pub fn pdf_url(id: Uuid, direction: &str, imported: bool, has_original: bool) -> Option<String> {
+pub fn pdf_url(
+    id: Uuid,
+    direction: Direction,
+    imported: bool,
+    has_original: bool,
+) -> Option<String> {
     (!serves_original(direction, imported) || has_original)
         .then(|| format!("/api/documents/{id}/pdf"))
 }
@@ -124,11 +130,11 @@ mod tests {
     fn pdf_url_follows_the_download_rules() {
         let id = Uuid::nil();
         let url = Some(format!("/api/documents/{id}/pdf"));
-        assert_eq!(pdf_url(id, "issued", false, false), url);
-        assert_eq!(pdf_url(id, "received", false, true), url);
-        assert_eq!(pdf_url(id, "issued", true, true), url);
-        assert_eq!(pdf_url(id, "received", false, false), None);
-        assert_eq!(pdf_url(id, "issued", true, false), None);
+        assert_eq!(pdf_url(id, Direction::Issued, false, false), url);
+        assert_eq!(pdf_url(id, Direction::Received, false, true), url);
+        assert_eq!(pdf_url(id, Direction::Issued, true, true), url);
+        assert_eq!(pdf_url(id, Direction::Received, false, false), None);
+        assert_eq!(pdf_url(id, Direction::Issued, true, false), None);
     }
 
     #[test]

@@ -4,10 +4,11 @@
 use uuid::Uuid;
 
 use super::input::DocumentInput;
+use crate::document::doc_type::DocType;
+use crate::document::line::Direction;
 use crate::document::meta::check_related;
 use crate::document::model::{Context, Existing};
 use crate::error::FieldErrors;
-use crate::settings::doc_type::{DocType, ISSUED};
 use crate::validation as v;
 
 pub const MAX_NUMBER: usize = 40;
@@ -56,7 +57,7 @@ pub fn fields(
     let related = check_related(
         input.related_document_id,
         doc_type,
-        ISSUED,
+        Direction::Issued,
         self_id,
         ctx.related.as_ref(),
         e,

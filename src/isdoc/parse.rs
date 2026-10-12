@@ -8,6 +8,7 @@ use roxmltree::{Document, Node};
 use rust_decimal::Decimal;
 
 use super::model::{Line, Money, NS, Parsed, Party, Payment, TaxRow, Totals, doc_type_from_code};
+use crate::currency::is_local;
 use crate::document::line::MAX_INPUT;
 
 /// Entry error code (see `docs/api/isdoc.md`).
@@ -257,7 +258,7 @@ pub fn parse(xml: &[u8]) -> Result<Parsed, Code> {
     let issue_date = date(&required(root, &["IssueDate"])?).ok_or(MISSING_FIELD)?;
     let local = required(root, &["LocalCurrencyCode"])?.to_ascii_uppercase();
     // Plain amounts are in the local currency; ours is always CZK.
-    if local != "CZK" {
+    if !is_local(&local) {
         return Err(UNSUPPORTED_CURRENCY);
     }
     let foreign = text(root, &["ForeignCurrencyCode"])

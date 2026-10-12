@@ -7,14 +7,14 @@ use rust_decimal::Decimal;
 use uuid::Uuid;
 
 use super::line::{AdvanceRow, LineData, Status, VatMode};
+use crate::document::doc_type::DocType;
 use crate::error::FieldErrors;
-use crate::settings::doc_type::DocType;
 
 /// A document an advance line may reference, as loaded from the database.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AdvanceSource {
     pub id: Uuid,
-    pub doc_type: String,
+    pub doc_type: DocType,
     pub status: Status,
     pub contact_id: Option<Uuid>,
     pub currency: String,
@@ -46,8 +46,8 @@ pub struct AdvanceCtx<'a> {
 
 /// Whether payments of a proforma issued with this supplier VAT status and
 /// mode create DDPPs.
-pub fn issues_ddpp(supplier_vat_payer: Option<bool>, vat_mode: &str) -> bool {
-    supplier_vat_payer == Some(true) && VatMode::parse(vat_mode) == Some(VatMode::Standard)
+pub fn issues_ddpp(supplier_vat_payer: Option<bool>, vat_mode: VatMode) -> bool {
+    supplier_vat_payer == Some(true) && vat_mode == VatMode::Standard
 }
 
 pub fn description(locale: &str, number: &str) -> String {
@@ -112,7 +112,7 @@ fn deducted(src: &AdvanceSource, ctx: &AdvanceCtx) -> Option<Vec<AdvanceRow>> {
     if src.status != Status::Issued || src.currency != ctx.currency {
         return None;
     }
-    if src.doc_type == DocType::AdvanceTaxDoc.as_str() {
+    if src.doc_type == DocType::AdvanceTaxDoc {
         let same_contact = ctx.contact_id.is_some() && src.contact_id == ctx.contact_id;
         // A fully corrected DDPP has nothing left to deduct.
         let ok = same_contact && ctx.vat_mode == VatMode::Standard && !src.recap.is_empty();
@@ -120,7 +120,7 @@ fn deducted(src: &AdvanceSource, ctx: &AdvanceCtx) -> Option<Vec<AdvanceRow>> {
     }
     // Non-payer form: only the proforma this invoice settles, and only one
     // whose payments did not already produce DDPPs.
-    let own_proforma = src.doc_type == DocType::Proforma.as_str()
+    let own_proforma = src.doc_type == DocType::Proforma
         && ctx.related_document_id == Some(src.id)
         && !src.issues_ddpp;
     own_proforma.then(|| {
@@ -146,7 +146,7 @@ mod tests {
     fn ddpp(id: u128, contact: u128) -> AdvanceSource {
         AdvanceSource {
             id: Uuid::from_u128(id),
-            doc_type: "advance_tax_doc".into(),
+            doc_type: DocType::AdvanceTaxDoc,
             status: Status::Issued,
             contact_id: Some(Uuid::from_u128(contact)),
             currency: "CZK".into(),
@@ -246,7 +246,7 @@ mod tests {
     #[test]
     fn ddpp_needs_a_standard_invoice_but_the_non_payer_form_does_not() {
         let mut proforma = ddpp(10, 7);
-        proforma.doc_type = "proforma".into();
+        proforma.doc_type = DocType::Proforma;
         proforma.paid = d("100");
         let sources: HashMap<_, _> = [ddpp(1, 7), proforma]
             .into_iter()
@@ -267,7 +267,7 @@ mod tests {
     #[test]
     fn non_payer_form_deducts_paid_of_own_proforma_only() {
         let mut proforma = ddpp(10, 7);
-        proforma.doc_type = "proforma".into();
+        proforma.doc_type = DocType::Proforma;
         proforma.paid = d("500");
         let mut payer = proforma.clone();
         payer.id = Uuid::from_u128(11);
@@ -304,8 +304,8 @@ mod tests {
         let e = resolve(&mut [adv(1)], &c);
         assert_eq!(e, errors(&[("lines.0.kind", "invalid")]));
         assert_eq!(description("en", "DP1"), "Advance deduction DP1");
-        assert!(issues_ddpp(Some(true), "standard"));
-        assert!(!issues_ddpp(Some(true), "reverse_charge"));
-        assert!(!issues_ddpp(Some(false), "standard"));
+        assert!(issues_ddpp(Some(true), VatMode::Standard));
+        assert!(!issues_ddpp(Some(true), VatMode::ReverseCharge));
+        assert!(!issues_ddpp(Some(false), VatMode::Standard));
     }
 }

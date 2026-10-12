@@ -94,7 +94,7 @@ fn issued_czk_invoice() {
     let p = &m.plan;
     assert_eq!(
         (p.direction, p.doc_type, p.number.as_str()),
-        (ISSUED, DocType::Invoice, "2026001")
+        (Direction::Issued, DocType::Invoice, "2026001")
     );
     assert_eq!(p.tax_point_date, p.due_date);
     assert_eq!(p.tax_point_date, Some(p.issue_date));

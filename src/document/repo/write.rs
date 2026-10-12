@@ -6,13 +6,13 @@ use sea_orm::{
 };
 use uuid::Uuid;
 
-use super::{NewDocument, advance_sources, insert, lines, query, view};
+use super::{NewDocument, advance_sources, insert, lines, query};
 use crate::document::compute::Totals;
 use crate::document::entity::document::{ActiveModel, Entity};
+use crate::document::line::Direction;
 use crate::document::line::Status;
 use crate::document::model::DocumentData;
 use crate::error::{AppError, number_violation};
-use crate::settings::doc_type::ISSUED;
 use crate::space::SpaceId;
 
 /// Header fields an edit sets, shared by create and update.
@@ -27,16 +27,16 @@ fn apply(row: &mut ActiveModel, d: &DocumentData) {
     row.exchange_rate_source = Set(rate_source(d));
     row.correction_reason = Set(d.correction_reason.clone());
     row.locale = Set(d.locale.clone());
-    row.vat_mode = Set(d.vat_mode.as_str().to_string());
+    row.vat_mode = Set(d.vat_mode);
     row.bank_account_id = Set(d.bank_account_id);
-    row.payment_method = Set(d.payment_method.as_str().to_string());
+    row.payment_method = Set(d.payment_method);
     row.variable_symbol = Set(d.variable_symbol.clone());
     row.constant_symbol = Set(d.constant_symbol.clone());
     row.order_ref = Set(d.order_ref.clone());
     row.header_note = Set(d.header_note.clone());
     row.footer_note = Set(d.footer_note.clone());
     row.internal_note = Set(d.internal_note.clone());
-    row.rounding_mode = Set(d.rounding_mode.as_str().into());
+    row.rounding_mode = Set(d.rounding_mode);
     row.number = Set(d.number.clone());
     row.related_document_id = Set(d.related_document_id);
     row.category_id = Set(d.meta.category_id);
@@ -92,9 +92,9 @@ pub async fn create_in(
     let row = NewDocument {
         id,
         space_id: space.uuid(),
-        direction: ISSUED.into(),
-        doc_type: d.doc_type.as_str().into(),
-        status: Status::Draft.as_str().into(),
+        direction: Direction::Issued,
+        doc_type: d.doc_type,
+        status: Status::Draft,
         number: d.number.clone(),
         number_year: None,
         number_seq: None,
@@ -108,16 +108,16 @@ pub async fn create_in(
         exchange_rate_date: None,
         exchange_rate_source: rate_source(d),
         locale: d.locale.clone(),
-        vat_mode: d.vat_mode.as_str().into(),
+        vat_mode: d.vat_mode,
         bank_account_id: d.bank_account_id,
-        payment_method: d.payment_method.as_str().into(),
+        payment_method: d.payment_method,
         variable_symbol: d.variable_symbol.clone(),
         constant_symbol: d.constant_symbol.clone(),
         order_ref: d.order_ref.clone(),
         header_note: d.header_note.clone(),
         footer_note: d.footer_note.clone(),
         internal_note: d.internal_note.clone(),
-        rounding_mode: d.rounding_mode.as_str().into(),
+        rounding_mode: d.rounding_mode,
         supplier_snapshot: None,
         customer_snapshot: None,
         bank_snapshot: None,
@@ -200,7 +200,7 @@ async fn locked_draft(
     id: Uuid,
 ) -> Result<crate::document::entity::document::Model, AppError> {
     let doc = query::lock(txn, space, id).await?;
-    if view::status(&doc)? != Status::Draft {
+    if doc.status != Status::Draft {
         return Err(AppError::DocumentLocked);
     }
     Ok(doc)

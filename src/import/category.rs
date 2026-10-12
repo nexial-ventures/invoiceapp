@@ -8,6 +8,7 @@ use sea_orm::{
 };
 use uuid::Uuid;
 
+use crate::document::line::Direction;
 use crate::document::meta::category_kind;
 use crate::error::AppError;
 use crate::settings::entity::category::{self, Column, Entity};
@@ -43,7 +44,7 @@ pub async fn find<C: ConnectionTrait>(
 pub async fn resolve<C: ConnectionTrait>(
     db: &C,
     space: SpaceId,
-    direction: &str,
+    direction: Direction,
     r: &CategoryRef,
 ) -> Result<Option<Uuid>, AppError> {
     let name = match r {

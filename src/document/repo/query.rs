@@ -12,7 +12,7 @@ use uuid::Uuid;
 use super::lines;
 use crate::document::entity::document::{self, Column, Entity};
 use crate::document::entity::{document_line, vat_recap};
-use crate::document::line::{LineData, PaymentState};
+use crate::document::line::{LineData, PaymentState, Status};
 use crate::document::state;
 use crate::document::wire::dto::ListQuery;
 use crate::error::AppError;
@@ -108,7 +108,7 @@ pub async fn load<C: ConnectionTrait>(db: &C, space: SpaceId, id: Uuid) -> Resul
 /// Issued and carrying a payment state (a DDPP has none).
 fn issued() -> SimpleExpr {
     Column::Status
-        .eq("issued")
+        .eq(Status::Issued)
         .and(Column::DocType.ne(state::NO_PAYMENTS_DOC_TYPE))
 }
 
@@ -171,7 +171,7 @@ pub(crate) fn filtered(
         cond = cond.add(Column::DocType.eq(t.as_str()));
     }
     if let Some(s) = q.status {
-        cond = cond.add(Column::Status.eq(s.as_str()));
+        cond = cond.add(Column::Status.eq(s));
     }
     if let Some(p) = q.payment_state {
         cond = cond.add(payment_state_cond(p));
@@ -243,7 +243,7 @@ pub async fn list(
 pub async fn highest_issued_seq<C: ConnectionTrait>(
     db: &C,
     space: SpaceId,
-    doc_type: crate::settings::doc_type::DocType,
+    doc_type: crate::document::doc_type::DocType,
     year: i32,
 ) -> Result<Option<i32>, AppError> {
     let (direction, doc_type) = doc_type.numbered();

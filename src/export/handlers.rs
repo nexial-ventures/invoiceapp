@@ -14,28 +14,26 @@ use serde::Deserialize;
 use utoipa::IntoParams;
 use uuid::Uuid;
 
-use super::export_load;
-use crate::accounting::export as accounting_export;
+use super::load;
+use crate::accounting::export::{self as accounting_export, Format as AccountantFormat};
 use crate::accounting::settings::Program;
 use crate::app::AppState;
 use crate::auth::Read;
+use crate::csvio::export_csv;
+use crate::document::doc_type::DocType;
 use crate::document::entity::document::{Column, Entity};
+use crate::document::line::Direction;
 use crate::document::line::Status;
 use crate::document::repo::query;
 use crate::document::wire::dto::ListQuery;
 use crate::download::attachment;
 use crate::error::{AppError, ErrorBody, FieldErrors};
 use crate::extract::ApiQuery;
-use crate::settings::doc_type::{DocType, ISSUED, RECEIVED};
 use crate::space::SpaceId;
 use crate::time::today;
 
 /// Most documents one export may hold.
 pub const MAX_ROWS: u64 = 10_000;
-
-const CSV: &str = "text/csv; charset=utf-8";
-const POHODA: &str = "application/xml; charset=windows-1250";
-const MONEY: &str = "application/xml; charset=utf-8";
 
 /// Longest accountant period, `to − from` in days.
 pub const MAX_PERIOD_DAYS: i64 = 366;
@@ -53,7 +51,7 @@ async fn ids<C: ConnectionTrait>(
 ) -> Result<Vec<Uuid>, AppError> {
     let ids: Vec<Uuid> = select
         .filter(Column::SpaceId.eq(space))
-        .filter(Column::Status.eq(Status::Issued.as_str()))
+        .filter(Column::Status.eq(Status::Issued))
         .select_only()
         .column(Column::Id)
         .order_by_asc(Column::Direction)
@@ -110,21 +108,18 @@ async fn export(
     let ids = match ids(&txn, space, select).await {
         Ok(ids) => ids,
         Err(e) => {
-            export_load::rollback(txn, "export").await;
+            load::rollback(txn, "export").await;
             return Err(e);
         }
     };
     Ok(match format {
         Format::Csv(label) => attachment(
-            CSV,
+            AccountantFormat::Csv.content_type(),
             filename,
-            export_load::csv(txn, space, ids, label).await?,
+            export_csv::csv(txn, space, ids, label).await?,
         ),
         Format::Xml { program, from, to } => attachment(
-            match program {
-                Program::Pohoda => POHODA,
-                Program::Money => MONEY,
-            },
+            AccountantFormat::Xml(program).content_type(),
             filename,
             accounting_export::file(txn, space, &ids, program, from, to).await?,
         ),
@@ -132,13 +127,9 @@ async fn export(
 }
 
 /// `issued` | `received`; absent → `required`, anything else → `invalid`.
-fn list_direction(d: Option<&str>) -> Result<&'static str, AppError> {
-    match d {
-        Some(ISSUED) => Ok(ISSUED),
-        Some(RECEIVED) => Ok(RECEIVED),
-        None => Err(AppError::field("direction", "required")),
-        Some(_) => Err(AppError::field("direction", "invalid")),
-    }
+fn list_direction(d: Option<&str>) -> Result<Direction, AppError> {
+    let d = d.ok_or_else(|| AppError::field("direction", "required"))?;
+    Direction::parse(d).ok_or_else(|| AppError::field("direction", "invalid"))
 }
 
 #[utoipa::path(
@@ -158,10 +149,10 @@ pub async fn list_csv(
     ApiQuery(mut q): ApiQuery<ListQuery>,
 ) -> Result<Response, AppError> {
     let direction = list_direction(q.direction.as_deref().map(str::trim))?;
-    q.direction = Some(direction.into());
+    q.direction = Some(direction.as_str().into());
     let today = today();
     let select = query::export_select(access.space(), &q, today);
-    let name = format!("doklady-{direction}-{today}.csv");
+    let name = format!("doklady-{}-{today}.csv", direction.as_str());
     export(
         &state,
         access.space(),
@@ -185,20 +176,13 @@ pub struct AccountantQuery {
     pub format: Option<String>,
 }
 
-/// The file the accountant asked for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AccountantFormat {
-    Csv,
-    Xml(Program),
-}
-
 /// A checked accountant request: the period and the direction (`None` =
 /// both).
 #[derive(Debug, PartialEq, Eq)]
 pub struct Accountant {
     pub from: NaiveDate,
     pub to: NaiveDate,
-    pub direction: Option<&'static str>,
+    pub direction: Option<Direction>,
     pub format: AccountantFormat,
 }
 
@@ -216,19 +200,12 @@ impl AccountantQuery {
             "direction",
             match self.direction.as_deref().map(str::trim) {
                 None | Some("both") => Ok(None),
-                Some(ISSUED) => Ok(Some(ISSUED)),
-                Some(RECEIVED) => Ok(Some(RECEIVED)),
-                Some(_) => Err("invalid"),
+                Some(d) => Direction::parse(d).map(Some).ok_or("invalid"),
             },
         );
         let format = e.check(
             "format",
-            match self.format.as_deref().map(str::trim) {
-                None | Some("csv") => Ok(AccountantFormat::Csv),
-                Some("pohoda") => Ok(AccountantFormat::Xml(Program::Pohoda)),
-                Some("money") => Ok(AccountantFormat::Xml(Program::Money)),
-                Some(_) => Err("invalid"),
-            },
+            AccountantFormat::parse(self.format.as_deref()).ok_or("invalid"),
         );
         if let (Some(f), Some(t)) = (from, to)
             && (t < f || (t - f).num_days() > MAX_PERIOD_DAYS)
@@ -271,7 +248,7 @@ pub async fn accountant(
 ) -> Result<Response, AppError> {
     let a = q.check()?;
     let mut select = Entity::find()
-        .filter(Column::DocType.ne(DocType::Proforma.as_str()))
+        .filter(Column::DocType.ne(DocType::Proforma))
         .filter(Expr::cust_with_values(
             format!("{TAX_DATE} BETWEEN $1 AND $2"),
             [a.from, a.to],
@@ -297,5 +274,5 @@ pub async fn accountant(
 }
 
 #[cfg(test)]
-#[path = "export_tests.rs"]
+#[path = "handlers_tests.rs"]
 mod tests;

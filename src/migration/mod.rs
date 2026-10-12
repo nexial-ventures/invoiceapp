@@ -26,6 +26,7 @@ mod m20261022_000001_space_limits;
 mod m20261023_000001_tenant_fks;
 mod m20261023_000002_fk_indexes;
 mod m20261024_000001_abuse_limits;
+mod m20261025_000001_doc_type_checks;
 
 pub struct Migrator;
 
@@ -52,6 +53,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20261023_000001_tenant_fks::Migration),
             Box::new(m20261023_000002_fk_indexes::Migration),
             Box::new(m20261024_000001_abuse_limits::Migration),
+            Box::new(m20261025_000001_doc_type_checks::Migration),
         ]
     }
 }

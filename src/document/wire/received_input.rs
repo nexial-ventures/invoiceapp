@@ -8,14 +8,16 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::fields::{digits, exchange_rate, parse_vat_mode};
+use crate::currency::{LOCAL_CURRENCY, is_local};
 use crate::document::custom_fields::Values;
+use crate::document::doc_type::DocType;
+use crate::document::line::Direction;
 use crate::document::line::{MAX_AMOUNT, VatMode};
 use crate::document::meta;
 use crate::document::model::{ReceivedCtx, ReceivedData};
 use crate::document::received::{self, EnteredRow};
 use crate::error::{AppError, FieldErrors};
 use crate::num_parse::{decimal, parse_rate};
-use crate::settings::doc_type::{DocType, RECEIVED};
 use crate::validation::{self as v, Check};
 
 pub const MAX_RECAP_ROWS: usize = 50;
@@ -152,14 +154,14 @@ impl ReceivedInput {
         };
         let currency = match self.currency.as_deref() {
             Some(s) => e.check("currency", v::currency(s)),
-            None if defaults => Some("CZK".to_string()),
+            None if defaults => Some(LOCAL_CURRENCY.to_string()),
             None => e.check("currency", Err("required")),
         }
-        .unwrap_or_else(|| "CZK".into());
+        .unwrap_or_else(|| LOCAL_CURRENCY.into());
         let rate = e
             .check("exchangeRate", exchange_rate(self.exchange_rate.as_deref()))
             .flatten()
-            .filter(|_| currency != "CZK");
+            .filter(|_| !is_local(&currency));
         let vat_mode = match self.vat_mode.as_deref() {
             Some(s) => e.check("vatMode", parse_vat_mode(s)),
             None if defaults => Some(VatMode::Standard),
@@ -184,7 +186,7 @@ impl ReceivedInput {
         let related_document_id = meta::check_related(
             self.related_document_id,
             doc_type,
-            RECEIVED,
+            Direction::Received,
             self_id,
             ctx.related.as_ref(),
             &mut e,
@@ -192,7 +194,7 @@ impl ReceivedInput {
         let meta = meta::validate(
             self.category_id,
             self.custom_fields.as_ref(),
-            RECEIVED,
+            Direction::Received,
             &ctx.meta,
             &mut e,
         );

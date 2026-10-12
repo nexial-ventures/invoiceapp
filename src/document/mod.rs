@@ -9,6 +9,7 @@ pub mod credit;
 pub mod custom_fields;
 pub mod ddpp;
 pub mod defaults;
+pub mod doc_type;
 pub mod entity;
 pub mod handlers;
 pub mod line;

@@ -38,7 +38,10 @@ fn accountant_period() {
         }
     );
     let one_day = q(Some("2026-03-05"), Some("2026-03-05"), Some("received"));
-    assert_eq!(one_day.check().expect("ok").direction, Some(RECEIVED));
+    assert_eq!(
+        one_day.check().expect("ok").direction,
+        Some(Direction::Received)
+    );
     assert!(
         q(Some("2026-01-01"), Some("2027-01-02"), Some("both"))
             .check()
@@ -88,8 +91,11 @@ fn accountant_formats() {
 
 #[test]
 fn list_directions() {
-    assert_eq!(list_direction(Some("issued")).ok(), Some(ISSUED));
-    assert_eq!(list_direction(Some("received")).ok(), Some(RECEIVED));
+    assert_eq!(list_direction(Some("issued")).ok(), Some(Direction::Issued));
+    assert_eq!(
+        list_direction(Some("received")).ok(),
+        Some(Direction::Received)
+    );
     assert!(list_direction(None).is_err());
     assert!(list_direction(Some("both")).is_err());
 }

@@ -16,12 +16,12 @@ use super::export::{Exported, attachment, export, zip_add};
 use crate::app::AppState;
 use crate::auth::Read;
 use crate::document::entity::document::Column;
+use crate::document::line::Direction;
 use crate::document::line::Status;
 use crate::document::repo::query;
 use crate::document::wire::dto::ListQuery;
 use crate::error::{AppError, ErrorBody};
 use crate::extract::ApiQuery;
-use crate::settings::doc_type::ISSUED;
 use crate::time::today;
 
 /// Most documents one bulk export may hold.
@@ -83,11 +83,10 @@ pub async fn bulk(
     access: Read,
     ApiQuery(mut q): ApiQuery<ListQuery>,
 ) -> Result<Response, AppError> {
-    q.direction = Some(ISSUED.into());
+    q.direction = Some(Direction::Issued.as_str().into());
     let space = access.space();
-    let select = || {
-        query::export_select(space, &q, today()).filter(Column::Status.ne(Status::Draft.as_str()))
-    };
+    let select =
+        || query::export_select(space, &q, today()).filter(Column::Status.ne(Status::Draft));
     if select().count(&state.db).await? > MAX_BULK {
         return Err(AppError::field("filter", "too_many"));
     }

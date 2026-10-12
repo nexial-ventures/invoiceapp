@@ -1,6 +1,8 @@
 //! Every fixed text printed on the PDF, per locale — the template carries none.
 
 use super::format::Locale;
+use crate::document::doc_type::DocType;
+use crate::document::line::PaymentMethod;
 use crate::document::line::VatMode;
 
 pub struct Labels {
@@ -136,19 +138,19 @@ pub fn labels(locale: Locale) -> &'static Labels {
 
 pub fn title(doc_type: &str, vat_mode: VatMode, locale: Locale) -> &'static str {
     let cs = locale == Locale::Cs;
-    match doc_type {
-        "proforma" if cs => "Zálohová faktura",
-        "proforma" => "Proforma invoice",
-        "credit_note" if cs => "Opravný daňový doklad",
-        "credit_note" => "Credit note",
-        "debit_note" if cs => "Opravný daňový doklad – vrubopis",
-        "debit_note" => "Debit note",
-        "advance_tax_doc" if cs => "Daňový doklad k přijaté platbě",
-        "advance_tax_doc" => "Tax document for a received payment",
-        "advance_credit_note" if cs => "Opravný daňový doklad k přijaté platbě",
-        "advance_credit_note" => "Advance payment correction",
-        "simplified" if cs => "Zjednodušený daňový doklad",
-        "simplified" => "Simplified tax document",
+    match DocType::parse(doc_type) {
+        Some(DocType::Proforma) if cs => "Zálohová faktura",
+        Some(DocType::Proforma) => "Proforma invoice",
+        Some(DocType::CreditNote) if cs => "Opravný daňový doklad",
+        Some(DocType::CreditNote) => "Credit note",
+        Some(DocType::DebitNote) if cs => "Opravný daňový doklad – vrubopis",
+        Some(DocType::DebitNote) => "Debit note",
+        Some(DocType::AdvanceTaxDoc) if cs => "Daňový doklad k přijaté platbě",
+        Some(DocType::AdvanceTaxDoc) => "Tax document for a received payment",
+        Some(DocType::AdvanceCreditNote) if cs => "Opravný daňový doklad k přijaté platbě",
+        Some(DocType::AdvanceCreditNote) => "Advance payment correction",
+        Some(DocType::Simplified) if cs => "Zjednodušený daňový doklad",
+        Some(DocType::Simplified) => "Simplified tax document",
         _ if vat_mode == VatMode::NonPayer && cs => "Faktura",
         _ if vat_mode == VatMode::NonPayer => "Invoice",
         _ if cs => "Faktura – daňový doklad",
@@ -173,13 +175,13 @@ pub fn legal_note(vat_mode: VatMode, locale: Locale) -> Option<&'static str> {
 
 pub fn payment_method(method: &str, locale: Locale) -> &'static str {
     let cs = locale == Locale::Cs;
-    match method {
-        "bank_transfer" if cs => "Bankovní převod",
-        "bank_transfer" => "Bank transfer",
-        "cash" if cs => "Hotově",
-        "cash" => "Cash",
-        "card" if cs => "Kartou",
-        "card" => "Card",
+    match PaymentMethod::parse(method) {
+        Some(PaymentMethod::BankTransfer) if cs => "Bankovní převod",
+        Some(PaymentMethod::BankTransfer) => "Bank transfer",
+        Some(PaymentMethod::Cash) if cs => "Hotově",
+        Some(PaymentMethod::Cash) => "Cash",
+        Some(PaymentMethod::Card) if cs => "Kartou",
+        Some(PaymentMethod::Card) => "Card",
         _ if cs => "Jiný",
         _ => "Other",
     }
