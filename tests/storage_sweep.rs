@@ -84,7 +84,7 @@ async fn sweeps_orphans(storage: TestStorage) {
     assert!(young.orphans.is_empty() && young.refused.is_none());
 
     let dry = run(&db, s, later(), true, false).await;
-    assert_eq!(dry.orphans, [orphan.clone()]);
+    assert_eq!(dry.orphans, std::slice::from_ref(&orphan));
     assert!(dry.deleted.is_empty());
     assert!(
         env.storage.bytes(&orphan).await.is_some(),
@@ -147,6 +147,6 @@ async fn refuses_without_references(storage: TestStorage) {
     assert!(storage.bytes(&orphan).await.is_some());
 
     let forced = run(&db, s, later(), false, true).await;
-    assert_eq!(forced.deleted, [orphan.clone()]);
+    assert_eq!(forced.deleted, std::slice::from_ref(&orphan));
     assert!(storage.bytes(&orphan).await.is_none());
 }

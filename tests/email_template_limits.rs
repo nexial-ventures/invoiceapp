@@ -20,6 +20,7 @@ use serde_json::json;
 const SAVE: &str = "/api/settings/email/templates/cs";
 const PREVIEW: &str = "/api/settings/email/templates/cs/preview";
 const KILLED: &str = "the template needs too much memory or time";
+const TIMED_OUT: &str = "rendering took longer than 5 s";
 
 #[tokio::test]
 async fn runaway_templates_are_refused() {
@@ -50,13 +51,17 @@ async fn runaway_templates_are_refused() {
             let (status, e) = call(&app, method, uri, Some(input.clone())).await;
             assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{e}");
             assert_eq!(
-                e,
-                json!({
-                    "code": "template_invalid",
-                    "fields": { "body": "template_invalid" },
-                    "detail": detail
-                })
+                (&e["code"], &e["fields"]),
+                (
+                    &json!("template_invalid"),
+                    &json!({ "body": "template_invalid" })
+                )
             );
+            // A memory bomb dies at the memory limit, or — on a loaded
+            // machine — is killed by the wall clock first; either way killed.
+            let got = e["detail"].as_str().expect("detail");
+            let killed = detail == KILLED && got == TIMED_OUT;
+            assert!(got == detail || killed, "{e}");
         }
     }
     // Still serving, nothing stored.
