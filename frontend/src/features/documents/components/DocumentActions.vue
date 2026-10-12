@@ -95,7 +95,9 @@ function issue() {
 }
 
 function remove() {
-  if (!window.confirm(t("documents.detail.confirmDelete"))) return;
+  // An unlocked draft was issued: its payments and e-mail log go with it.
+  const question = props.doc.unlockedAt ? t("unlock.confirmDelete", { number: props.doc.number ?? "" }) : t("documents.detail.confirmDelete");
+  if (!window.confirm(question)) return;
   const docType = props.doc.docType;
   void act(async () => {
     await store.remove();

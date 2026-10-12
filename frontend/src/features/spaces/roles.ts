@@ -1,12 +1,14 @@
 import { ROLES, type Role } from "./types";
 
 /** What the UI shows or hides per role; the server enforces the same matrix (docs/api/spaces.md). */
-export type Action = "read" | "write" | "settings" | "viewAllTokens" | "deleteSpace" | "spacePolicy";
+export type Action = "read" | "write" | "settings" | "unlockDocument" | "viewAllTokens" | "deleteSpace" | "spacePolicy";
 
 const MIN_ROLE: Record<Action, Role> = {
   read: "accountant",
   write: "member",
   settings: "admin",
+  /** Issued document back to a draft (docs/api/documents.md, Unlock). */
+  unlockDocument: "admin",
   viewAllTokens: "admin",
   deleteSpace: "owner",
   /** The "require TOTP" switch (docs/api/mfa.md). */

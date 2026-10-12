@@ -48,6 +48,7 @@ pub fn router() -> Router<AppState> {
         .route("/{id}/pdf", get(crate::pdf::handlers::document_pdf))
         .route("/{id}/isdoc", get(crate::isdoc::export::document_isdoc))
         .route("/{id}/cancel", post(actions::cancel))
+        .route("/{id}/unlock", post(actions::unlock))
         .route("/{id}/mark-sent", post(actions::mark_sent))
         .route("/{id}/internal-note", put(actions::internal_note))
         .route("/{id}/metadata", put(actions::metadata))

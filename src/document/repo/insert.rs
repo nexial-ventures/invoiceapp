@@ -128,6 +128,9 @@ pub async fn insert(txn: &DatabaseTransaction, n: NewDocument) -> Result<(), DbE
         original_sha256: Set(n.original_sha256),
         original_size: Set(n.original_size),
         original_uploaded_at: Set(n.original_uploaded_at),
+        unlocked_at: Set(None),
+        unlocked_by: Set(None),
+        unlock_reason: Set(None),
         created_at: Set(n.created_at),
         updated_at: Set(n.updated_at),
     }

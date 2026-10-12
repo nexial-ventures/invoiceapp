@@ -6,6 +6,7 @@ import { useAction } from "@/composables/useAction";
 import { useMetadataSettings } from "@/features/metadata/useMetadataSettings";
 import { useBankAccountsStore, useCompanyStore, useVatRatesStore } from "@/features/settings/stores";
 import InvoiceEditorForm from "../components/InvoiceEditorForm.vue";
+import UnlockedBanner from "../components/UnlockedBanner.vue";
 import { isNativeNewType } from "../docTypes";
 import { newDocumentDraft, toDraft, todayIso, type DocumentDraft, type DraftContext } from "../form";
 import { detailLocation, editLocation, listDocTypeOf, listLocation } from "../routes";
@@ -99,6 +100,7 @@ const back = computed(() => (id.value ? detailLocation(id.value) : listLocation(
 
     <p v-if="error" role="alert" class="alert-error">{{ error }}</p>
     <p v-else-if="!initial" class="text-sm text-gray-500">{{ t("common.loading") }}</p>
+    <UnlockedBanner v-if="id && initial && store.doc?.id === id" :doc="store.doc" />
 
     <InvoiceEditorForm
       v-if="initial && ctx"

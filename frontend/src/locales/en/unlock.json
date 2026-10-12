@@ -1,0 +1,17 @@
+{
+  "action": "Unlock",
+  "title": "Unlock document {number} for editing",
+  "intro": "The document returns to a draft and can be edited in full. It keeps its number; re-issuing renders and archives a new PDF and the current one is deleted.",
+  "warnSent": "The document was already sent: the customer has the old version.",
+  "warnPayments": "Payments are recorded on it ({paid}); they stay and count again after the re-issue.",
+  "warnRelated": "Other documents refer to it (credit notes, advance documents, final invoice); they stay linked.",
+  "reason": "Reason",
+  "reasonPlaceholder": "Why the issued document has to change",
+  "reasonRequired": "Enter the reason.",
+  "confirm": "Unlock",
+  "bannerTitle": "Unlocked issued document",
+  "banner": "Unlocked on {when} by {who}: {reason}",
+  "unknownUser": "a deleted user",
+  "keptNumber": "Keeps its number {number}: re-issuing takes no new one.",
+  "confirmDelete": "This draft was issued as {number}. Deleting it also deletes its payments and e-mail log, and the number is not reused. Really delete it?"
+}

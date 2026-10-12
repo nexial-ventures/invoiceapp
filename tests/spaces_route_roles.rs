@@ -145,6 +145,7 @@ const ROUTES: &[(&str, &str, Access)] = &[
     ("DELETE", "/api/documents/{id}", Space(Mem)),
     ("POST", "/api/documents/{id}/issue", Space(Mem)),
     ("POST", "/api/documents/{id}/cancel", Space(Mem)),
+    ("POST", "/api/documents/{id}/unlock", Space(Admin)),
     ("POST", "/api/documents/{id}/mark-sent", Space(Mem)),
     ("POST", "/api/documents/{id}/settle", Space(Mem)),
     ("POST", "/api/documents/{id}/credit-note", Space(Mem)),

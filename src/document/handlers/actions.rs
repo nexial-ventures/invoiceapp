@@ -4,9 +4,9 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use uuid::Uuid;
 
-use super::dto::{CancelInput, CreditNoteInput, InternalNoteInput, MarkSentInput};
+use super::dto::{CancelInput, CreditNoteInput, InternalNoteInput, MarkSentInput, UnlockInput};
 use crate::app::AppState;
-use crate::auth::Write;
+use crate::auth::{Manage, Write};
 use crate::document::meta::MetadataInput;
 use crate::document::repo::{
     credit as credit_repo, issue as issue_repo, lifecycle, meta as meta_repo, query,
@@ -245,4 +245,41 @@ fn correction_reason(body: &Bytes) -> Result<Option<String>, AppError> {
     let input: CreditNoteInput = optional_json(body)?;
     v::opt_text(input.correction_reason.as_deref(), 500)
         .map_err(|r| AppError::field("correctionReason", r))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/documents/{id}/unlock",
+    tag = "documents",
+    security(("cookie" = []), ("bearer" = [])),
+    params(("id" = Uuid, Path)),
+    request_body = UnlockInput,
+    responses(
+        (status = 200, description = "The draft, number kept", body = Document),
+        (status = 404, body = ErrorBody),
+        (status = 409, description = "`invalid_state` (not an issued document of ours)", body = ErrorBody),
+        (status = 422, description = "`reason`: `required` / `too_long`", body = ErrorBody),
+    )
+)]
+pub async fn unlock(
+    State(state): State<AppState>,
+    access: Manage,
+    ApiPath(id): ApiPath<Uuid>,
+    body: Bytes,
+) -> Result<Json<Document>, AppError> {
+    let input: UnlockInput = optional_json(&body)?;
+    let reason = v::required_text(input.reason.as_deref().unwrap_or_default(), 2000)
+        .map_err(|r| AppError::field("reason", r))?;
+    let space = access.space();
+    let pdf = state.pdf.space(space)?;
+    let by = lifecycle::Unlock {
+        user: access.scope.user_id,
+        reason,
+    };
+    let archive = lifecycle::unlock(&state.db, space, id, by).await?;
+    // After the commit, best effort: the orphan sweep removes what is left.
+    if let Some(rel) = archive {
+        pdf.storage().remove(&rel).await;
+    }
+    Ok(Json(fetch(&state, space, id).await?))
 }

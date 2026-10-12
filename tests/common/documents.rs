@@ -213,3 +213,9 @@ pub async fn post_action(app: &Router, doc_id: &str, action: &str) -> (StatusCod
     )
     .await
 }
+
+/// `POST …/unlock` with `{ reason }`.
+pub async fn unlock(app: &Router, doc_id: &str, reason: Value) -> (StatusCode, Value) {
+    let uri = format!("/api/documents/{doc_id}/unlock");
+    call(app, Method::POST, &uri, Some(json!({ "reason": reason }))).await
+}

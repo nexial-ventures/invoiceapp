@@ -795,6 +795,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/documents/{id}/unlock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["unlock"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/exchange-rates/{currency}": {
         parameters: {
             query?: never;
@@ -2292,6 +2308,13 @@ export interface components {
             taxPointDate?: string | null;
             total: string;
             totals: components["schemas"]["Totals"];
+            unlockReason?: string | null;
+            /**
+             * Format: date-time
+             * @description The latest unlock back to a draft (kept after re-issue).
+             */
+            unlockedAt?: string | null;
+            unlockedBy?: null | components["schemas"]["UserRef"];
             /** Format: date-time */
             updatedAt: string;
             variableSymbol?: string | null;
@@ -2449,6 +2472,10 @@ export interface components {
             sign: number;
             status: components["schemas"]["Status"];
             supplierNumber?: string | null;
+            unlockReason?: string | null;
+            /** Format: date-time */
+            unlockedAt?: string | null;
+            unlockedBy?: null | components["schemas"]["UserRef"];
         };
         DraftFile: {
             change: components["schemas"]["Change"];
@@ -3266,6 +3293,13 @@ export interface components {
             total: string;
             totalCzk?: string | null;
             vat: string;
+        };
+        UnlockInput: {
+            /**
+             * @description Required, 1–2000 characters (trimmed).
+             * @default null
+             */
+            reason: string | null;
         };
         UpdateInput: {
             /**
@@ -5944,6 +5978,58 @@ export interface operations {
             };
             /** @description `invalid_state` (not an issued proforma, or already settled) */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    unlock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnlockInput"];
+            };
+        };
+        responses: {
+            /** @description The draft, number kept */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Document"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `invalid_state` (not an issued document of ours) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `reason`: `required` / `too_long` */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

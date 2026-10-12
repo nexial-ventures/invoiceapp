@@ -10,6 +10,8 @@ creating any other combination → 422 `{"fields":{"docType":"invalid"}}`.
   compares the sum of payments with `totals.payable`.
 - `overdue` (derived): `status = issued` and `paymentState ∈ {unpaid, partial}` and `dueDate < today`.
 - `sentAt` (stored, nullable): set by mark-sent.
+- Transitions: `draft → issued` (issue), `issued → cancelled` (cancel), `issued → draft` (unlock, admin+, see
+  [Unlock](#unlock)); drafts can be deleted.
 
 ## Wire types
 ```
@@ -52,12 +54,14 @@ Document = DocumentInput + {
   supplier: PartySnapshot|null, customer: PartySnapshot|null,  // filled at issue; drafts show null
   bankSnapshot: { accountNumber, iban, bic }|null,             // filled at issue
   lines: DocumentLine[] (with position/base), totals: Totals, paid: string /* sum of payments */,
+  unlockedAt: datetime|null, unlockedBy: { email, displayName }|null, unlockReason: string|null, // latest unlock
   createdAt, updatedAt
 }
 PartySnapshot { name, ico, dic, street, city, zip, country, registration|null, vatPayer: boolean|null }
 
 DocumentSummary { id, docType, direction, number, status, paymentState, overdue, contactId, customerName /* snapshot or
-  live contact name for drafts */, issueDate, dueDate, currency, payable, paid, sentAt }
+  live contact name for drafts */, issueDate, dueDate, currency, payable, paid, sentAt,
+  unlockedAt, unlockedBy, unlockReason }
 
 Payment { id, date, amount: string /* >0, doc currency */, note: string|null, createdAt }
 ```
@@ -104,6 +108,7 @@ Payment { id, date, amount: string /* >0, doc currency */, note: string|null, cr
   rendered **before** that transaction (from a rolled-back dry run of it) and recorded in its commit — see
   [pdf.md, Archive](pdf.md#archive).
 - `POST /api/documents/{id}/cancel` body `{ reason?: string }` → issued only (else 409 `invalid_state`); payments stay.
+- `POST /api/documents/{id}/unlock` body `{ reason: string }` → Document (the draft); **Manage** role. See [Unlock](#unlock).
 - `POST /api/documents/{id}/mark-sent` body `{ sentAt?: datetime }` → issued only; idempotent (overwrites).
 - `PUT /api/documents/{id}/internal-note` body `{ internalNote }` → allowed in every status.
 - `GET /api/documents/{id}/payments` → Payment[] (date asc). `POST /api/documents/{id}/payments` → 201 (issued only, else
@@ -124,6 +129,33 @@ is served for a minute at most. Tests use a local mock server with fixture text 
 ## Number-series counter guard (finishes the 1a review item)
 `PUT /api/settings/number-series/{docType}/counters/{year}` with `lastNumber` lower than the highest `numberSeq` of a
 non-imported document of that docType and `numberYear` → 422 `{"fields":{"lastNumber":"below_issued"}}`.
+
+## Unlock
+User decision overriding "issued documents are locked" ([plan.md](../plan.md)).
+`POST /api/documents/{id}/unlock` body `{ reason: string }`, role **Manage** (admin / owner; member → 403 `forbidden`).
+- `reason` trimmed, 1–2000 chars, else 422 `reason: required | too_long` (an empty body → `required`).
+- Any issued document of ours (`direction = issued`, `status = issued`), imported ones included, whatever is attached
+  to it (payments, `sentAt`, credit notes, DDPPs, deductions). A draft, a cancelled or a received document → 409
+  `invalid_state`. Another space's id → 404.
+- Effect: `status` → `draft`; `unlockedAt` / `unlockedBy` / `unlockReason` record the latest unlock (kept after
+  re-issue; `unlockedBy` is `null` once that account is deleted). Kept: `number`, `numberYear`, the sequence, `sentAt`,
+  `variableSymbol`, payments (`paid`), the e-mail log, every document referencing it. Cleared: the snapshots
+  (`supplier` / `customer` / `bankSnapshot`), a ČNB rate (re-resolved at re-issue; a manual or copied rate stays) and
+  the rendered archive (`pdf` → `null`; its storage object is removed after the commit, best effort, else the orphan
+  sweep removes it). An imported document's uploaded **original** is never touched. Returns the Document.
+- The draft is edited with the normal `PUT` (all validations). A native draft's `number` may be sent back unchanged or
+  omitted (anything else → `number: invalid`). `docType` may change between `invoice`, `proforma` and `simplified`
+  on an unlocked draft only (any other draft keeps its type).
+- Re-issue (normal `issue`): a draft that already has a number reuses `number`, `numberYear` and the sequence, also
+  after a `docType` / date change — it never allocates a second number; snapshots, rate, totals and the PDF are done
+  as in any issue (imported: no render). The number stays **reserved** while the draft exists: the counter is not
+  moved back, the counter guard counts the draft (`below_issued`), and the unique number index still holds it.
+- As a draft it takes no payments (409 `invalid_state` on add / delete) and `paymentState` is `null`.
+- `DELETE` of an unlocked draft cascades its lines, payments and e-mail log; documents linking it via
+  `relatedDocumentId` keep existing with the link `null` (a DDPP's `paymentId` too). While another document's
+  `advance` line deducts it (an unlocked proforma / DDPP) → 409 `advance_in_use` (that line needs its source). The
+  number is not reused.
+- REST only; MCP has no unlock tool.
 
 ## Clarifications 1b (as implemented)
 Additive details settled during the Phase 1b backend; nothing above changed.
@@ -203,7 +235,12 @@ List
 Number series
 - `allocate_number(&txn, DocType, year) -> Result<(String, i32), AppError>` (number and sequence).
 - The counter guard counts every non-imported document of that docType and `numberYear` with a number (cancelled
-  included — their numbers stay used). The counter `PUT` locks the counter row (creating it if missing) before
+  and unlocked drafts included — their numbers stay used).
+
+Unlock (clarification)
+- Added after 4e on the user's decision: issued documents are no longer strictly immutable — see [Unlock](#unlock).
+  `issue` on a numbered draft keeps the number instead of allocating; `PUT` of a native draft accepts its kept number.
+  A changed `docType` keeps the number's sequence, which then counts in the new type's guard. The counter `PUT` locks the counter row (creating it if missing) before
   checking, so it waits for an issue in flight and sees its number.
 
 ---

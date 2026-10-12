@@ -89,6 +89,9 @@ pub fn doc() -> document::Model {
         original_sha256: None,
         original_size: None,
         original_uploaded_at: None,
+        unlocked_at: None,
+        unlocked_by: None,
+        unlock_reason: None,
         created_at: ts(0),
         updated_at: ts(0),
     }

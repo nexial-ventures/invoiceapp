@@ -86,6 +86,11 @@ pub struct Model {
     pub original_sha256: Option<String>,
     pub original_size: Option<i64>,
     pub original_uploaded_at: Option<DateTimeWithTimeZone>,
+    /// The latest unlock back to a draft (kept after re-issue); `unlocked_by`
+    /// is NULL once that user is deleted.
+    pub unlocked_at: Option<DateTimeWithTimeZone>,
+    pub unlocked_by: Option<Uuid>,
+    pub unlock_reason: Option<String>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }

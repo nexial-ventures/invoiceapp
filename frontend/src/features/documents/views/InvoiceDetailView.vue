@@ -20,6 +20,8 @@ import RelatedDocumentsPanel from "../components/RelatedDocumentsPanel.vue";
 import SimplifiedLimitNote from "../components/SimplifiedLimitNote.vue";
 import StatusBadges from "../components/StatusBadges.vue";
 import TotalsPanel from "../components/TotalsPanel.vue";
+import UnlockedBanner from "../components/UnlockedBanner.vue";
+import UnlockPanel from "../components/UnlockPanel.vue";
 import { detailLocation, listLocation } from "../routes";
 import { useDocumentStore } from "../store";
 import type { PartySnapshot } from "../types";
@@ -89,7 +91,9 @@ const hasPayments = computed(() => !isDraft.value && doc.value?.docType !== "adv
 
       <SimplifiedLimitNote :doc-type="doc.docType" :currency="doc.currency" :totals="doc.totals" />
 
+      <UnlockedBanner :doc="doc" />
       <DocumentActions v-if="session.can('write')" :doc="doc" />
+      <UnlockPanel v-if="doc.status === 'issued' && session.can('unlockDocument')" :key="doc.id" :doc="doc" />
       <div v-if="!isDraft" class="flex flex-wrap items-center gap-2">
         <SendEmailButton v-if="session.can('write')" :document-id="doc.id" />
         <IsdocDownloadButton v-if="doc.number" :id="doc.id" :number="doc.number" />
