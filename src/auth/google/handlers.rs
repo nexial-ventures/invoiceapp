@@ -268,7 +268,7 @@ pub(super) async fn invitation(
     let (Some(space), Some(hash)) = (space, hash) else {
         return Err(Fail::Invalid);
     };
-    let invite = invites::by_hash(&state.db, SpaceId(space), hash)
+    let invite = invites::by_hash(&state.db, SpaceId::from_row(space), hash)
         .await?
         .ok_or(Fail::Invalid)?;
     if invite.email != email {

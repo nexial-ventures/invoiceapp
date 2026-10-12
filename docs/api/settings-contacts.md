@@ -25,7 +25,8 @@ Company {
 }
 ```
 GET returns the row; a migration seeds an empty row (name "") so GET never 404s. PUT replaces all profile fields
-(the document defaults only when present), returns the saved object.
+(the document defaults only when present), returns the saved object. `vatPayer`, `defaultDueDays` and
+`defaultLocale` are required in the PUT body: a missing one is 422 `{"<field>":"required"}` (not a 400).
 
 ## Bank accounts — `/api/settings/bank-accounts`
 ```

@@ -40,7 +40,7 @@ pub async fn seed_space(
     let space = space_repo::create(conn, slug.into(), format!("Space {slug}"), owner)
         .await
         .expect("create space");
-    let space = SpaceId(space.id);
+    let space = SpaceId::from(&space);
     if let Some(t) = token {
         store_token(conn, space, owner, Role::Owner, t).await;
     }

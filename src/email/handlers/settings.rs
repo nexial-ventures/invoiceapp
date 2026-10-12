@@ -12,7 +12,7 @@ use crate::app::AppState;
 use crate::auth::{Manage, Read, Write};
 use crate::email::input::parse_address;
 use crate::email::sender::Outgoing;
-use crate::email::templates::{self, Rendered, Template};
+use crate::email::templates::{self, Rendered, Template, TemplateInput};
 use crate::error::{AppError, ErrorBody};
 use crate::extract::{ApiJson, ApiPath, optional_json};
 use crate::pdf::format::Locale;
@@ -63,14 +63,14 @@ fn path_locale(s: &str) -> Result<Locale, AppError> {
     Locale::parse(s).ok_or(AppError::NotFound)
 }
 
-/// Limits, then compile + strict render on both samples.
+/// Compile + strict render on both samples (presence and limits are
+/// checked by [`TemplateInput::validate`]).
 async fn validate(
     state: &AppState,
     space: SpaceId,
     locale: Locale,
     t: &Template,
 ) -> Result<Rendered, AppError> {
-    templates::check_limits(t)?;
     let company = company::get(&state.db, space).await?;
     templates::validate(t, &sample_contexts(&state.db, &company, locale).await?)
 }
@@ -173,11 +173,11 @@ pub async fn list_templates(
     tag = "email",
     security(("cookie" = []), ("bearer" = [])),
     params(("locale" = String, Path, description = "`cs` | `en`")),
-    request_body = Template,
+    request_body = TemplateInput,
     responses(
         (status = 200, body = TemplateEntry),
         (status = 404, description = "Unknown locale", body = ErrorBody),
-        (status = 422, description = "`validation` (`subject`: `required` / `too_long`, `body`: `too_long`) or `template_invalid` (+ `fields`, `detail`)", body = ErrorBody),
+        (status = 422, description = "`validation` (`subject`: `required` / `too_long`, `body`: `required` / `too_long`) or `template_invalid` (+ `fields`, `detail`)", body = ErrorBody),
         (status = 503, description = "`storage_unavailable`", body = ErrorBody),
     )
 )]
@@ -185,9 +185,10 @@ pub async fn put_template(
     State(state): State<AppState>,
     access: Manage,
     ApiPath(locale): ApiPath<String>,
-    ApiJson(t): ApiJson<Template>,
+    ApiJson(input): ApiJson<TemplateInput>,
 ) -> Result<Json<TemplateEntry>, AppError> {
     let locale = path_locale(&locale)?;
+    let t = input.validate()?;
     validate(&state, access.space(), locale, &t).await?;
     let pdf = state.pdf.space(access.space())?;
     templates::save(pdf.storage(), locale, &t).await?;
@@ -223,7 +224,7 @@ pub async fn delete_template(
     tag = "email",
     security(("cookie" = []), ("bearer" = [])),
     params(("locale" = String, Path, description = "`cs` | `en`")),
-    request_body = Template,
+    request_body = TemplateInput,
     responses(
         (status = 200, description = "Rendered on the sample invoice; nothing stored", body = Rendered),
         (status = 404, description = "Unknown locale", body = ErrorBody),
@@ -234,8 +235,9 @@ pub async fn preview(
     State(state): State<AppState>,
     access: Write,
     ApiPath(locale): ApiPath<String>,
-    ApiJson(t): ApiJson<Template>,
+    ApiJson(input): ApiJson<TemplateInput>,
 ) -> Result<Json<Rendered>, AppError> {
     let locale = path_locale(&locale)?;
+    let t = input.validate()?;
     Ok(Json(validate(&state, access.space(), locale, &t).await?))
 }

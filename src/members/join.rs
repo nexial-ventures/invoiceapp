@@ -45,7 +45,7 @@ pub enum Joined {
 /// Under the space's membership lock (a removal / demotion of the inviter
 /// cannot interleave): use up the live invitation `token_hash` → the inviter
 /// re-check → the code, last, so a refused accept never spends one → the
-/// user (an address registered meanwhile → 409 `conflict`) → marked verified
+/// user (an address registered meanwhile → 409 `email_taken`) → marked verified
 /// (the link proved the address) → the membership (an existing one keeps its
 /// role).
 pub async fn join(
@@ -79,7 +79,7 @@ pub async fn join(
         Joiner::New { name, hash } => {
             users::create(txn, &invite.email, &name, Some(hash))
                 .await?
-                .ok_or_else(|| AppError::Conflict("users_email_key".into()))?
+                .ok_or(AppError::EmailTaken)?
                 .id
         }
     };

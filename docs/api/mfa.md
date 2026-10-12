@@ -123,7 +123,7 @@ For a user with TOTP these also require `code` (TOTP or recovery) next to the pa
   `%2B`, `@` kept). `enable`: TOTP already on → 409 `mfa_enabled`; no / expired pending → 422 `code: expired`; empty
   `code` → `code: required`; a setup replaced or expired between the read and the write → `code: expired`.
   `disable` of a user without TOTP checks only the password and answers 204 — **nothing is deleted** (no session,
-  token or pending login). `recovery-codes` of a user without TOTP → 409 `{"code":"conflict"}`. Regenerating
+  token or pending login). `recovery-codes` of a user without TOTP → 409 `{"code":"mfa_disabled"}`. Regenerating
   replaces the codes in one transaction (one multi-row insert).
 - **Disable** deletes, in one transaction, the secret, the pending setup, all recovery codes, the user's pending
   logins, the user's sessions on hosts of spaces with `require_mfa` (incl. the current one when called there) and
@@ -166,11 +166,11 @@ For a user with TOTP these also require `code` (TOTP or recovery) next to the pa
   TOTP: missing `code` → 422 `code: required`, then the transaction above (wrong → 422 `code: invalid`, login
   buckets e-mail + IP). New account: `displayName` / `password` validation (422) → the user is created **verified**
   with that name and password in its own transaction (no membership, no session, invitation kept) → 403
-  `{"code":"mfa_required","detail":"account_created"}`; an address registered meanwhile → 409 `conflict`. Without
+  `{"code":"mfa_required","detail":"account_created"}`; an address registered meanwhile → 409 `email_taken`. Without
   the policy an existing account with TOTP still needs the `code` (step-up). `GET /api/invites/accept` returns
   `requireMfa`.
 - `GET /api/account/mfa` `requiredBy` = the user's spaces with the policy, sorted by name (case-insensitive), then
   slug. `GET /api/members` items carry `mfaEnabled` (TOTP on), `GET /api/auth/me` carries `user.mfaEnabled`.
 - New error codes: 403 `mfa_required` (`detail: "account_created"` only for the new-account accept), 401
-  `mfa_invalid`, 409 `mfa_enabled`. Nothing secret (TOTP secret, codes, recovery codes, `invoice_mfa` cookie, the
+  `mfa_invalid`, 409 `mfa_enabled`, 409 `mfa_disabled`. Nothing secret (TOTP secret, codes, recovery codes, `invoice_mfa` cookie, the
   secret key) is logged; the secret key is `[REDACTED]` in `Debug`.

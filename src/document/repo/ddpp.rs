@@ -81,7 +81,7 @@ pub async fn issue(
     let totals =
         ddpp::totals(&shares, rate.rate).map_err(|o| AppError::field(o.field(), "invalid"))?;
     let year = payment.date.year();
-    let space = SpaceId(proforma.space_id);
+    let space = SpaceId::from_row(proforma.space_id);
     let (number, seq) =
         number_series::allocate_number(txn, space, DocType::AdvanceTaxDoc, year).await?;
     let proforma_number = proforma.number.clone().unwrap_or_default();

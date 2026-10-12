@@ -251,6 +251,20 @@ async fn disable_without_totp_touches_nothing() {
     )
     .await;
     assert_eq!(s, StatusCode::NO_CONTENT);
+    // New recovery codes need TOTP on: a typed code, not a generic conflict.
+    let (s, j) = on(
+        &app,
+        Method::POST,
+        BASE_HOST,
+        "/api/account/mfa/recovery-codes",
+        As::Cookie(&base),
+        Some(json!({ "password": OWNER_PASSWORD, "code": "123456" })),
+    )
+    .await;
+    assert_eq!(
+        (s, j),
+        (StatusCode::CONFLICT, json!({ "code": "mfa_disabled" }))
+    );
     for who in [As::Cookie(&session), As::Bearer(TEST_TOKEN)] {
         let (s, _) = on(&app, Method::GET, TEST_HOST, "/api/auth/me", who, None).await;
         assert_eq!(s, StatusCode::OK);

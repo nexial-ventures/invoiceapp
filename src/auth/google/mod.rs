@@ -127,7 +127,7 @@ pub async fn origin_url(state: &AppState, space: Option<Uuid>) -> Result<Option<
     let Some(id) = space else {
         return Ok(Some(state.public.base_url()));
     };
-    Ok(space_repo::find(&state.db, SpaceId(id))
+    Ok(space_repo::find(&state.db, SpaceId::from_row(id))
         .await?
         .map(|s| state.public.space_url(&s.slug)))
 }

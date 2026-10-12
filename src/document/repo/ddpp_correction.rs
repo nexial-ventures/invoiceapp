@@ -174,7 +174,7 @@ pub async fn create(
         .await?
         .apply(&mut totals, data.params())
         .map_err(exact_error)?;
-    let (space, ddpp_id) = (SpaceId(ddpp.space_id), ddpp.id);
+    let (space, ddpp_id) = (SpaceId::from_row(ddpp.space_id), ddpp.id);
     Ok(db
         .transaction(|txn| {
             Box::pin(async move {
@@ -225,7 +225,7 @@ pub async fn check_linked(
 ) -> Result<(), AppError> {
     match note.related_document_id {
         Some(ddpp) => {
-            query::lock(txn, SpaceId(note.space_id), ddpp).await?;
+            query::lock(txn, SpaceId::from_row(note.space_id), ddpp).await?;
             ensure_not_deducted(txn, ddpp).await
         }
         None => Ok(()),

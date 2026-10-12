@@ -62,7 +62,7 @@ pub async fn ensure_usage(
 pub async fn refresh_all(db: &DatabaseConnection, root: &Storage) -> Result<usize, AppError> {
     let spaces = space::Entity::find().all(db).await?;
     for s in &spaces {
-        let id = SpaceId(s.id);
+        let id = SpaceId::from_row(s.id);
         refresh_usage(db, id, &root.scoped(&id.storage_prefix())?).await;
     }
     Ok(spaces.len())

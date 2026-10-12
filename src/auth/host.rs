@@ -146,7 +146,7 @@ pub struct HostCtx {
 
 impl HostCtx {
     pub fn space_id(&self) -> Option<SpaceId> {
-        self.space.as_ref().map(|s| SpaceId(s.id))
+        self.space.as_ref().map(|s| SpaceId::from_row(s.id))
     }
 
     /// The host's space requires TOTP for new logins / credentials.

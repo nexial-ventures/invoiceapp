@@ -55,6 +55,15 @@ pub enum AppError {
     #[error("two-factor authentication already enabled")]
     MfaEnabled,
 
+    /// An action that needs TOTP (new recovery codes) while it is off.
+    #[error("two-factor authentication not enabled")]
+    MfaDisabled,
+
+    /// An account for the address was registered meanwhile (invitation
+    /// accept creating a new account).
+    #[error("e-mail already registered")]
+    EmailTaken,
+
     /// A cookie-authenticated mutation without the request's own `Origin`.
     #[error("CSRF origin check failed")]
     Csrf,
@@ -118,6 +127,10 @@ pub enum AppError {
     /// The allocated number is already held by another (imported) document.
     #[error("document number already taken")]
     NumberTaken,
+
+    /// An imported document that is already stored.
+    #[error("document already imported")]
+    Duplicate,
 
     /// Cancelling a debit note would leave its original over-credited.
     #[error("the credit notes would exceed the original")]
@@ -219,6 +232,8 @@ impl AppError {
             Self::MfaRequired { .. } => (StatusCode::FORBIDDEN, "mfa_required"),
             Self::MfaInvalid => (StatusCode::UNAUTHORIZED, "mfa_invalid"),
             Self::MfaEnabled => (StatusCode::CONFLICT, "mfa_enabled"),
+            Self::MfaDisabled => (StatusCode::CONFLICT, "mfa_disabled"),
+            Self::EmailTaken => (StatusCode::CONFLICT, "email_taken"),
             Self::Csrf => (StatusCode::FORBIDDEN, "csrf"),
             Self::RateLimited(_) => (StatusCode::TOO_MANY_REQUESTS, "rate_limited"),
             Self::Busy => (StatusCode::SERVICE_UNAVAILABLE, "busy"),
@@ -239,6 +254,7 @@ impl AppError {
             Self::CategoryInUse => (StatusCode::CONFLICT, "category_in_use"),
             Self::LastOwner => (StatusCode::CONFLICT, "last_owner"),
             Self::NumberTaken => (StatusCode::CONFLICT, "number_taken"),
+            Self::Duplicate => (StatusCode::CONFLICT, "duplicate"),
             Self::ExceedsOriginal => (StatusCode::CONFLICT, "exceeds_original"),
             Self::PdfMissing => (StatusCode::NOT_FOUND, "pdf_missing"),
             Self::TooLarge => (StatusCode::PAYLOAD_TOO_LARGE, "too_large"),

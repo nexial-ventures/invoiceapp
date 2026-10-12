@@ -34,6 +34,8 @@
   "mfaInvalid": "Nesprávný kód.",
   "mfaRequired": "Tento space vyžaduje dvoufázové ověření, které váš účet nemá zapnuté. Zapněte si ho ve svém účtu na úvodní stránce a přihlaste se znovu.",
   "mfaEnabled": "Dvoufázové ověření už je zapnuté.",
+  "mfaDisabled": "Dvoufázové ověření není zapnuté.",
+  "emailTaken": "Účet s touto e-mailovou adresou už existuje. Přihlaste se a pozvánku přijměte znovu.",
   "quotaExceeded": "Kvóta úložiště je vyčerpána.",
   "designInvalid": "Design nelze vykreslit – nic se nezměnilo.",
   "draftEmpty": "Koncept je prázdný – není co aktivovat.",

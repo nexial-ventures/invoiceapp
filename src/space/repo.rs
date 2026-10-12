@@ -106,7 +106,7 @@ pub async fn create(
     }
     .insert(&txn)
     .await?;
-    seed::seed(&txn, SpaceId(id)).await?;
+    seed::seed(&txn, SpaceId::from_row(id)).await?;
     txn.commit().await?;
     Ok(row)
 }

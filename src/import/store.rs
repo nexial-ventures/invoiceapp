@@ -39,10 +39,6 @@ pub struct Options {
     pub vat_deductible: bool,
 }
 
-/// Entry failure codes of `confirm`.
-pub const DUPLICATE: &str = "duplicate";
-pub const NUMBER_TAKEN: &str = "number_taken";
-
 fn json<T: serde::Serialize>(v: &T) -> Result<serde_json::Value, AppError> {
     Ok(serde_json::to_value(v).map_err(anyhow::Error::from)?)
 }
@@ -157,7 +153,7 @@ async fn insert(
     ))
     .await?;
     if lookup::duplicate(txn, space, plan).await? {
-        return Err(AppError::Conflict(DUPLICATE.into()));
+        return Err(AppError::Duplicate);
     }
     let now = chrono::Utc::now();
     let issued = plan.direction == ISSUED;
@@ -248,7 +244,11 @@ async fn insert(
     }
     row.insert(txn).await.map_err(|e| {
         number_violation(e, || {
-            AppError::Conflict(if issued { DUPLICATE } else { NUMBER_TAKEN }.into())
+            if issued {
+                AppError::Duplicate
+            } else {
+                AppError::NumberTaken
+            }
         })
     })?;
     // Display-only for both directions: the recap and totals above come from

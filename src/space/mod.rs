@@ -22,12 +22,19 @@ use uuid::Uuid;
 
 use crate::app::AppState;
 
-/// The space a request works in. Deliberately not `Deserialize`: it cannot
-/// be taken from a request body or query.
+/// The space a request works in. Deliberately not `Deserialize` and not
+/// constructible from a bare id outside this crate: it cannot be taken from
+/// a request body or query.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SpaceId(pub Uuid);
+pub struct SpaceId(Uuid);
 
 impl SpaceId {
+    /// The space of a row the caller already read (a space, a session, a
+    /// document fetched within its space…) — never a client-supplied id.
+    pub(crate) fn from_row(id: Uuid) -> Self {
+        Self(id)
+    }
+
     pub fn uuid(self) -> Uuid {
         self.0
     }
@@ -35,6 +42,12 @@ impl SpaceId {
     /// The storage prefix every key of the space lives under.
     pub fn storage_prefix(self) -> String {
         format!("spaces/{}", self.0)
+    }
+}
+
+impl From<&entity::space::Model> for SpaceId {
+    fn from(space: &entity::space::Model) -> Self {
+        Self(space.id)
     }
 }
 
@@ -130,7 +143,7 @@ mod tests {
 
     #[test]
     fn storage_prefix() {
-        let id = SpaceId(Uuid::nil());
+        let id = SpaceId::from_row(Uuid::nil());
         assert_eq!(
             id.storage_prefix(),
             "spaces/00000000-0000-0000-0000-000000000000"

@@ -353,7 +353,7 @@ mod tests {
     #[test]
     fn sealed_invite_is_bound_to_the_space() {
         let key = SecretKey::from_bytes([7; 32]);
-        let space = SpaceId(Uuid::new_v4());
+        let space = SpaceId::from_row(Uuid::new_v4());
         let sealed = seal_invite(&key, Some(space), "tok").expect("seal");
         assert_eq!(
             open_invite(&key, Some(space.uuid()), Some(&sealed)).as_deref(),

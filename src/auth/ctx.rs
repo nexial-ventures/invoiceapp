@@ -148,7 +148,7 @@ pub async fn authenticate(
 async fn by_token(state: &AppState, host: &HostCtx, token: &str) -> Result<Authed, AppError> {
     // A token works only on its own space's host.
     let space = host.space.as_ref().ok_or(AppError::Unauthorized)?;
-    let found = resolve::token(&state.db, token, SpaceId(space.id))
+    let found = resolve::token(&state.db, token, SpaceId::from_row(space.id))
         .await?
         .ok_or(AppError::Unauthorized)?;
     let token_role = found.token_role.ok_or(AppError::Unauthorized)?;
@@ -157,7 +157,7 @@ async fn by_token(state: &AppState, host: &HostCtx, token: &str) -> Result<Authe
     Ok(Authed {
         user,
         space: Some(Membership {
-            space: SpaceId(space.id),
+            space: SpaceId::from_row(space.id),
             slug: space.slug.clone(),
             name: space.name.clone(),
             role: token_role.min(member_role),
@@ -191,7 +191,7 @@ pub(crate) async fn by_session(
     Ok(Authed {
         user,
         space: Some(Membership {
-            space: SpaceId(space.id),
+            space: SpaceId::from_row(space.id),
             slug: space.slug.clone(),
             name: space.name.clone(),
             role,

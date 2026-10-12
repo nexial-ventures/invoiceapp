@@ -1,5 +1,6 @@
 //! The role matrix per route group (incl. MCP tools), the token role
-//! ceiling and the personal API token routes (spaces.md, 4a).
+//! ceiling and the personal API token routes (spaces.md, 4a). Every route's
+//! access decision is listed and probed in `spaces_route_roles.rs`.
 
 mod common;
 

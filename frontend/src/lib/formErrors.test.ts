@@ -47,6 +47,8 @@ describe("errorMessageKey", () => {
     expect(errorMessageKey(new ApiError(0, "network")).key).toBe("errors.unreachable");
     expect(errorMessageKey(new ApiError(409, "document_locked")).key).toBe("errors.documentLocked");
     expect(errorMessageKey(new ApiError(409, "invalid_state")).key).toBe("errors.invalidState");
+    expect(errorMessageKey(new ApiError(409, "mfa_disabled")).key).toBe("errors.mfaDisabled");
+    expect(errorMessageKey(new ApiError(409, "email_taken")).key).toBe("errors.emailTaken");
     // 502 with a known code is that code, not the generic "unreachable".
     expect(errorMessageKey(new ApiError(502, "cnb_unavailable")).key).toBe("errors.cnbUnavailable");
     expect(errorMessageKey(new ApiError(500, "internal"))).toEqual({
