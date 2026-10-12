@@ -6,10 +6,15 @@ use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
+use super::fields::exchange_rate;
 pub use super::line_out::{Line, lines_out};
 use crate::document::custom_fields::Values;
-use crate::document::line::{PaymentState, RoundingMode, Status};
+use crate::document::line::{MAX_AMOUNT, PaymentState, RoundingMode, Status};
+use crate::document::model::NewPayment;
 use crate::document::snapshot::{BankSnapshot, PartySnapshot, Totals};
+use crate::error::{AppError, FieldErrors};
+use crate::num_parse::decimal;
+use crate::validation as v;
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -225,4 +230,34 @@ pub struct PaymentInput {
     /// (default: ČNB for the payment date). Ignored otherwise.
     #[serde(deserialize_with = "crate::num_text::opt_decimal")]
     pub exchange_rate: Option<String>,
+}
+
+impl PaymentInput {
+    pub fn validate(self) -> Result<NewPayment, AppError> {
+        let mut e = FieldErrors::new();
+        let date = e.check("date", self.date.ok_or("required"));
+        let amount = e.check(
+            "amount",
+            decimal(&self.amount, 2, MAX_AMOUNT).and_then(|a| {
+                if a > Decimal::ZERO {
+                    Ok(a)
+                } else {
+                    Err("invalid")
+                }
+            }),
+        );
+        let note = e
+            .check("note", v::opt_text(self.note.as_deref(), 500))
+            .flatten();
+        let exchange_rate = e
+            .check("exchangeRate", exchange_rate(self.exchange_rate.as_deref()))
+            .flatten();
+        e.into_result()?;
+        Ok(NewPayment {
+            date: date.unwrap_or_default(),
+            amount: amount.unwrap_or_default(),
+            note,
+            exchange_rate,
+        })
+    }
 }

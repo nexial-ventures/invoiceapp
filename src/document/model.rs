@@ -171,6 +171,15 @@ pub struct ReceivedData {
     pub internal_note: Option<String>,
 }
 
+/// Validated [`PaymentInput`](crate::document::wire::dto::PaymentInput).
+pub struct NewPayment {
+    pub date: NaiveDate,
+    pub amount: Decimal,
+    pub note: Option<String>,
+    /// Manual rate for the DDPP of a foreign-currency proforma.
+    pub exchange_rate: Option<Decimal>,
+}
+
 /// What validation needs from the database.
 #[derive(Debug, Clone, Default)]
 pub struct ReceivedCtx {

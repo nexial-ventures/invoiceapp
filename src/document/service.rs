@@ -2,13 +2,12 @@
 //! load what validation needs, validate and write through the repos.
 
 use chrono::{DateTime, FixedOffset};
-use rust_decimal::Decimal;
 use uuid::Uuid;
 
 use crate::app::AppState;
 use crate::document::entity::document;
-use crate::document::line::{MAX_AMOUNT, Status};
-use crate::document::repo::payments::{self as payments_repo, NewPayment, WithAdvance};
+use crate::document::line::Status;
+use crate::document::repo::payments as payments_repo;
 use crate::document::repo::{
     advance_sources, context, ddpp_correction, lifecycle, query, view, write,
 };
@@ -16,15 +15,12 @@ use crate::document::wire::compute_input::{ComputeCtx, ComputeInput};
 use crate::document::wire::dto::{
     Computed, Document, DocumentList, ListQuery, Payment, PaymentInput, lines_out,
 };
-use crate::document::wire::fields::exchange_rate;
 use crate::document::wire::input::DocumentInput;
-use crate::error::{AppError, FieldErrors};
-use crate::num_parse::decimal;
+use crate::error::AppError;
 use crate::pdf::archive;
 use crate::settings::repo::company;
 use crate::space::SpaceId;
 use crate::time::today;
-use crate::validation as v;
 
 /// Re-read a document and build its response.
 pub async fn fetch(state: &AppState, space: SpaceId, id: Uuid) -> Result<Document, AppError> {
@@ -116,49 +112,6 @@ pub async fn mark_sent_at(
 ) -> Result<(), AppError> {
     let sent_at = sent_at.unwrap_or_else(|| chrono::Utc::now().fixed_offset());
     lifecycle::mark_sent(&state.db, space, id, sent_at).await
-}
-
-impl From<WithAdvance> for Payment {
-    fn from((m, advance): WithAdvance) -> Self {
-        Self {
-            id: m.id,
-            date: m.date,
-            amount: crate::document::compute::round2(m.amount),
-            note: m.note,
-            advance_document_id: advance,
-            created_at: m.created_at,
-        }
-    }
-}
-
-impl PaymentInput {
-    pub fn validate(self) -> Result<NewPayment, AppError> {
-        let mut e = FieldErrors::new();
-        let date = e.check("date", self.date.ok_or("required"));
-        let amount = e.check(
-            "amount",
-            decimal(&self.amount, 2, MAX_AMOUNT).and_then(|a| {
-                if a > Decimal::ZERO {
-                    Ok(a)
-                } else {
-                    Err("invalid")
-                }
-            }),
-        );
-        let note = e
-            .check("note", v::opt_text(self.note.as_deref(), 500))
-            .flatten();
-        let exchange_rate = e
-            .check("exchangeRate", exchange_rate(self.exchange_rate.as_deref()))
-            .flatten();
-        e.into_result()?;
-        Ok(NewPayment {
-            date: date.unwrap_or_default(),
-            amount: amount.unwrap_or_default(),
-            note,
-            exchange_rate,
-        })
-    }
 }
 
 /// Record a payment; on a VAT payer's proforma this issues its DDPP, whose

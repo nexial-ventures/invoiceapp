@@ -94,7 +94,7 @@ pub async fn issue(
     let row = NewDocument {
         id,
         space_id: proforma.space_id,
-        direction: "issued".into(),
+        direction: ISSUED.into(),
         doc_type: DocType::AdvanceTaxDoc.as_str().into(),
         status: Status::Issued.as_str().into(),
         number: Some(number.clone()),
