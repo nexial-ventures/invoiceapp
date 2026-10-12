@@ -10,7 +10,6 @@ use invoice::auth::ratelimit::RateLimiter;
 use invoice::cleanup;
 use invoice::cnb::CnbClient;
 use invoice::config::{Config, DbConfig};
-use invoice::db;
 use invoice::email::Mailer;
 use invoice::migration::{Migrator, MigratorTrait};
 use invoice::pdf::{PdfRoot, design};
@@ -172,12 +171,9 @@ async fn serve() -> Result<()> {
         .close()
         .await
         .context("close migration connection")?;
-    let db = Database::connect(db::pool_options(
-        cfg.database_url.expose(),
-        cfg.db_max_connections,
-    ))
-    .await
-    .context("connect to database (INVOICE__DATABASE_URL)")?;
+    let db = Database::connect(cfg.pool_options())
+        .await
+        .context("connect to database (INVOICE__DATABASE_URL)")?;
 
     let storage = Storage::new(&cfg.storage)?;
     tokio::spawn(storage.clone().probe());
