@@ -9,8 +9,8 @@ use uuid::Uuid;
 use crate::catalog::entity::item::{self, ActiveModel, Column, Entity};
 use crate::catalog::entity::member;
 use crate::catalog::handlers::dto::ItemData;
-use crate::contact::handlers::dto::like_pattern;
 use crate::error::AppError;
+use crate::paging::like_pattern;
 use crate::space::SpaceId;
 
 /// Items matching `q` (name, case-insensitive) and `active`, by name.

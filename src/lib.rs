@@ -20,8 +20,10 @@ pub mod isdoc;
 pub mod mcp;
 pub mod members;
 pub mod migration;
+pub mod num_parse;
 pub mod num_text;
 pub mod openapi;
+pub mod paging;
 pub mod pdf;
 pub mod secret;
 pub mod security_headers;
@@ -31,3 +33,6 @@ pub mod space;
 pub mod storage;
 pub mod time;
 pub mod validation;
+
+#[cfg(test)]
+mod layering_tests;

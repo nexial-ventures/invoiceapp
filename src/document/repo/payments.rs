@@ -5,7 +5,6 @@
 use std::collections::HashMap;
 
 use chrono::NaiveDate;
-use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DatabaseTransaction,
     EntityTrait, QueryFilter, QueryOrder, Set, Statement, TransactionTrait,
@@ -17,20 +16,28 @@ use crate::cnb::CnbClient;
 use crate::document::entity::document;
 use crate::document::entity::payment::{self, ActiveModel, Column, Entity};
 use crate::document::line::{MAX_AMOUNT, Status};
+use crate::document::model::NewPayment;
 use crate::document::state::NO_PAYMENTS_DOC_TYPE;
+use crate::document::wire::dto::Payment;
 use crate::error::AppError;
 use crate::space::SpaceId;
 
-pub struct NewPayment {
-    pub date: NaiveDate,
-    pub amount: Decimal,
-    pub note: Option<String>,
-    /// Manual rate for the DDPP of a foreign-currency proforma.
-    pub exchange_rate: Option<Decimal>,
-}
-
 /// A payment and the DDPP it created, if any.
 pub type WithAdvance = (payment::Model, Option<Uuid>);
+
+// Here rather than in `wire`: it reads the payment entity, which `wire` never imports.
+impl From<WithAdvance> for Payment {
+    fn from((m, advance): WithAdvance) -> Self {
+        Self {
+            id: m.id,
+            date: m.date,
+            amount: crate::document::compute::round2(m.amount),
+            note: m.note,
+            advance_document_id: advance,
+            created_at: m.created_at,
+        }
+    }
+}
 
 pub async fn list(
     db: &DatabaseConnection,

@@ -9,8 +9,8 @@ use uuid::Uuid;
 use super::model::{NS, doc_type_code};
 use super::xml::Xml;
 use crate::document::compute::{RecapRow, round2};
-use crate::document::handlers::dto::{BankSnapshot, PartySnapshot};
 use crate::document::line::{AdvanceRow, LineData, PaymentMethod, VatMode};
+use crate::document::snapshot::{BankSnapshot, PartySnapshot};
 use crate::settings::doc_type::DocType;
 
 /// A deducted advance: a DDPP (`taxed`) or, non-payer form, a proforma.

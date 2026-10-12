@@ -12,18 +12,24 @@ pub mod defaults;
 pub mod entity;
 pub mod handlers;
 pub mod line;
+pub mod meta;
+pub mod model;
+pub mod original;
 pub mod received;
 pub mod repo;
 pub mod rounding;
+pub mod service;
+pub mod snapshot;
 pub mod state;
 pub mod subtotals;
+pub mod wire;
 
 use axum::Router;
 use axum::extract::DefaultBodyLimit;
 use axum::routing::{delete, get, post, put};
 
 use crate::app::AppState;
-use handlers::{actions, documents, original, payments};
+use handlers::{actions, documents, payments};
 
 /// Routes relative to `/api/documents`.
 pub fn router() -> Router<AppState> {
@@ -46,9 +52,9 @@ pub fn router() -> Router<AppState> {
         .route("/{id}/metadata", put(actions::metadata))
         .route(
             "/{id}/original",
-            put(original::put)
-                .delete(original::delete)
-                .layer(DefaultBodyLimit::max(original::BODY_LIMIT)),
+            put(handlers::original::put)
+                .delete(handlers::original::delete)
+                .layer(DefaultBodyLimit::max(handlers::original::BODY_LIMIT)),
         )
         .route("/{id}/settle", post(actions::settle))
         .route("/{id}/credit-note", post(actions::credit_note))

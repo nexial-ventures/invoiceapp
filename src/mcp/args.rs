@@ -56,7 +56,7 @@ fn missing_field(message: &str) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::document::handlers::input::DocumentInput;
+    use crate::document::wire::input::DocumentInput;
     use crate::mcp::params::AddPayment;
     use serde_json::json;
 

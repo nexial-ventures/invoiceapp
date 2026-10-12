@@ -13,9 +13,9 @@ use crate::document::advance::{self, AdvanceCtx};
 use crate::document::compute::{Evaluated, Params};
 use crate::document::custom_fields;
 use crate::document::entity::document;
-use crate::document::handlers::dto::PartySnapshot;
-use crate::document::handlers::input;
 use crate::document::line::{LineData, PaymentMethod, Status, VatMode};
+use crate::document::model;
+use crate::document::snapshot::PartySnapshot;
 use crate::error::{AppError, FieldErrors};
 use crate::pdf::{PdfService, archive};
 use crate::settings::doc_type::{DocType, ISSUED};
@@ -208,7 +208,7 @@ async fn prepare(
         locale: &doc.locale,
         sources: &sources,
     };
-    let evaluated = input::evaluate(&mut lines, params, &adv, None)?;
+    let evaluated = model::evaluate(&mut lines, params, &adv, None)?;
     Ok(Prepared {
         imported: doc.imported,
         doc_type,

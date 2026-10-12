@@ -14,11 +14,11 @@ use super::category::{self, CategoryRef};
 use super::lookup;
 use super::model::{ContactRule, IssuedBank, Party, Plan};
 use crate::contact::entity::contact;
-use crate::document::entity::{document, payment};
-use crate::document::handlers::dto::BankSnapshot;
+use crate::document::entity::payment;
 use crate::document::line::{RoundingMode, Status};
 use crate::document::repo::issue::Rate;
-use crate::document::repo::{lines, original, payments, write};
+use crate::document::repo::{self as document_repo, NewDocument, lines, original, payments};
+use crate::document::snapshot::BankSnapshot;
 use crate::error::{AppError, number_violation};
 use crate::pdf::PdfService;
 use crate::pdf::editor::ensure_usage;
@@ -176,68 +176,69 @@ async fn insert(
                 .await?;
         (n, Some(seq))
     };
-    let mut row = document::ActiveModel {
-        id: Set(id),
-        space_id: Set(space.uuid()),
-        direction: Set(plan.direction.into()),
-        doc_type: Set(plan.doc_type.as_str().into()),
-        status: Set(Status::Issued.as_str().into()),
-        number: Set(Some(number)),
-        number_year: Set(Some(year)),
-        number_seq: Set(seq),
-        imported: Set(issued),
-        contact_id: Set(contact_id),
-        issue_date: Set(plan.issue_date),
-        tax_point_date: Set(plan.tax_point_date),
-        due_date: Set(plan.due_date),
-        currency: Set(plan.currency.clone()),
-        exchange_rate: Set(rate.rate),
-        exchange_rate_date: Set(rate.date),
-        exchange_rate_source: Set(rate.source.map(str::to_string)),
-        locale: Set(plan.locale.clone()),
-        vat_mode: Set(plan.vat_mode.as_str().into()),
-        bank_account_id: Set(bank_account_id),
-        payment_method: Set(plan.payment_method.as_str().into()),
-        variable_symbol: Set(plan.variable_symbol.clone()),
-        constant_symbol: Set(plan.constant_symbol.clone()),
-        header_note: Set(plan.note.clone().filter(|_| issued)),
-        internal_note: Set(plan.note.clone().filter(|_| !issued)),
+    let row = NewDocument {
+        id,
+        space_id: space.uuid(),
+        direction: plan.direction.into(),
+        doc_type: plan.doc_type.as_str().into(),
+        status: Status::Issued.as_str().into(),
+        number: Some(number),
+        number_year: Some(year),
+        number_seq: seq,
+        imported: issued,
+        contact_id,
+        issue_date: plan.issue_date,
+        tax_point_date: plan.tax_point_date,
+        due_date: plan.due_date,
+        currency: plan.currency.clone(),
+        exchange_rate: rate.rate,
+        exchange_rate_date: rate.date,
+        exchange_rate_source: rate.source.map(str::to_string),
+        locale: plan.locale.clone(),
+        vat_mode: plan.vat_mode.as_str().into(),
+        bank_account_id,
+        payment_method: plan.payment_method.as_str().into(),
+        variable_symbol: plan.variable_symbol.clone(),
+        constant_symbol: plan.constant_symbol.clone(),
+        header_note: plan.note.clone().filter(|_| issued),
+        internal_note: plan.note.clone().filter(|_| !issued),
         // The rounding amount is kept as given; the mode is derived from it.
-        rounding_mode: Set(
-            RoundingMode::derive(plan.totals.total, plan.totals.rounding)
-                .as_str()
-                .into(),
-        ),
-        supplier_snapshot: Set(Some(json(&plan.supplier.snapshot(plan.vat_payer))?)),
-        customer_snapshot: Set(match (&plan.customer, issued) {
+        rounding_mode: RoundingMode::derive(plan.totals.total, plan.totals.rounding)
+            .as_str()
+            .into(),
+        supplier_snapshot: Some(json(&plan.supplier.snapshot(plan.vat_payer))?),
+        customer_snapshot: match (&plan.customer, issued) {
             (Some(c), true) => Some(json(&c.snapshot(None))?),
             _ => None,
-        }),
-        bank_snapshot: Set(bank_snapshot.as_ref().map(json).transpose()?),
-        paid: Set(Decimal::ZERO),
-        related_document_id: Set(related),
-        supplier_number: Set((!issued).then(|| plan.number.clone())),
-        received_date: Set((!issued).then_some(received_date)),
-        vat_deductible: Set(!issued && opts.vat_deductible),
-        supplier_account: Set(match (&plan.bank, issued) {
+        },
+        bank_snapshot: bank_snapshot.as_ref().map(json).transpose()?,
+        related_document_id: related,
+        supplier_number: (!issued).then(|| plan.number.clone()),
+        received_date: (!issued).then_some(received_date),
+        vat_deductible: !issued && opts.vat_deductible,
+        supplier_account: match (&plan.bank, issued) {
             (Some(b), false) => b
                 .iban
                 .clone()
                 .or_else(|| b.account_number.clone())
                 .map(|a| a.chars().take(60).collect()),
             _ => None,
-        }),
-        category_id: Set(category_id),
-        custom_fields: Set(serde_json::json!({})),
-        created_at: Set(now.into()),
-        updated_at: Set(now.into()),
-        ..Default::default()
+        },
+        category_id,
+        custom_fields: serde_json::json!({}),
+        order_ref: None,
+        footer_note: None,
+        totals: plan.totals.clone(),
+        payment_id: None,
+        correction_reason: None,
+        original_path: file.map(|f| f.rel.clone()),
+        original_sha256: file.map(|f| f.sha256.clone()),
+        original_size: file.map(|f| f.size),
+        original_uploaded_at: file.map(|_| now.into()),
+        created_at: now.into(),
+        updated_at: now.into(),
     };
-    write::apply_totals(&mut row, &plan.totals);
-    if let Some(f) = file {
-        f.apply(&mut row, now);
-    }
-    row.insert(txn).await.map_err(|e| {
+    document_repo::insert(txn, row).await.map_err(|e| {
         number_violation(e, || {
             if issued {
                 AppError::Duplicate

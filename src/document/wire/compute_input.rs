@@ -7,12 +7,14 @@ use serde::Deserialize;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use super::input::{Existing, advance_ids, evaluate, exchange_rate, parse_vat_mode};
+use super::fields::{exchange_rate, parse_vat_mode};
+use super::input::advance_ids;
 use super::line_input::{LineInput, Texts, validate_lines};
 use crate::document::advance::{AdvanceCtx, AdvanceSource};
 use crate::document::compute::{Evaluated, Params};
 use crate::document::correction::ExactBasis;
 use crate::document::line::{LineData, RoundingMode, VatMode};
+use crate::document::model::{Existing, evaluate};
 use crate::document::rounding;
 use crate::error::{AppError, FieldErrors};
 use crate::settings::doc_type::DocType;

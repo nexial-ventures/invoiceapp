@@ -3,12 +3,13 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use uuid::Uuid;
 
-use super::dto::{Contact, ContactInput, ContactList, ListQuery};
+use super::dto::{Contact, ContactInput, ContactList};
 use crate::app::AppState;
 use crate::auth::{Read, Write};
 use crate::contact::repo::contacts as repo;
 use crate::error::{AppError, ErrorBody};
 use crate::extract::{ApiJson, ApiPath, ApiQuery};
+use crate::paging::ListQuery;
 
 #[utoipa::path(
     get,

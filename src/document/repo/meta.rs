@@ -11,7 +11,7 @@ use uuid::Uuid;
 use super::query;
 use crate::document::custom_fields::{FieldDef, FieldType, Values};
 use crate::document::entity::document;
-use crate::document::handlers::meta::{Meta, MetaCtx};
+use crate::document::meta::{Meta, MetaCtx};
 use crate::error::AppError;
 use crate::settings::entity::{category, custom_field};
 use crate::space::SpaceId;

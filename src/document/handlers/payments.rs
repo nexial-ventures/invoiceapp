@@ -1,65 +1,15 @@
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use rust_decimal::Decimal;
 use uuid::Uuid;
 
-use super::dto::{Payment, PaymentInput};
-use super::input::exchange_rate;
-use super::line_input::decimal;
 use crate::app::AppState;
 use crate::auth::{Read, Write};
-use crate::document::line::MAX_AMOUNT;
-use crate::document::repo::payments::{self as repo, NewPayment, WithAdvance};
-use crate::error::{AppError, ErrorBody, FieldErrors};
+use crate::document::repo::payments as repo;
+use crate::document::service::add_payment;
+use crate::document::wire::dto::{Payment, PaymentInput};
+use crate::error::{AppError, ErrorBody};
 use crate::extract::{ApiJson, ApiPath};
-use crate::pdf::archive;
-use crate::space::SpaceId;
-use crate::time::today;
-use crate::validation as v;
-
-impl From<WithAdvance> for Payment {
-    fn from((m, advance): WithAdvance) -> Self {
-        Self {
-            id: m.id,
-            date: m.date,
-            amount: crate::document::compute::round2(m.amount),
-            note: m.note,
-            advance_document_id: advance,
-            created_at: m.created_at,
-        }
-    }
-}
-
-impl PaymentInput {
-    pub fn validate(self) -> Result<NewPayment, AppError> {
-        let mut e = FieldErrors::new();
-        let date = e.check("date", self.date.ok_or("required"));
-        let amount = e.check(
-            "amount",
-            decimal(&self.amount, 2, MAX_AMOUNT).and_then(|a| {
-                if a > Decimal::ZERO {
-                    Ok(a)
-                } else {
-                    Err("invalid")
-                }
-            }),
-        );
-        let note = e
-            .check("note", v::opt_text(self.note.as_deref(), 500))
-            .flatten();
-        let exchange_rate = e
-            .check("exchangeRate", exchange_rate(self.exchange_rate.as_deref()))
-            .flatten();
-        e.into_result()?;
-        Ok(NewPayment {
-            date: date.unwrap_or_default(),
-            amount: amount.unwrap_or_default(),
-            note,
-            exchange_rate,
-        })
-    }
-}
 
 #[utoipa::path(
     get,
@@ -100,23 +50,8 @@ pub async fn create(
 ) -> Result<(StatusCode, Json<Payment>), AppError> {
     Ok((
         StatusCode::CREATED,
-        Json(add(&state, access.space(), id, input).await?),
+        Json(add_payment(&state, access.space(), id, input).await?),
     ))
-}
-
-/// Record a payment; on a VAT payer's proforma this issues its DDPP, whose
-/// PDF is archived in the background (never failing the payment).
-pub async fn add(
-    state: &AppState,
-    space: SpaceId,
-    id: Uuid,
-    input: PaymentInput,
-) -> Result<Payment, AppError> {
-    let row = repo::create(&state.db, &state.cnb, space, id, input.validate()?, today()).await?;
-    if let Some(ddpp) = row.1 {
-        archive::spawn_archive_ddpp(state.db.clone(), state.pdf.space(space)?, ddpp);
-    }
-    Ok(row.into())
 }
 
 #[utoipa::path(

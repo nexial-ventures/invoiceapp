@@ -6,8 +6,8 @@ use rust_decimal::{Decimal, RoundingStrategy};
 
 use super::write::OutRow;
 use crate::document::entity::{document, payment, vat_recap};
-use crate::document::handlers::dto::PartySnapshot;
 use crate::document::line::{PaymentState, Status, VatMode};
+use crate::document::snapshot::PartySnapshot;
 use crate::document::state::document_payment_state;
 use crate::import::model::Party;
 use crate::settings::doc_type::{DocType, ISSUED, RECEIVED};

@@ -11,7 +11,7 @@ use super::columns::Columns;
 use super::format as f;
 use super::read::{self, FileError};
 use super::row::{self, Ctx, Mapped};
-use crate::document::handlers::meta::category_kind;
+use crate::document::meta::category_kind;
 use crate::error::AppError;
 use crate::import::category;
 use crate::import::check::{self, Checked};

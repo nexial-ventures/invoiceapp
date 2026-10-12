@@ -21,7 +21,7 @@ use uuid::Uuid;
 
 use crate::app::AppState;
 use crate::auth::Authed;
-use crate::document::handlers::fetch;
+use crate::document::service::fetch;
 use crate::error::{AppError, ErrorBody};
 use crate::space::{Role, SpaceId};
 use axum::http::request::Parts;

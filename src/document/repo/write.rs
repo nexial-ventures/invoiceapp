@@ -6,12 +6,13 @@ use sea_orm::{
 };
 use uuid::Uuid;
 
-use super::{advance_sources, lines, query, view};
+use super::{NewDocument, advance_sources, insert, lines, query, view};
 use crate::document::compute::Totals;
 use crate::document::entity::document::{ActiveModel, Entity};
-use crate::document::handlers::input::DocumentData;
 use crate::document::line::Status;
+use crate::document::model::DocumentData;
 use crate::error::{AppError, number_violation};
+use crate::settings::doc_type::ISSUED;
 use crate::space::SpaceId;
 
 /// Header fields an edit sets, shared by create and update.
@@ -23,13 +24,7 @@ fn apply(row: &mut ActiveModel, d: &DocumentData) {
     row.currency = Set(d.currency.clone());
     row.exchange_rate = Set(d.exchange_rate);
     row.exchange_rate_date = Set(None);
-    // A native correction's rate is copied from its original, never entered.
-    let source = if d.doc_type.is_correction() && !d.imported {
-        "original"
-    } else {
-        "manual"
-    };
-    row.exchange_rate_source = Set(d.exchange_rate.map(|_| source.to_string()));
+    row.exchange_rate_source = Set(rate_source(d));
     row.correction_reason = Set(d.correction_reason.clone());
     row.locale = Set(d.locale.clone());
     row.vat_mode = Set(d.vat_mode.as_str().to_string());
@@ -46,6 +41,16 @@ fn apply(row: &mut ActiveModel, d: &DocumentData) {
     row.related_document_id = Set(d.related_document_id);
     row.category_id = Set(d.meta.category_id);
     row.custom_fields = Set(serde_json::Value::Object(d.meta.custom_fields.clone()));
+}
+
+/// A native correction's rate is copied from its original, never entered.
+fn rate_source(d: &DocumentData) -> Option<String> {
+    let source = if d.doc_type.is_correction() && !d.imported {
+        "original"
+    } else {
+        "manual"
+    };
+    d.exchange_rate.map(|_| source.to_string())
 }
 
 /// An imported draft's number already used by another issued document.
@@ -82,31 +87,58 @@ pub async fn create_in(
 ) -> Result<Uuid, AppError> {
     let id = Uuid::new_v4();
     let now = chrono::Utc::now().into();
-    let mut row = ActiveModel {
-        id: Set(id),
-        space_id: Set(space.uuid()),
-        direction: Set("issued".into()),
-        doc_type: Set(data.doc_type.as_str().into()),
-        status: Set(Status::Draft.as_str().into()),
-        number_year: Set(None),
-        number_seq: Set(None),
-        imported: Set(data.imported),
-        supplier_snapshot: Set(None),
-        customer_snapshot: Set(None),
-        bank_snapshot: Set(None),
-        paid: Set(Default::default()),
-        sent_at: Set(None),
-        cancelled_at: Set(None),
-        cancel_reason: Set(None),
-        payment_id: Set(None),
-        created_at: Set(now),
-        updated_at: Set(now),
-        ..Default::default()
-    };
-    apply(&mut row, &data);
-    apply_totals(&mut row, &totals);
     advance_sources::lock_and_recheck(txn, space, id, &data.lines).await?;
-    row.insert(txn).await.map_err(duplicate_number)?;
+    let d = &data;
+    let row = NewDocument {
+        id,
+        space_id: space.uuid(),
+        direction: ISSUED.into(),
+        doc_type: d.doc_type.as_str().into(),
+        status: Status::Draft.as_str().into(),
+        number: d.number.clone(),
+        number_year: None,
+        number_seq: None,
+        imported: d.imported,
+        contact_id: d.contact_id,
+        issue_date: d.issue_date,
+        tax_point_date: d.tax_point_date,
+        due_date: Some(d.due_date),
+        currency: d.currency.clone(),
+        exchange_rate: d.exchange_rate,
+        exchange_rate_date: None,
+        exchange_rate_source: rate_source(d),
+        locale: d.locale.clone(),
+        vat_mode: d.vat_mode.as_str().into(),
+        bank_account_id: d.bank_account_id,
+        payment_method: d.payment_method.as_str().into(),
+        variable_symbol: d.variable_symbol.clone(),
+        constant_symbol: d.constant_symbol.clone(),
+        order_ref: d.order_ref.clone(),
+        header_note: d.header_note.clone(),
+        footer_note: d.footer_note.clone(),
+        internal_note: d.internal_note.clone(),
+        rounding_mode: d.rounding_mode.as_str().into(),
+        supplier_snapshot: None,
+        customer_snapshot: None,
+        bank_snapshot: None,
+        totals: totals.clone(),
+        related_document_id: d.related_document_id,
+        payment_id: None,
+        correction_reason: d.correction_reason.clone(),
+        supplier_number: None,
+        received_date: None,
+        vat_deductible: false,
+        supplier_account: None,
+        category_id: d.meta.category_id,
+        custom_fields: serde_json::Value::Object(d.meta.custom_fields.clone()),
+        original_path: None,
+        original_sha256: None,
+        original_size: None,
+        original_uploaded_at: None,
+        created_at: now,
+        updated_at: now,
+    };
+    insert(txn, row).await.map_err(duplicate_number)?;
     lines::replace(txn, id, &data.lines).await?;
     lines::replace_recap(txn, id, &totals).await?;
     Ok(id)

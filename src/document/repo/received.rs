@@ -8,11 +8,11 @@ use sea_orm::{
 use uuid::Uuid;
 
 use super::issue::Rate;
-use super::{lines, query, write};
+use super::{NewDocument, insert, lines, query, write};
 use crate::document::compute::Totals;
 use crate::document::entity::document::{self, ActiveModel, Entity};
-use crate::document::handlers::received_input::ReceivedData;
 use crate::document::line::{PaymentMethod, RoundingMode, Status};
+use crate::document::model::ReceivedData;
 use crate::error::{AppError, number_violation};
 use crate::settings::doc_type::RECEIVED;
 use crate::settings::repo::number_series;
@@ -25,6 +25,11 @@ pub struct Record {
     pub rate: Rate,
     /// The supplier (contact) snapshot, refreshed on every save.
     pub supplier: serde_json::Value,
+}
+
+/// Informational: the entered rounding amount is kept as given.
+fn rounding_mode(t: &Totals) -> String {
+    RoundingMode::derive(t.total, t.rounding).as_str().into()
 }
 
 fn apply(row: &mut ActiveModel, r: Record) -> Totals {
@@ -50,10 +55,7 @@ fn apply(row: &mut ActiveModel, r: Record) -> Totals {
     row.internal_note = Set(d.internal_note);
     row.supplier_snapshot = Set(Some(r.supplier));
     write::apply_totals(row, &r.totals);
-    // Informational: the entered rounding amount is kept as given.
-    row.rounding_mode = Set(RoundingMode::derive(r.totals.total, r.totals.rounding)
-        .as_str()
-        .into());
+    row.rounding_mode = Set(rounding_mode(&r.totals));
     row.updated_at = Set(chrono::Utc::now().into());
     r.totals
 }
@@ -82,24 +84,58 @@ async fn create_in(
     let doc_type = r.data.doc_type;
     let (number, seq) =
         number_series::allocate_number(txn, space, doc_type.series(RECEIVED), year).await?;
-    let mut row = ActiveModel {
-        id: Set(id),
-        space_id: Set(space.uuid()),
-        direction: Set(RECEIVED.into()),
-        doc_type: Set(doc_type.as_str().into()),
-        status: Set(Status::Issued.as_str().into()),
-        number: Set(Some(number)),
-        number_year: Set(Some(year)),
-        number_seq: Set(Some(seq)),
-        imported: Set(false),
-        locale: Set(locale),
-        bank_account_id: Set(None),
-        payment_method: Set(PaymentMethod::BankTransfer.as_str().into()),
-        created_at: Set(chrono::Utc::now().into()),
-        ..Default::default()
+    let now = chrono::Utc::now().into();
+    let (d, totals) = (r.data, r.totals);
+    let row = NewDocument {
+        id,
+        space_id: space.uuid(),
+        direction: RECEIVED.into(),
+        doc_type: doc_type.as_str().into(),
+        status: Status::Issued.as_str().into(),
+        number: Some(number),
+        number_year: Some(year),
+        number_seq: Some(seq),
+        imported: false,
+        contact_id: Some(d.contact_id),
+        issue_date: d.issue_date,
+        tax_point_date: d.tax_point_date,
+        due_date: d.due_date,
+        currency: d.currency,
+        exchange_rate: r.rate.rate,
+        exchange_rate_date: r.rate.date,
+        exchange_rate_source: r.rate.source.map(str::to_string),
+        locale,
+        vat_mode: d.vat_mode.as_str().to_string(),
+        bank_account_id: None,
+        payment_method: PaymentMethod::BankTransfer.as_str().into(),
+        variable_symbol: d.variable_symbol,
+        constant_symbol: d.constant_symbol,
+        order_ref: None,
+        header_note: None,
+        footer_note: None,
+        internal_note: d.internal_note,
+        rounding_mode: rounding_mode(&totals),
+        supplier_snapshot: Some(r.supplier),
+        customer_snapshot: None,
+        bank_snapshot: None,
+        totals: totals.clone(),
+        related_document_id: d.related_document_id,
+        payment_id: None,
+        correction_reason: None,
+        supplier_number: Some(d.supplier_number),
+        received_date: Some(d.received_date),
+        vat_deductible: d.vat_deductible,
+        supplier_account: d.supplier_account,
+        category_id: d.meta.category_id,
+        custom_fields: serde_json::Value::Object(d.meta.custom_fields),
+        original_path: None,
+        original_sha256: None,
+        original_size: None,
+        original_uploaded_at: None,
+        created_at: now,
+        updated_at: now,
     };
-    let totals = apply(&mut row, r);
-    row.insert(txn)
+    insert(txn, row)
         .await
         .map_err(|e| number_violation(e, || AppError::NumberTaken))?;
     lines::replace_recap(txn, id, &totals).await?;

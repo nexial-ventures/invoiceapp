@@ -5,8 +5,8 @@ use chrono::NaiveDate;
 use rust_decimal::Decimal;
 
 use crate::document::compute::Totals;
-use crate::document::handlers::dto::{BankSnapshot, PartySnapshot};
 use crate::document::line::{LineData, PaymentMethod, VatMode};
+use crate::document::snapshot::{BankSnapshot, PartySnapshot};
 use crate::settings::doc_type::{DocType, ISSUED};
 
 /// An entry error or warning code of the preview / confirm.

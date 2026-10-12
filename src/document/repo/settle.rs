@@ -12,8 +12,9 @@ use uuid::Uuid;
 use super::{advance_sources, context, query, view, write};
 use crate::document::advance::AdvanceCtx;
 use crate::document::entity::document;
-use crate::document::handlers::input::{self, DocumentData};
 use crate::document::line::{AdvanceData, LineData, PaymentMethod, Status};
+use crate::document::model::{self, DocumentData};
+use crate::document::wire::fields::parse_vat_mode;
 use crate::error::AppError;
 use crate::settings::doc_type::{DocType, ISSUED};
 use crate::space::SpaceId;
@@ -106,7 +107,7 @@ pub async fn settle(
         // The invoice's rate is fixed at its own issue (tax point date).
         exchange_rate: None,
         locale: p.locale.clone(),
-        vat_mode: input::parse_vat_mode(&p.vat_mode)
+        vat_mode: parse_vat_mode(&p.vat_mode)
             .map_err(|_| anyhow::anyhow!("proforma {proforma_id} has unknown vat mode"))?,
         bank_account_id: p.bank_account_id,
         payment_method: PaymentMethod::parse(&p.payment_method)
@@ -133,7 +134,7 @@ pub async fn settle(
         locale: &p.locale,
         sources: &sources,
     };
-    let totals = input::evaluate(&mut lines, data.params(), &adv, None)?.totals;
+    let totals = model::evaluate(&mut lines, data.params(), &adv, None)?.totals;
     data.lines = lines;
     Ok(db
         .transaction(|txn| {

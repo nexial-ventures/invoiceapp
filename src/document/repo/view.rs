@@ -12,9 +12,10 @@ use super::query::Full;
 use crate::contact::entity::contact;
 use crate::document::compute::{self, Params, RecapRow, round2};
 use crate::document::entity::document;
-use crate::document::handlers::dto::{self, Document, DocumentSummary, RelatedDocument, lines_out};
 use crate::document::line::{RoundingMode, Status, VatMode};
+use crate::document::snapshot::{BankSnapshot, PartySnapshot, Totals};
 use crate::document::state;
+use crate::document::wire::dto::{self, Document, DocumentSummary, RelatedDocument, lines_out};
 use crate::error::AppError;
 use crate::settings::doc_type::RECEIVED;
 
@@ -84,7 +85,7 @@ fn related(r: &document::Model) -> Result<RelatedDocument, AppError> {
 
 /// The top-level `total`: received documents show the contract's
 /// Σ(base + vat) + rounding, issued ones `totals.total`.
-fn top_total(received: bool, t: &dto::Totals) -> Result<rust_decimal::Decimal, AppError> {
+fn top_total(received: bool, t: &Totals) -> Result<rust_decimal::Decimal, AppError> {
     if !received {
         return Ok(t.total);
     }
@@ -109,7 +110,7 @@ pub fn document(full: Full, today: NaiveDate) -> Result<Document, AppError> {
     // Stored lines passed validation on save, so this only derives line bases.
     let evaluated = compute::evaluate(&full.lines, params)
         .map_err(|e| anyhow::anyhow!("stored document {} fails validation: {e:?}", d.id))?;
-    let totals: dto::Totals = stored_totals(&full).into();
+    let totals: Totals = stored_totals(&full).into();
     let received = full.doc.direction == RECEIVED;
     let vat_recap = received.then(|| {
         totals
@@ -178,7 +179,7 @@ pub fn document(full: Full, today: NaiveDate) -> Result<Document, AppError> {
         status,
         supplier: snapshot(&d.supplier_snapshot)?,
         customer: snapshot(&d.customer_snapshot)?,
-        bank_snapshot: snapshot::<dto::BankSnapshot>(&d.bank_snapshot)?,
+        bank_snapshot: snapshot::<BankSnapshot>(&d.bank_snapshot)?,
         lines: lines_out(&full.lines, &evaluated.lines),
         totals,
         id: d.id,
@@ -248,7 +249,7 @@ pub async fn summaries(
     docs.into_iter()
         .map(|d| {
             let (status, overdue) = derived(&d, today)?;
-            let snap: Option<dto::PartySnapshot> = snapshot(counterparty(&d))?;
+            let snap: Option<PartySnapshot> = snapshot(counterparty(&d))?;
             let customer_name = match snap {
                 Some(s) => Some(s.name),
                 None => d.contact_id.and_then(|id| names.get(&id).cloned()),

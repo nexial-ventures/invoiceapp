@@ -3,9 +3,9 @@
 
 use uuid::Uuid;
 
-use super::existing::Existing;
-use super::input::{Context, DocumentInput};
-use super::meta::check_related;
+use super::input::DocumentInput;
+use crate::document::meta::check_related;
+use crate::document::model::{Context, Existing};
 use crate::error::FieldErrors;
 use crate::settings::doc_type::{DocType, ISSUED};
 use crate::validation as v;

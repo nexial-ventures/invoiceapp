@@ -6,8 +6,8 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::document::handlers::input::DocumentInput;
 use crate::document::line::{PaymentState, Status};
+use crate::document::wire::input::DocumentInput;
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

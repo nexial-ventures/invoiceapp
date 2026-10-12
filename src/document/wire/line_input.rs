@@ -1,7 +1,5 @@
 //! Wire shape of a document line in requests and its validation.
 
-use std::str::FromStr;
-
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -10,7 +8,7 @@ use uuid::Uuid;
 
 use crate::document::line::{AdvanceData, ItemData, LineData, MAX_INPUT, VatMode};
 use crate::error::FieldErrors;
-use crate::settings::handlers::vat_rates::parse_rate;
+use crate::num_parse::{decimal, parse_rate};
 use crate::validation::{self as v, Check};
 
 pub const MAX_LINES: usize = 1000;
@@ -47,19 +45,6 @@ pub struct LineInput {
     pub collapse: bool,
     /// `advance`: the DDPP (or settled proforma) to deduct.
     pub advance_document_id: Option<Uuid>,
-}
-
-/// A decimal string with at most `dp` decimal places and `|x| < max`.
-pub fn decimal(s: &str, dp: u32, max: Decimal) -> Check<Decimal> {
-    let s = s.trim();
-    if s.is_empty() {
-        return Err("required");
-    }
-    let d = Decimal::from_str(s).map_err(|_| "invalid")?.normalize();
-    if d.scale() > dp || d.abs() >= max {
-        return Err("invalid");
-    }
-    Ok(d)
 }
 
 fn required_decimal(s: Option<&str>, dp: u32) -> Check<Decimal> {
@@ -201,19 +186,6 @@ mod tests {
             unit_price: Some(price.into()),
             ..Default::default()
         }
-    }
-
-    #[test]
-    fn decimal_rules() {
-        assert_eq!(
-            decimal(" 1.50 ", 4, MAX_INPUT),
-            Ok("1.5".parse().expect("d"))
-        );
-        assert_eq!(decimal("1.23456", 4, MAX_INPUT), Err("invalid"));
-        assert_eq!(decimal("1,5", 4, MAX_INPUT), Err("invalid"));
-        assert_eq!(decimal("", 4, MAX_INPUT), Err("required"));
-        assert_eq!(decimal("1000000000000", 4, MAX_INPUT), Err("invalid"));
-        assert!(decimal("-999999999999.9999", 4, MAX_INPUT).is_ok());
     }
 
     #[test]

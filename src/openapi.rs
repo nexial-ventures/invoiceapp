@@ -143,8 +143,8 @@ use utoipa::{Modify, OpenApi};
     components(schemas(
         crate::health::HealthResponse,
         crate::error::ErrorBody,
-        crate::document::handlers::received_input::ReceivedInput,
-        crate::document::handlers::received_input::RecapInput,
+        crate::document::wire::received_input::ReceivedInput,
+        crate::document::wire::received_input::RecapInput,
         crate::isdoc::import::OptionsInput,
         crate::csvio::handlers::CsvOptionsInput,
     )),

@@ -16,14 +16,12 @@ use crate::app::AppState;
 use crate::contact::handlers::dto::{Contact, ContactInput};
 use crate::contact::repo::contacts as contact_repo;
 use crate::document::entity::document;
-use crate::document::handlers::actions::mark_sent_at;
-use crate::document::handlers::documents::{create_draft, update_draft};
-use crate::document::handlers::dto::PaymentInput;
-use crate::document::handlers::input::DocumentInput;
-use crate::document::handlers::payments;
 use crate::document::line::Status;
 use crate::document::repo::{issue, query, view};
+use crate::document::service::{self, create_draft, mark_sent_at, update_draft};
 use crate::document::state::document_payment_state;
+use crate::document::wire::dto::PaymentInput;
+use crate::document::wire::input::DocumentInput;
 use crate::error::AppError;
 use crate::settings::doc_type::{DocType, ISSUED};
 use crate::space::{Role, SpaceId};
@@ -266,7 +264,7 @@ async fn add_payment(
         note: p.note,
         exchange_rate: p.exchange_rate,
     };
-    let payment = to_value(&payments::add(state, space, p.id, input).await?)?;
+    let payment = to_value(&service::add_payment(state, space, p.id, input).await?)?;
     Ok(match payment_state(state, space, p.id).await {
         Ok(ps) => json!({ "payment": payment, "paymentState": ps }),
         Err(e) => {

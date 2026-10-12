@@ -8,7 +8,7 @@ use sea_orm::{
 };
 use uuid::Uuid;
 
-use crate::document::handlers::meta::category_kind;
+use crate::document::meta::category_kind;
 use crate::error::AppError;
 use crate::settings::entity::category::{self, Column, Entity};
 use crate::space::SpaceId;

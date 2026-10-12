@@ -3,24 +3,17 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use uuid::Uuid;
 
-use super::compute_input::{ComputeCtx, ComputeInput};
-use super::dto::{Computed, Document, DocumentList, ListQuery, lines_out};
-use super::input::DocumentInput;
-use super::{fetch, received};
+use super::received;
 use crate::app::AppState;
 use crate::auth::{Read, Write};
-use crate::contact::handlers::dto::ListQuery as Paging;
-use crate::document::entity::document;
-use crate::document::line::Status;
-use crate::document::repo::{
-    advance_sources, context, ddpp_correction, query, received as received_repo, view, write,
-};
+use crate::document::repo::{query, received as received_repo, write};
+use crate::document::service::{compute_totals, create_draft, fetch, list_page, update_draft};
+use crate::document::wire::compute_input::ComputeInput;
+use crate::document::wire::dto::{Computed, Document, DocumentList, ListQuery};
+use crate::document::wire::input::DocumentInput;
 use crate::error::{AppError, ErrorBody};
 use crate::extract::{ApiJson, ApiPath, ApiQuery, from_value};
 use crate::settings::doc_type::RECEIVED;
-use crate::settings::repo::company;
-use crate::space::SpaceId;
-use crate::time::today;
 
 #[utoipa::path(
     get,
@@ -35,7 +28,7 @@ pub async fn list(
     access: Read,
     ApiQuery(query): ApiQuery<ListQuery>,
 ) -> Result<Json<DocumentList>, AppError> {
-    let (q, limit, offset) = Paging {
+    let (q, limit, offset) = crate::paging::ListQuery {
         q: query.q.clone(),
         limit: query.limit,
         offset: query.offset,
@@ -44,23 +37,6 @@ pub async fn list(
     Ok(Json(
         list_page(&state, access.space(), &query, q.as_deref(), limit, offset).await?,
     ))
-}
-
-/// One page of the document list; `term` / `limit` / `offset` already normalized.
-pub async fn list_page(
-    state: &AppState,
-    space: SpaceId,
-    query: &ListQuery,
-    term: Option<&str>,
-    limit: u64,
-    offset: u64,
-) -> Result<DocumentList, AppError> {
-    let today = today();
-    let (docs, total) = query::list(&state.db, space, query, term, limit, offset, today).await?;
-    Ok(DocumentList {
-        items: view::summaries(&state.db, docs, today).await?,
-        total,
-    })
 }
 
 #[utoipa::path(
@@ -93,18 +69,6 @@ pub async fn create(
         StatusCode::CREATED,
         Json(fetch(&state, access.space(), id).await?),
     ))
-}
-
-/// Create an issued-direction draft; omitted fields get the contact / company defaults.
-pub async fn create_draft(
-    state: &AppState,
-    space: SpaceId,
-    input: DocumentInput,
-) -> Result<Uuid, AppError> {
-    let ctx = context::load(&state.db, space, &input, today(), None).await?;
-    let (mut data, evaluated) = input.validate(&ctx)?;
-    context::resolve_bank(&state.db, space, &mut data, true).await?;
-    write::create(&state.db, space, data, evaluated.totals).await
 }
 
 #[utoipa::path(
@@ -151,22 +115,6 @@ pub async fn update(
     }
     update_draft(&state, space, &doc, from_value(body)?).await?;
     Ok(Json(fetch(&state, space, id).await?))
-}
-
-/// Replace every field of an issued-direction draft (`document_locked` otherwise).
-pub async fn update_draft(
-    state: &AppState,
-    space: SpaceId,
-    doc: &document::Model,
-    input: DocumentInput,
-) -> Result<(), AppError> {
-    if view::status(doc)? != Status::Draft {
-        return Err(AppError::DocumentLocked);
-    }
-    let ctx = context::load(&state.db, space, &input, today(), Some(doc)).await?;
-    let (mut data, evaluated) = input.validate(&ctx)?;
-    context::resolve_bank(&state.db, space, &mut data, false).await?;
-    write::update(&state.db, space, doc.id, data, evaluated.totals).await
 }
 
 #[utoipa::path(
@@ -217,35 +165,4 @@ pub async fn compute(
     ApiJson(input): ApiJson<ComputeInput>,
 ) -> Result<Json<Computed>, AppError> {
     Ok(Json(compute_totals(&state, access.space(), input).await?))
-}
-
-/// Live lines + totals of an unsaved document, no writes.
-pub async fn compute_totals(
-    state: &AppState,
-    space: SpaceId,
-    input: ComputeInput,
-) -> Result<Computed, AppError> {
-    let company = company::get(&state.db, space).await?;
-    let existing = match input.document_id {
-        Some(id) => match query::find(&state.db, space, id).await {
-            Ok(doc) => Some(context::existing(&doc)?),
-            Err(AppError::NotFound) => None,
-            Err(e) => return Err(e),
-        },
-        None => None,
-    };
-    let exact = ddpp_correction::basis_for(&state.db, existing.as_ref()).await?;
-    let ctx = ComputeCtx {
-        vat_payer: company.vat_payer,
-        default_rate: context::default_vat_rate(&state.db, space).await?,
-        default_locale: company.default_locale,
-        existing,
-        advances: advance_sources::load(&state.db, space, &input.advance_ids()).await?,
-        exact,
-    };
-    let (lines, evaluated) = input.validate(&ctx)?;
-    Ok(Computed {
-        lines: lines_out(&lines, &evaluated.lines),
-        totals: evaluated.totals.into(),
-    })
 }

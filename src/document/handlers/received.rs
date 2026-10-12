@@ -4,14 +4,15 @@
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
 use uuid::Uuid;
 
-use super::received_input::{ReceivedCtx, ReceivedData, ReceivedInput};
 use crate::app::AppState;
 use crate::document::compute::{Overflow, RecapRow};
 use crate::document::entity::{document, vat_recap};
+use crate::document::model::{ReceivedCtx, ReceivedData};
 use crate::document::received;
 use crate::document::repo::issue::{self as issue_repo, Rate, customer};
 use crate::document::repo::meta;
 use crate::document::repo::received::{self as repo, Record};
+use crate::document::wire::received_input::ReceivedInput;
 use crate::error::AppError;
 use crate::extract::from_value;
 use crate::settings::doc_type::RECEIVED;

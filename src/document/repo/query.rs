@@ -10,13 +10,13 @@ use sea_orm::{
 use uuid::Uuid;
 
 use super::lines;
-use crate::contact::handlers::dto::like_pattern;
 use crate::document::entity::document::{self, Column, Entity};
 use crate::document::entity::{document_line, vat_recap};
-use crate::document::handlers::dto::ListQuery;
 use crate::document::line::{LineData, PaymentState};
 use crate::document::state;
+use crate::document::wire::dto::ListQuery;
 use crate::error::AppError;
+use crate::paging::like_pattern;
 use crate::space::SpaceId;
 
 /// A document with its lines (by position), stored recap rows and the
@@ -205,7 +205,7 @@ pub(crate) fn filtered(
 /// Every document the list filter `q` matches, unpaged (`limit` / `offset`
 /// ignored): the base of the bulk exports (ISDOC, CSV).
 pub fn export_select(space: SpaceId, q: &ListQuery, today: NaiveDate) -> Select<Entity> {
-    let (term, _, _) = crate::contact::handlers::dto::ListQuery {
+    let (term, _, _) = crate::paging::ListQuery {
         q: q.q.clone(),
         limit: None,
         offset: None,

@@ -5,10 +5,11 @@ use rust_decimal::Decimal;
 
 use super::format::Locale;
 use super::payload::*;
-use crate::document::handlers::dto::Recap as DtoRecap;
-use crate::document::handlers::dto::{BankSnapshot, Line, PartySnapshot, Totals};
-use crate::document::handlers::line_out::{ItemLine, SubtotalLine, TextLine};
 use crate::document::line::{Status, VatMode};
+use crate::document::snapshot::Recap as DtoRecap;
+use crate::document::snapshot::{BankSnapshot, PartySnapshot, Totals};
+use crate::document::wire::dto::Line;
+use crate::document::wire::line_out::{ItemLine, SubtotalLine, TextLine};
 
 pub const NB: char = '\u{a0}';
 

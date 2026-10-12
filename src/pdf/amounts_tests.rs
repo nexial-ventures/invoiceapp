@@ -2,9 +2,9 @@
 
 use uuid::Uuid;
 
-use crate::document::handlers::dto::Line;
-use crate::document::handlers::line_out::{AdvanceLine, AdvanceRecap};
 use crate::document::line::VatMode;
+use crate::document::wire::dto::Line;
+use crate::document::wire::line_out::{AdvanceLine, AdvanceRecap};
 use crate::pdf::format::Locale;
 use crate::pdf::payload::*;
 use crate::pdf::test_fixtures::*;

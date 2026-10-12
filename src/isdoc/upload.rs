@@ -278,8 +278,9 @@ pub fn pdf_bytes(pdf: Option<&Pdf>) -> Result<Option<bytes::Bytes>, Code> {
     match pdf {
         None => Ok(None),
         Some(Pdf { bytes: None, .. }) => Err(PDF_SKIPPED),
-        Some(Pdf { bytes: Some(b), .. }) => Ok(crate::document::handlers::original::is_pdf(b)
-            .then(|| bytes::Bytes::copy_from_slice(b))),
+        Some(Pdf { bytes: Some(b), .. }) => {
+            Ok(crate::document::original::is_pdf(b).then(|| bytes::Bytes::copy_from_slice(b)))
+        }
     }
 }
 

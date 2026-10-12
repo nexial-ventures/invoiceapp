@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::app::AppState;
 use crate::auth::Write;
+use crate::document::original::is_pdf;
 use crate::document::repo::original as repo;
 use crate::error::{AppError, ErrorBody};
 use crate::extract::ApiPath;
@@ -41,11 +42,6 @@ async fn file_part(mut form: Multipart) -> Result<Option<Vec<u8>>, AppError> {
         return Ok(Some(bytes));
     }
     Ok(None)
-}
-
-/// Only an actual PDF is accepted.
-pub fn is_pdf(bytes: &[u8]) -> bool {
-    bytes.starts_with(b"%PDF-")
 }
 
 #[utoipa::path(
@@ -100,17 +96,4 @@ pub async fn delete(
 ) -> Result<StatusCode, AppError> {
     repo::delete(&state.db, &state.pdf.space(access.space())?, id).await?;
     Ok(StatusCode::NO_CONTENT)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn pdf_magic() {
-        assert!(is_pdf(b"%PDF-1.7\n"));
-        assert!(!is_pdf(b"%PDF"));
-        assert!(!is_pdf(b"<html>"));
-        assert!(!is_pdf(b""));
-    }
 }
