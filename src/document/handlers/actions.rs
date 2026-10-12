@@ -2,21 +2,20 @@ use axum::Json;
 use axum::body::Bytes;
 use axum::extract::State;
 use axum::http::StatusCode;
-use chrono::{DateTime, FixedOffset};
 use uuid::Uuid;
 
-use super::dto::{CancelInput, CreditNoteInput, Document, InternalNoteInput, MarkSentInput};
-use super::fetch;
-use super::meta::MetadataInput;
+use super::dto::{CancelInput, CreditNoteInput, InternalNoteInput, MarkSentInput};
 use crate::app::AppState;
 use crate::auth::Write;
+use crate::document::meta::MetadataInput;
 use crate::document::repo::{
     credit as credit_repo, issue as issue_repo, lifecycle, meta as meta_repo, query,
     settle as settle_repo,
 };
+use crate::document::service::{fetch, mark_sent_at};
+use crate::document::wire::dto::Document;
 use crate::error::{AppError, ErrorBody, FieldErrors};
 use crate::extract::{ApiJson, ApiPath, optional_json};
-use crate::space::SpaceId;
 use crate::time::today;
 use crate::validation as v;
 
@@ -97,17 +96,6 @@ pub async fn mark_sent(
     let input: MarkSentInput = optional_json(&body)?;
     mark_sent_at(&state, access.space(), id, input.sent_at).await?;
     Ok(Json(fetch(&state, access.space(), id).await?))
-}
-
-/// Set `sentAt` of an issued document (default now).
-pub async fn mark_sent_at(
-    state: &AppState,
-    space: SpaceId,
-    id: Uuid,
-    sent_at: Option<DateTime<FixedOffset>>,
-) -> Result<(), AppError> {
-    let sent_at = sent_at.unwrap_or_else(|| chrono::Utc::now().fixed_offset());
-    lifecycle::mark_sent(&state.db, space, id, sent_at).await
 }
 
 #[utoipa::path(

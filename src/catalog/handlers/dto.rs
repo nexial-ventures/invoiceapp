@@ -9,10 +9,10 @@ use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use crate::catalog::entity::item;
-use crate::document::handlers::line_input::decimal;
 use crate::document::line::MAX_INPUT;
 use crate::error::{AppError, FieldErrors};
-use crate::settings::handlers::vat_rates::parse_rate;
+use crate::num_parse::decimal;
+use crate::num_parse::parse_rate;
 use crate::validation as v;
 
 #[derive(Debug, Clone, Serialize, ToSchema)]

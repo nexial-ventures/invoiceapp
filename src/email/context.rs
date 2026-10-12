@@ -150,8 +150,8 @@ pub fn samples(base: Input, locale: Locale, company: &Company) -> Vec<(&'static 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::document::handlers::dto::{BankSnapshot, PartySnapshot, Totals};
     use crate::document::line::VatMode;
+    use crate::document::snapshot::{BankSnapshot, PartySnapshot, Totals};
     use chrono::NaiveDate;
 
     fn d(s: &str) -> Decimal {

@@ -6,7 +6,7 @@ use rust_decimal::Decimal;
 
 use super::format::{AFTER_RATES, BEFORE_RATES, RatePart, base_column, rate_column};
 use super::read::{Cell, FileError};
-use crate::document::handlers::received_input::MAX_RECAP_ROWS;
+use crate::document::wire::received_input::MAX_RECAP_ROWS;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RateColumns {

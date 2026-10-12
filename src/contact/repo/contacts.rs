@@ -7,8 +7,9 @@ use sea_orm::{
 use uuid::Uuid;
 
 use crate::contact::entity::contact::{self, ActiveModel, Column, Entity};
-use crate::contact::handlers::dto::{ContactInput, like_pattern};
+use crate::contact::handlers::dto::ContactInput;
 use crate::error::{AppError, unique_violation};
+use crate::paging::like_pattern;
 use crate::space::SpaceId;
 
 /// One page of contacts matching `q` (ordered by name) and the total match count.

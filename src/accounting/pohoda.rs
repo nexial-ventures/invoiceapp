@@ -10,8 +10,8 @@ use super::export::Ctx;
 use super::pohoda_summary::{self as summary, Foreign, Ns};
 use super::settings::CodeRow;
 use crate::csvio::export_row::{Kind, Source, czk_recap, party};
-use crate::document::handlers::dto::BankSnapshot;
 use crate::document::line::{PaymentMethod, VatMode};
+use crate::document::snapshot::BankSnapshot;
 use crate::isdoc::xml::Xml;
 use crate::settings::doc_type::DocType;
 

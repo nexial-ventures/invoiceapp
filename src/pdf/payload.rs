@@ -9,8 +9,9 @@ use super::amounts;
 use super::format::{self, Locale};
 use super::labels::{self, Labels};
 use super::spayd::{self, Spayd};
-use crate::document::handlers::dto::{BankSnapshot, Line, PartySnapshot, Totals};
 use crate::document::line::{Status, VatMode};
+use crate::document::snapshot::{BankSnapshot, PartySnapshot, Totals};
+use crate::document::wire::dto::Line;
 
 /// The exchange rate as printed: the rate and, for a ČNB rate, its date.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

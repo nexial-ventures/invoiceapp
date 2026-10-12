@@ -11,7 +11,7 @@ use sea_orm::{
 use uuid::Uuid;
 
 use super::issue::{Rate, fetch_rate, variable_symbol};
-use super::{lines, view, write};
+use super::{NewDocument, insert, lines, view};
 use crate::cnb::CnbClient;
 use crate::document::advance::issues_ddpp;
 use crate::document::ddpp::{self, Share};
@@ -91,57 +91,62 @@ pub async fn issue(
     );
     let id = Uuid::new_v4();
     let now = chrono::Utc::now().into();
-    let mut row = document::ActiveModel {
-        id: Set(id),
-        space_id: Set(proforma.space_id),
-        direction: Set("issued".into()),
-        doc_type: Set(DocType::AdvanceTaxDoc.as_str().into()),
-        status: Set(Status::Issued.as_str().into()),
-        number: Set(Some(number.clone())),
-        number_year: Set(Some(year)),
-        number_seq: Set(Some(seq)),
-        imported: Set(false),
-        contact_id: Set(proforma.contact_id),
-        issue_date: Set(payment.date),
-        tax_point_date: Set(Some(payment.date)),
-        due_date: Set(Some(payment.date)),
-        currency: Set(proforma.currency.clone()),
-        exchange_rate: Set(rate.rate),
-        exchange_rate_date: Set(rate.date),
-        exchange_rate_source: Set(rate.source.map(str::to_string)),
-        locale: Set(proforma.locale.clone()),
-        vat_mode: Set(proforma.vat_mode.clone()),
-        bank_account_id: Set(proforma.bank_account_id),
-        payment_method: Set(proforma.payment_method.clone()),
-        variable_symbol: Set(Some(
+    let row = NewDocument {
+        id,
+        space_id: proforma.space_id,
+        direction: "issued".into(),
+        doc_type: DocType::AdvanceTaxDoc.as_str().into(),
+        status: Status::Issued.as_str().into(),
+        number: Some(number.clone()),
+        number_year: Some(year),
+        number_seq: Some(seq),
+        imported: false,
+        contact_id: proforma.contact_id,
+        issue_date: payment.date,
+        tax_point_date: Some(payment.date),
+        due_date: Some(payment.date),
+        currency: proforma.currency.clone(),
+        exchange_rate: rate.rate,
+        exchange_rate_date: rate.date,
+        exchange_rate_source: rate.source.map(str::to_string),
+        locale: proforma.locale.clone(),
+        vat_mode: proforma.vat_mode.clone(),
+        bank_account_id: proforma.bank_account_id,
+        payment_method: proforma.payment_method.clone(),
+        variable_symbol: Some(
             proforma
                 .variable_symbol
                 .clone()
                 .unwrap_or_else(|| variable_symbol(&number)),
-        )),
-        constant_symbol: Set(proforma.constant_symbol.clone()),
-        order_ref: Set(proforma.order_ref.clone()),
-        header_note: Set(None),
-        footer_note: Set(None),
-        internal_note: Set(None),
+        ),
+        constant_symbol: proforma.constant_symbol.clone(),
+        order_ref: proforma.order_ref.clone(),
+        header_note: None,
+        footer_note: None,
+        internal_note: None,
         // The DDPP's amounts are the payment itself: never rounded.
-        rounding_mode: Set(RoundingMode::None.as_str().into()),
-        supplier_snapshot: Set(proforma.supplier_snapshot.clone()),
-        customer_snapshot: Set(proforma.customer_snapshot.clone()),
-        bank_snapshot: Set(proforma.bank_snapshot.clone()),
-        paid: Set(Decimal::ZERO),
-        sent_at: Set(None),
-        cancelled_at: Set(None),
-        cancel_reason: Set(None),
-        related_document_id: Set(Some(proforma.id)),
-        payment_id: Set(Some(payment.id)),
-        correction_reason: Set(None),
-        created_at: Set(now),
-        updated_at: Set(now),
-        ..Default::default()
+        rounding_mode: RoundingMode::None.as_str().into(),
+        supplier_snapshot: proforma.supplier_snapshot.clone(),
+        customer_snapshot: proforma.customer_snapshot.clone(),
+        bank_snapshot: proforma.bank_snapshot.clone(),
+        related_document_id: Some(proforma.id),
+        payment_id: Some(payment.id),
+        correction_reason: None,
+        created_at: now,
+        updated_at: now,
+        totals: totals.clone(),
+        supplier_number: None,
+        received_date: None,
+        vat_deductible: false,
+        supplier_account: None,
+        category_id: None,
+        custom_fields: serde_json::json!({}),
+        original_path: None,
+        original_sha256: None,
+        original_size: None,
+        original_uploaded_at: None,
     };
-    write::apply_totals(&mut row, &totals);
-    row.insert(txn)
+    insert(txn, row)
         .await
         .map_err(|e| number_violation(e, || AppError::NumberTaken))?;
     lines::replace(txn, id, &lines).await?;

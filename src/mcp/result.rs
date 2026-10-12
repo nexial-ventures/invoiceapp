@@ -7,10 +7,14 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 use uuid::Uuid;
 
-use crate::contact::handlers::dto::ListQuery as Paging;
 use crate::error::AppError;
+use crate::paging::ListQuery as Paging;
 use crate::pdf::archive::serves_original;
 
+// Smaller than the REST page (`paging::DEFAULT_LIMIT` / `MAX_LIMIT`): every
+// result row lands in the client model's context window as pretty JSON, so a
+// page stays a few thousand tokens. The rest of the normalization (trimmed
+// `q`, `offset` cap) is shared through `paging::ListQuery`.
 pub const DEFAULT_LIMIT: u64 = 20;
 pub const MAX_LIMIT: u64 = 100;
 

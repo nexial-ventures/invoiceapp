@@ -8,16 +8,14 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::fields::{digits, exchange_rate, parse_vat_mode};
-use super::line_input::decimal;
-use super::meta::{self, Meta, MetaCtx};
-use crate::contact::entity::contact;
 use crate::document::custom_fields::Values;
-use crate::document::entity::document;
 use crate::document::line::{MAX_AMOUNT, VatMode};
+use crate::document::meta;
+use crate::document::model::{ReceivedCtx, ReceivedData};
 use crate::document::received::{self, EnteredRow};
 use crate::error::{AppError, FieldErrors};
+use crate::num_parse::{decimal, parse_rate};
 use crate::settings::doc_type::{DocType, RECEIVED};
-use crate::settings::handlers::vat_rates::parse_rate;
 use crate::validation::{self as v, Check};
 
 pub const MAX_RECAP_ROWS: usize = 50;
@@ -65,44 +63,6 @@ pub struct RecapInput {
     pub rate: Option<String>,
     pub base: Option<String>,
     pub vat: Option<String>,
-}
-
-/// Validated [`ReceivedInput`].
-#[derive(Debug, Clone, PartialEq)]
-pub struct ReceivedData {
-    pub doc_type: DocType,
-    pub supplier_number: String,
-    pub contact_id: Uuid,
-    pub issue_date: NaiveDate,
-    pub tax_point_date: Option<NaiveDate>,
-    pub received_date: NaiveDate,
-    pub due_date: Option<NaiveDate>,
-    pub currency: String,
-    /// The manual rate, if any.
-    pub exchange_rate: Option<Decimal>,
-    pub vat_mode: VatMode,
-    pub recap: Vec<EnteredRow>,
-    pub rounding: Decimal,
-    pub payable: Decimal,
-    pub vat_deductible: bool,
-    pub variable_symbol: Option<String>,
-    pub constant_symbol: Option<String>,
-    pub supplier_account: Option<String>,
-    pub related_document_id: Option<Uuid>,
-    pub meta: Meta,
-    pub internal_note: Option<String>,
-}
-
-/// What validation needs from the database.
-#[derive(Debug, Clone, Default)]
-pub struct ReceivedCtx {
-    /// `PUT`: the stored document's id and type.
-    pub existing: Option<(Uuid, DocType)>,
-    /// The contact named by `contactId`, if it exists.
-    pub contact: Option<contact::Model>,
-    /// The document named by `relatedDocumentId`, if it exists.
-    pub related: Option<document::Model>,
-    pub meta: MetaCtx,
 }
 
 fn doc_type(requested: Option<&str>, existing: Option<DocType>) -> Check<DocType> {

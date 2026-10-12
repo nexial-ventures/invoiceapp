@@ -9,8 +9,8 @@ use rust_decimal::Decimal;
 use super::format::{self, Locale};
 use super::labels::{self, Labels};
 use super::payload::{Input, PdfLine, Recap, RecapRow, TotalRow};
-use crate::document::handlers::dto::Line;
 use crate::document::line::VatMode;
+use crate::document::wire::dto::Line;
 
 pub struct Amounts {
     pub has_discount: bool,
@@ -257,7 +257,7 @@ pub fn build(i: &Input, l: &Labels, show_vat: bool) -> anyhow::Result<Amounts> {
     let f = Fmt {
         locale: i.locale,
         currency: i.currency,
-        sign: Decimal::from(crate::document::handlers::dto::sign(i.doc_type)),
+        sign: Decimal::from(crate::document::wire::dto::sign(i.doc_type)),
     };
     let has_discount = i
         .lines

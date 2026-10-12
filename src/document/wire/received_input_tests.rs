@@ -3,6 +3,7 @@ use serde_json::{Value, json};
 use crate::error::FieldErrors;
 
 use super::*;
+use crate::contact::entity::contact;
 
 fn contact() -> contact::Model {
     let now = chrono::Utc::now().into();

@@ -14,8 +14,8 @@ use uuid::Uuid;
 
 use crate::catalog::entity::{group, item, member};
 use crate::catalog::handlers::dto::{GroupData, check_items};
-use crate::contact::handlers::dto::like_pattern;
 use crate::error::AppError;
+use crate::paging::like_pattern;
 use crate::space::SpaceId;
 
 /// A group with its members (by position) and their items.

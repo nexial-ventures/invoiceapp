@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -12,6 +10,7 @@ use crate::app::AppState;
 use crate::auth::{Manage, Read};
 use crate::error::{AppError, ErrorBody, FieldErrors};
 use crate::extract::{ApiJson, ApiPath};
+use crate::num_parse::parse_rate;
 use crate::settings::entity::vat_rate;
 use crate::settings::repo;
 use crate::validation as v;
@@ -70,19 +69,6 @@ pub struct VatRateData {
     pub is_default: bool,
     pub active: bool,
     pub position: Option<i32>,
-}
-
-/// A percentage in 0..=100 with at most two decimal places.
-pub fn parse_rate(s: &str) -> v::Check<Decimal> {
-    let s = s.trim();
-    if s.is_empty() {
-        return Err("required");
-    }
-    let rate = Decimal::from_str(s).map_err(|_| "invalid")?.normalize();
-    if rate < Decimal::ZERO || rate > Decimal::ONE_HUNDRED || rate.scale() > 2 {
-        return Err("invalid");
-    }
-    Ok(rate)
 }
 
 impl VatRateInput {
@@ -183,19 +169,6 @@ pub async fn delete(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn rate_parsing() {
-        assert_eq!(parse_rate("21"), Ok(Decimal::from(21)));
-        assert_eq!(parse_rate(" 12.50 "), Ok(Decimal::new(125, 1)));
-        assert_eq!(parse_rate("0"), Ok(Decimal::ZERO));
-        assert_eq!(parse_rate("100.00"), Ok(Decimal::ONE_HUNDRED));
-        assert_eq!(parse_rate(""), Err("required"));
-        assert_eq!(parse_rate("abc"), Err("invalid"));
-        assert_eq!(parse_rate("-1"), Err("invalid"));
-        assert_eq!(parse_rate("100.01"), Err("invalid"));
-        assert_eq!(parse_rate("10.125"), Err("invalid"));
-    }
 
     #[test]
     fn default_must_be_active() {

@@ -1,7 +1,14 @@
 use chrono::{NaiveDate, Utc};
 
+use std::collections::HashMap;
+
+use rust_decimal::Decimal;
+
 use super::*;
-use crate::document::handlers::compute_input::{ComputeCtx, ComputeInput};
+use crate::contact::entity::contact;
+use crate::document::model::Existing;
+use crate::document::wire::compute_input::{ComputeCtx, ComputeInput};
+use crate::settings::entity::company;
 
 fn date(m: u32, d: u32) -> NaiveDate {
     NaiveDate::from_ymd_opt(2026, m, d).expect("date")
