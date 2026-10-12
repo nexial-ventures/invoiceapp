@@ -139,8 +139,12 @@ impl TemplateSandbox {
         let mut last = String::new();
         let mut overflow = false;
         let talk = async {
-            stdin.write_all(input).await?;
-            drop(stdin);
+            // A child that died (or never reads) closes the pipe early; its
+            // output and exit status tell why, so a broken pipe is not the error.
+            match stdin.write_all(input).await {
+                Err(e) if e.kind() != std::io::ErrorKind::BrokenPipe => return Err(e),
+                _ => drop(stdin),
+            }
             let mut lines = BufReader::new(stdout.take(MAX_STDOUT)).lines();
             loop {
                 match lines.next_line().await {
