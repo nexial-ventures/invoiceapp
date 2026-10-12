@@ -2,6 +2,7 @@
 import { computed, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
+import { signed } from "@/lib/money";
 import { useAction } from "@/composables/useAction";
 import AccountantExportButton from "@/features/csvExport/components/AccountantExportButton.vue";
 import CsvExportButton from "@/features/csvExport/components/CsvExportButton.vue";
@@ -10,7 +11,7 @@ import InvoiceFilters from "@/features/documents/components/InvoiceFilters.vue";
 import ListDocMeta from "@/features/documents/components/ListDocMeta.vue";
 import ListPager from "@/features/documents/components/ListPager.vue";
 import StatusBadges from "@/features/documents/components/StatusBadges.vue";
-import { formatDate, formatMoney, signed } from "@/features/documents/format";
+import { formatDate, formatMoney } from "@/lib/format";
 import { listDocTypeOf } from "@/features/documents/routes";
 import { useReceivedListStore, type InvoiceFilters as Filters } from "@/features/documents/store";
 import { useCategoriesStore } from "@/features/settings/stores";
@@ -27,7 +28,7 @@ const { error, run } = useAction();
 const docType = computed(() => listDocTypeOf(route.query.type));
 watch(docType, (type) => void run(() => store.setDocType(type)), { immediate: true });
 // Category names only decorate rows and feed a filter: the list works without them.
-if (!categoriesStore.loaded) categoriesStore.load().catch(() => {});
+categoriesStore.ensure().catch(() => {});
 const categories = computed(() => categoriesStore.items.filter((c) => c.kind === "expense"));
 
 const onFilters = (f: Filters) => void run(() => store.applyFilters(f));

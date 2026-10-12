@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { formatDate, formatNumber } from "../format";
+import { formatDate, formatNumber } from "@/lib/format";
 import type { Document } from "../types";
 
 const props = defineProps<{ doc: Document }>();

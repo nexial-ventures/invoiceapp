@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { remainingAmount, toCents } from "@/lib/money";
 import { ApiError } from "@/api/client";
 import FormField from "@/components/form/FormField.vue";
 import { useAction } from "@/composables/useAction";
 import { useFormSubmit } from "@/composables/useFormSubmit";
 import { collectErrors, nullIfEmpty, textRule } from "@/lib/formErrors";
 import { todayIso } from "../form";
-import { formatDate, formatMoney, formatNumber, remainingAmount } from "../format";
+import { formatDate, formatMoney, formatNumber } from "@/lib/format";
 import { detailLocation } from "../routes";
 import { useDocumentStore } from "../store";
 import type { Document, Payment } from "../types";
@@ -61,7 +62,7 @@ async function onSubmit() {
     () =>
       collectErrors({
         date: !/^\d{4}-\d{2}-\d{2}$/.test(date.value) && "required",
-        amount: !/^\d+(\.\d{1,2})?$/.test(value) || Number(value) <= 0 ? "invalid" : null,
+        amount: !/^\d+(\.\d{1,2})?$/.test(value) || (toCents(value) ?? 0n) <= 0n ? "invalid" : null,
         note: textRule(note.value, { max: 500 }),
         exchangeRate: manualRate !== null && (!/^\d+(\.\d{1,6})?$/.test(manualRate) || Number(manualRate) <= 0) && "invalid",
       }),

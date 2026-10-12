@@ -39,7 +39,8 @@ Bootstrap = registration: with `INVOICE__REGISTRATION=true` (needs SMTP) registe
 | `make dev-frontend` | Vite dev server |
 | `make frontend-install` / `make frontend-build` | `npm ci` / production SPA build |
 | `make fmt` / `make fmt-check` / `make clippy` | Rust formatting and lints |
-| `make lint` | `lint-backend` + `lint-frontend` (eslint + vue-tsc) |
+| `make lint` | `lint-backend` + `lint-frontend` (eslint + vue-tsc) + `api-types-check` (generated API types up to date) |
+| `make frontend-api-types` | Regenerate `frontend/src/api/schema.d.ts` from the backend's OpenAPI (`invoice openapi`) after an API change |
 | `make test-unit` / `make test-integration` | Rust unit / integration tests (integration needs Postgres, the S3 test bucket via `TEST_S3_*` in `.env`, and `xmllint` from `libxml2-utils`) |
 | `make test` | `test-backend` + `test-frontend` |
 | `make migrate` / `make migrate-status` | Apply / show migrations |

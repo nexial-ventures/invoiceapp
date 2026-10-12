@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import type { DocLocale, FieldErrors } from "@/api/types";
+import { type DocLocale, type FieldErrors, PAYMENT_METHODS, ROUNDING_MODES } from "@/api/types";
 import FormField from "@/components/form/FormField.vue";
 import { LOCALES } from "@/i18n";
-import { PAYMENT_METHODS, ROUNDING_MODES } from "@/features/documents/types";
 import type { CompanyDraft } from "../companyForm";
 
 /** Settings → Firma, "Výchozí hodnoty dokladů": what a new document starts from. */

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { formatMoney, formatNumber } from "../format";
+import { formatMoney, formatNumber } from "@/lib/format";
 import type { ComputedLine } from "../types";
 
 const props = defineProps<{ lines: ComputedLine[]; currency: string }>();

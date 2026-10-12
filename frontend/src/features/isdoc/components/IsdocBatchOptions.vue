@@ -10,7 +10,7 @@ const store = useIsdocImportStore();
 const categoriesStore = useCategoriesStore();
 
 // The category is optional: without the list the import still works.
-if (!categoriesStore.loaded) categoriesStore.load().catch(() => {});
+categoriesStore.ensure().catch(() => {});
 const categories = computed(() => categoriesStore.items.filter((c) => c.kind === "expense" && c.active));
 </script>
 

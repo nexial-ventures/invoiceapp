@@ -7,7 +7,7 @@ import { company, contact, document } from "@/features/documents/testData";
 import { mountDetail } from "@/features/documents/views/testMount";
 import { emailSettings, logEntry, prefill } from "../testData";
 
-const issued = document({ status: "issued", number: "20260001", paymentState: "unpaid", customer: { ...contact(), registration: null, vatPayer: null } });
+const issued = document({ status: "issued", number: "20260001", paymentState: "unpaid", customer: { ...contact(), registration: null, vatPayer: null, web: null } });
 
 describe("e-mail on the document detail", () => {
   beforeEach(() => {

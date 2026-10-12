@@ -38,6 +38,15 @@ describe("settings stores", () => {
     expect(store.items).toHaveLength(1);
   });
 
+  it("ensure loads once for concurrent callers and not again once loaded", async () => {
+    const store = useBankAccountsStore();
+    const fetch = mockFetchSequence([account("a", true)]);
+    await Promise.all([store.ensure(), store.ensure()]);
+    await store.ensure();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(store.items).toHaveLength(1);
+  });
+
   it("number series replaces only the saved doc type", async () => {
     const store = useNumberSeriesStore();
     const s = (docType: NumberSeries["docType"], pattern: string): NumberSeries => ({

@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import type { DocLocale, FieldErrors } from "@/api/types";
+import { type DocLocale, type FieldErrors, PAYMENT_METHODS, ROUNDING_MODES, type PaymentMethod, type RoundingMode } from "@/api/types";
 import FormField from "@/components/form/FormField.vue";
 import { LOCALES } from "@/i18n";
 import type { BankAccount, Company } from "@/features/settings/types";
 import { changeLocale, changePaymentMethod, changeRounding } from "../defaults";
 import { isCorrection } from "../docTypes";
 import { changeCurrency, type DocumentDraft } from "../form";
-import { formatNumber } from "../format";
-import { PAYMENT_METHODS, ROUNDING_MODES, VAT_MODES, type ExchangeRate, type PaymentMethod, type RoundingMode } from "../types";
+import { formatNumber } from "@/lib/format";
+import { VAT_MODES, type ExchangeRate } from "../types";
 import IndicativeRateNote from "./IndicativeRateNote.vue";
 
 const model = defineModel<DocumentDraft>({ required: true });

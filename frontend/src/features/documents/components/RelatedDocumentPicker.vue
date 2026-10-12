@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import type { Direction } from "@/api/types";
 import FormField from "@/components/form/FormField.vue";
 import { useAction } from "@/composables/useAction";
 import { documentsApi } from "../api";
 import { relatedTargetTypes } from "../docTypes";
-import type { Direction, DocumentSummary, RelatedDocument } from "../types";
+import type { DocumentSummary, RelatedDocument } from "../types";
 
 const LIMIT = 50;
 const SEARCH_DEBOUNCE_MS = 300;

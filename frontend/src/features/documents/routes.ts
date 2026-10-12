@@ -1,6 +1,6 @@
 import type { RouteLocationRaw } from "vue-router";
+import type { Direction } from "@/api/types";
 import { LIST_DOC_TYPES, type ListDocType } from "./store";
-import type { Direction } from "./types";
 
 const ROUTES = {
   issued: { list: "invoices", detail: "invoice-detail", edit: "invoice-edit" },

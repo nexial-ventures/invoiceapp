@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { localeFiles, type MessageTree } from "@/i18n";
+import { i18n } from "@/i18n";
+import type { MessageTree } from "@/i18n/namespaces";
+import cs from "@/i18n/messages/cs";
+import en from "@/i18n/messages/en";
+
+/** Locale JSON is precompiled: a message is an AST root `{ type: 0, body }`, a namespace a plain object. */
+const isMessage = (v: unknown) => typeof v === "object" && v !== null && (v as { type?: unknown }).type === 0 && "body" in v;
 
 function leafKeys(tree: MessageTree, prefix = ""): string[] {
   return Object.entries(tree).flatMap(([k, v]) => {
     const path = prefix ? `${prefix}.${k}` : k;
-    return typeof v === "string" ? [path] : leafKeys(v, path);
+    return isMessage(v) ? [path] : leafKeys(v as MessageTree, path);
   });
 }
-
-const { cs, en } = localeFiles;
 
 describe("locales", () => {
   it("each locale directory has the same namespace files", () => {
@@ -17,14 +21,13 @@ describe("locales", () => {
   });
 
   it("cs and en have identical key sets", () => {
+    expect(leafKeys(cs).length).toBeGreaterThan(100);
     expect(leafKeys(cs).sort()).toEqual(leafKeys(en).sort());
   });
 
   it("has no empty strings", () => {
-    for (const tree of [cs, en]) {
-      const empty = leafKeys(tree).filter((k) =>
-        k.split(".").reduce<MessageTree | string>((node, part) => (node as MessageTree)[part] as MessageTree | string, tree) === "",
-      );
+    for (const [locale, tree] of [["cs", cs], ["en", en]] as const) {
+      const empty = leafKeys(tree).filter((k) => i18n.global.t(k, {}, { locale }) === "");
       expect(empty).toEqual([]);
     }
   });

@@ -1,4 +1,6 @@
-import type { RoundingMode, VatMode } from "@/features/documents/types";
+import type { RoundingMode } from "@/api/types";
+import type { VatMode } from "@/features/documents/types";
+import { fromCents, toCents } from "@/lib/money";
 
 /**
  * VAT recap rows of a received document, entered as printed on the supplier's document.
@@ -17,24 +19,7 @@ export interface RecapRowDraft {
 let lastKey = 0;
 export const newRecapRow = (rate: string): RecapRowDraft => ({ key: ++lastKey, rate, base: "", vat: "", vatAuto: true });
 
-const AMOUNT = /^-?\d+([.,]\d{1,2})?$/;
 const RATE = /^\d{1,3}([.,]\d{1,2})?$/;
-
-/** 2-dp decimal string → cents; null when not a valid amount. */
-export function toCents(value: string): bigint | null {
-  const v = value.trim();
-  if (!AMOUNT.test(v)) return null;
-  const negative = v.startsWith("-");
-  const [whole = "0", frac = ""] = v.replace("-", "").split(/[.,]/);
-  const cents = BigInt(whole) * 100n + BigInt(frac.padEnd(2, "0"));
-  return negative ? -cents : cents;
-}
-
-export function fromCents(cents: bigint): string {
-  const abs = cents < 0n ? -cents : cents;
-  const frac = String(abs % 100n).padStart(2, "0");
-  return `${cents < 0n ? "-" : ""}${abs / 100n}.${frac}`;
-}
 
 /** Rate in hundredths of a percent (21 → 2100), null unless 0..100 with ≤ 2 dp. */
 export function rateHundredths(value: string): bigint | null {
@@ -104,12 +89,6 @@ export function derivedRoundingMode(rows: { base: string; vat: string }[], round
   return cents % 50n === 0n ? "half" : "none";
 }
 
-/** True when two amount strings denote the same cents ("210" = "210.00"). */
-export function sameAmount(a: string | null | undefined, b: string | null | undefined): boolean {
-  const ca = a == null ? null : toCents(a);
-  return ca !== null && ca === (b == null ? null : toCents(b));
-}
-
 /** 422 keys for row fields, `vatRecap.N.rate|base|vat` (N 0-based) — mirrored by the client checks. */
 export function validateRecap(rows: RecapRowDraft[], mode: VatMode): Record<string, string> {
   const errors: Record<string, string> = {};
@@ -129,5 +108,3 @@ export function validateRecap(rows: RecapRowDraft[], mode: VatMode): Record<stri
   return errors;
 }
 
-/** Wire value of an amount: dot decimal, trimmed. */
-export const normalizeAmount = (v: string) => v.trim().replace(",", ".");

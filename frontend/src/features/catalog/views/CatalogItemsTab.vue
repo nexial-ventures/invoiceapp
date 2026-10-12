@@ -2,7 +2,7 @@
 import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useAction } from "@/composables/useAction";
-import { formatMoney } from "@/features/documents/format";
+import { formatMoney } from "@/lib/format";
 import CatalogItemForm from "../components/CatalogItemForm.vue";
 import CatalogSearch from "../components/CatalogSearch.vue";
 import { useCatalogItemsStore } from "../store";

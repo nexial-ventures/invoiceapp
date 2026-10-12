@@ -39,9 +39,9 @@ const liveSupplier = ref<PartySnapshot | null>(null);
 const liveCustomer = ref<PartySnapshot | null>(null);
 
 async function loadLiveParties(contactId: string | null) {
-  if (!company.company) await company.load();
+  await company.ensure();
   liveSupplier.value = company.company;
-  liveCustomer.value = contactId ? { ...(await contactsApi.get(contactId)), registration: null, vatPayer: null } : null;
+  liveCustomer.value = contactId ? { ...(await contactsApi.get(contactId)), registration: null, vatPayer: null, web: null } : null;
 }
 
 watch(
@@ -99,7 +99,7 @@ const hasPayments = computed(() => !isDraft.value && doc.value?.docType !== "adv
       <DocumentPdf v-else :doc="doc" />
 
       <PartiesCard :supplier="isDraft ? liveSupplier : doc.supplier" :customer="isDraft ? liveCustomer : doc.customer" />
-      <RelatedDocumentsPanel :parent="doc.parent" :children="doc.relatedDocuments" :currency="doc.currency" />
+      <RelatedDocumentsPanel :parent="doc.parent" :children="doc.relatedDocuments" />
       <DocumentInfoCard :doc="doc" />
       <DocumentLinesTable :lines="doc.lines" :currency="doc.currency" />
       <TotalsPanel :totals="doc.totals" :currency="doc.currency" :exchange-rate="doc.exchangeRate" :sign="doc.sign" />

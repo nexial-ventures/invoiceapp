@@ -8,7 +8,7 @@ import { mountDetail as mountAt } from "./testMount";
 
 const mountDetail = async () => (await mountAt()).w;
 
-const issued = document({ status: "issued", number: "20260001", paymentState: "unpaid", customer: { ...contact(), registration: null, vatPayer: null } });
+const issued = document({ status: "issued", number: "20260001", paymentState: "unpaid", customer: { ...contact(), registration: null, vatPayer: null, web: null } });
 
 describe("InvoiceDetailView", () => {
   beforeEach(() => {

@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useAction } from "@/composables/useAction";
-import { formatDate } from "@/features/documents/format";
+import { formatDate } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import CreateTokenDialog from "../components/CreateTokenDialog.vue";

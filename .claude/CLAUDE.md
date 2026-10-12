@@ -18,6 +18,7 @@ Everything goes through `make` (`make help` lists targets). `CARGO_BUILD_JOBS=4`
 | Full gate (must be green before push) | `make lint` and `make test` |
 | Backend only | `make lint-backend`, `make test-unit`, `make test-integration` |
 | Frontend only | `make frontend-install`, `make lint-frontend`, `make test-frontend` |
+| API wire types | `make frontend-api-types` after any API change (regenerates the committed `frontend/src/api/schema.d.ts`; `make lint` fails while it is stale) |
 | Dev | `make dev-server` + `make dev-frontend` (Vite proxies `/api` → `:3000`, keeps `Host`; spaces at `http://<slug>.localhost:5173`, see `docs/architecture.md`) |
 | Release build / image | `make build`, `make docker-build` |
 

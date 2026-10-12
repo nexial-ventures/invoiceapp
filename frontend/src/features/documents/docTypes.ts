@@ -1,3 +1,4 @@
+import { parseCents } from "@/lib/money";
 import type { DocumentType, Sign, Totals } from "./types";
 
 /** `sign = −1` documents store positive amounts and are shown negated (credit notes, DDPP corrections). */
@@ -34,7 +35,7 @@ export const SIMPLIFIED_LIMIT_CZK = 10000;
 export function simplifiedOverLimit(docType: string, currency: string, totals: Pick<Totals, "total" | "totalCzk"> | null | undefined): boolean {
   if (docType !== "simplified" || !totals) return false;
   const czk = currency === "CZK" ? totals.total : totals.totalCzk;
-  return czk != null && czk !== "" && Number(czk) > SIMPLIFIED_LIMIT_CZK;
+  return (parseCents(czk) ?? 0n) > BigInt(SIMPLIFIED_LIMIT_CZK) * 100n;
 }
 
 /**

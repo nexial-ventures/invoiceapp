@@ -28,7 +28,11 @@ function isActive(to: string): boolean {
 }
 
 function onLocaleChange(event: Event) {
-  setLocale((event.target as HTMLSelectElement).value as Locale);
+  const select = event.target as HTMLSelectElement;
+  // A failed load keeps the current locale: show it again instead of the unapplied choice.
+  setLocale(select.value as Locale).catch(() => {
+    select.value = locale.value;
+  });
 }
 </script>
 

@@ -18,7 +18,7 @@ const { fieldErrors, error, submitting, submit, showError } = useFormSubmit();
 
 onMounted(async () => {
   // The company IČO is only the override's placeholder: its failure must not block the tab.
-  if (!companyStore.company) void companyStore.load().catch(() => undefined);
+  companyStore.ensure().catch(() => {});
   try {
     await store.load();
     draft.value = toAccountingDraft(store.settings);

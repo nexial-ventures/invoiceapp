@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
+import { ISSUED_SERIES, RECEIVED_SERIES } from "@/api/types";
 import { useAction } from "@/composables/useAction";
 import NumberSeriesCard from "../components/NumberSeriesCard.vue";
 import { useNumberSeriesStore } from "../stores";
-import { ISSUED_SERIES, RECEIVED_SERIES, type NumberSeries } from "../types";
+import type { NumberSeries } from "../types";
 
 const { t } = useI18n();
 const store = useNumberSeriesStore();

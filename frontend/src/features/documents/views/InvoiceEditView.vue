@@ -42,9 +42,9 @@ watch(
       // The instance is reused between /new and /:id/edit: nothing of a previously loaded document may leak.
       parent.value = null;
       await Promise.all([
-        company.company ? undefined : company.load(),
-        vatRates.loaded ? undefined : vatRates.load(),
-        bankAccounts.loaded ? undefined : bankAccounts.load(),
+        company.ensure(),
+        vatRates.ensure(),
+        bankAccounts.ensure(),
         metadata.load(),
       ]);
       if (!company.company) return;

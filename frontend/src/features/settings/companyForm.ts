@@ -1,8 +1,7 @@
-import type { DocLocale, FieldErrors } from "@/api/types";
+import type { DocLocale, FieldErrors, PaymentMethod, RoundingMode } from "@/api/types";
 import { collectErrors, nullIfEmpty, textRule } from "@/lib/formErrors";
 import { validateParty, type PartyDraft } from "@/components/form/party";
 import { LOCALES } from "@/i18n";
-import type { PaymentMethod, RoundingMode } from "@/features/documents/types";
 import type { Company, LocalizedNote } from "./types";
 
 /** Per-locale note text; "" = none. */

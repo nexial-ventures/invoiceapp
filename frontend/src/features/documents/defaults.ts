@@ -1,7 +1,6 @@
-import type { DocLocale } from "@/api/types";
+import type { DocLocale, PaymentMethod, RoundingMode } from "@/api/types";
 import type { Company } from "@/features/settings/types";
 import type { DocumentDraft } from "./form";
-import type { PaymentMethod, RoundingMode } from "./types";
 
 /** Company rounding default for a payment method: cash has its own, every other method shares one. */
 export function defaultRounding(company: Company, method: PaymentMethod): RoundingMode {

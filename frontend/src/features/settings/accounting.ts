@@ -1,5 +1,4 @@
-import type { FieldErrors } from "@/api/types";
-import type { Direction } from "@/features/documents/types";
+import type { FieldErrors, Direction } from "@/api/types";
 import { nullIfEmpty, textRule } from "@/lib/formErrors";
 import {
   ACCOUNTING_DIRECTIONS,

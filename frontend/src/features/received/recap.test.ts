@@ -1,16 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { derivedRoundingMode, enforceRecapVatMode, fromCents, newRecapRow, recapTotal, sameAmount, suggestVat, toCents, updateRow, validateRecap } from "./recap";
+import { sameAmount } from "@/lib/money";
+import { derivedRoundingMode, enforceRecapVatMode, newRecapRow, recapTotal, suggestVat, updateRow, validateRecap } from "./recap";
 
 describe("recap amounts", () => {
-  it("parses and formats cents exactly, accepting a decimal comma", () => {
-    expect(toCents("1210,5")).toBe(121050n);
-    expect(toCents("-0.05")).toBe(-5n);
-    expect(toCents("1.234")).toBeNull();
-    expect(toCents("")).toBeNull();
-    expect(fromCents(-5n)).toBe("-0.05");
-    expect(fromCents(121050n)).toBe("1210.50");
-  });
-
   it("suggests VAT as round2(base × rate / 100), half away from zero", () => {
     expect(suggestVat("1000", "21")).toBe("210.00");
     expect(suggestVat("0.05", "10")).toBe("0.01");

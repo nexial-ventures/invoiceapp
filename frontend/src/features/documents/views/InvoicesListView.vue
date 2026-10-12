@@ -2,6 +2,7 @@
 import { computed, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
+import { signed } from "@/lib/money";
 import { useAction } from "@/composables/useAction";
 import AccountantExportButton from "@/features/csvExport/components/AccountantExportButton.vue";
 import CsvExportButton from "@/features/csvExport/components/CsvExportButton.vue";
@@ -13,7 +14,7 @@ import ListDocMeta from "../components/ListDocMeta.vue";
 import ListPager from "../components/ListPager.vue";
 import StatusBadges from "../components/StatusBadges.vue";
 import { isNativeNewType } from "../docTypes";
-import { formatDate, formatMoney, signed } from "../format";
+import { formatDate, formatMoney } from "@/lib/format";
 import { listDocTypeOf } from "../routes";
 import { useInvoiceListStore, type InvoiceFilters as Filters } from "../store";
 import { useSessionStore } from "@/stores/session";
@@ -29,7 +30,7 @@ const { error, run } = useAction();
 const docType = computed(() => listDocTypeOf(route.query.type));
 watch(docType, (type) => void run(() => store.setDocType(type)), { immediate: true });
 // Category names only decorate rows and feed a filter: the list works without them.
-if (!categoriesStore.loaded) categoriesStore.load().catch(() => {});
+categoriesStore.ensure().catch(() => {});
 const categories = computed(() => categoriesStore.items.filter((c) => c.kind === "income"));
 
 /** Corrections come from their original, DDPPs from proforma payments: only invoice / proforma / simplified start here. */

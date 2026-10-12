@@ -1,5 +1,5 @@
 import { computed } from "vue";
-import type { Direction } from "@/features/documents/types";
+import type { Direction } from "@/api/types";
 import { useCategoriesStore, useCustomFieldsStore } from "@/features/settings/stores";
 import { applicableFields } from "./metadata";
 
@@ -9,7 +9,7 @@ export function useMetadataSettings(direction: () => Direction) {
   const customFields = useCustomFieldsStore();
 
   async function load(): Promise<void> {
-    await Promise.all([categories.loaded ? undefined : categories.load(), customFields.loaded ? undefined : customFields.load()]);
+    await Promise.all([categories.ensure(), customFields.ensure()]);
   }
 
   return {

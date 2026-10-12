@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
-import { formatDate } from "@/features/documents/format";
+import { formatDate } from "@/lib/format";
 import type { PreviewEntry } from "../types";
 
 /** Preview cell: the issue, tax point and due dates the entry carries. */

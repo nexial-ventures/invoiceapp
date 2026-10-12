@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { formatMoney } from "@/features/documents/format";
+import { formatMoney } from "@/lib/format";
 import { PREVIEW_CLASS } from "@/features/imports/badges";
 import ImportCounterparty from "@/features/imports/components/ImportCounterparty.vue";
 import ImportDates from "@/features/imports/components/ImportDates.vue";
