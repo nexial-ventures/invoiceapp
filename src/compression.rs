@@ -1,12 +1,16 @@
 //! Response compression (brotli, gzip) for JSON, text, XML and the SPA's
 //! JS / CSS / HTML / SVG. Already-compressed or binary bodies (PDF, zip,
-//! images, fonts, octet streams) and SSE (the MCP stream) pass through
+//! images, fonts, octet streams), `text/event-stream` and responses marked
+//! `Content-Encoding: identity` ([`identity`]: fresh secrets) pass through
 //! untouched, so their `Content-Length` and streaming stay as they are.
 
+use axum::http::{HeaderValue, header};
+use axum::response::{IntoResponse, Response};
 use tower_http::compression::CompressionLayer;
 use tower_http::compression::predicate::{DefaultPredicate, NotForContentType, Predicate};
 
-/// [`DefaultPredicate`] (skips tiny bodies, images but SVG, gRPC, SSE) and
+/// [`DefaultPredicate`] (skips bodies under 32 bytes, images but SVG, gRPC,
+/// `text/event-stream`) and
 /// the binary types (prefixes; `application/vnd.` covers the zip-based
 /// office formats).
 pub fn predicate() -> impl Predicate {
@@ -17,6 +21,23 @@ pub fn predicate() -> impl Predicate {
         .and(NotForContentType::const_new("application/octet-stream"))
         .and(NotForContentType::const_new("application/vnd."))
         .and(NotForContentType::const_new("font/"))
+}
+
+/// A response the compression layer leaves alone (`Content-Encoding:
+/// identity`): one carrying a fresh secret (an API token, a TOTP secret,
+/// recovery codes), whose compressed length could leak it next to
+/// attacker-influenced content (BREACH).
+pub struct Identity<T>(pub T);
+
+impl<T: IntoResponse> IntoResponse for Identity<T> {
+    fn into_response(self) -> Response {
+        let mut r = self.0.into_response();
+        r.headers_mut().insert(
+            header::CONTENT_ENCODING,
+            HeaderValue::from_static("identity"),
+        );
+        r
+    }
 }
 
 pub fn layer() -> CompressionLayer<impl Predicate> {

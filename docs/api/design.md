@@ -77,7 +77,9 @@ are never re-rendered (1d). All routes are on a space host, **admin+** (Settings
   files and the live listing (reused for 30 s) — is invalidated by the activation / restore / reset (also when its
   transaction fails) or the deletion of that space, and bounded by `INVOICE__DESIGN_CACHE_MB` (LRU).
 - `invoice design push|pull|ls|rm --space` keep working on live directly (operator tool, no versions); the next
-  activation snapshots whatever is live. A running server picks a push up once its cached listing expires (≤ 30 s).
+  activation snapshots whatever is live. A running server picks a push up once its cached listing expires (≤ 30 s); an `rm`
+  of a listed file makes the next render list again. Cache invalidation is in-process — the app assumes a single
+  instance; any other instance would see an activation / restore / reset only after ≤ 30 s.
 - Space delete removes the whole `spaces/{id}/` prefix incl. drafts and versions (4a).
 
 ## UI (Settings → Design, admin+)

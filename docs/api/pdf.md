@@ -11,7 +11,9 @@ Documents are rendered to PDF by the mdcast service (`POST {INVOICE__MDCAST_URL}
 - The storage keys `design/…` (see [Storage](#storage)) override it **file by file**: the effective set is embedded ∪
   `design/`, the stored file wins on the same relative path (`design/logo.svg` → `logo.svg`). The prefix listing of a
   render is reused for up to 30 s per space and dropped by an activation / restore / reset (design edits apply
-  without a restart; a CLI `design push` or a direct bucket write shows within 30 s); file contents are cached in memory by key + version (ETag,
+  without a restart; a CLI `design push` / `rm` or a direct bucket write shows within 30 s; a listed file
+  deleted meanwhile makes the render list again once instead of failing). The invalidation is in-process: one server
+  instance is assumed; another instance would see an activation within 30 s); file contents are cached in memory by key + version (ETag,
   size, modification time from the listing), so only new or changed files are downloaded. Hidden files
   (`.`-prefixed path segments) are ignored; a file > 10 MB → render fails (`pdf_render_failed`, checked on the
   listed size before any download). Files get there with `invoice design push <dir>` (or straight into the bucket);

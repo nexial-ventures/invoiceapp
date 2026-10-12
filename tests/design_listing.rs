@@ -9,6 +9,8 @@ use bytes::Bytes;
 use common::TestDb;
 use common::design::{activate_ok, template, upload_ok};
 use common::mdcast::{PdfEnv, Rendered, get_raw};
+use common::storage::TestStorage;
+use invoice::pdf::design::{self, Cache};
 
 async fn preview(app: &axum::Router, env: &PdfEnv) -> Rendered {
     let (status, _, _) = get_raw(app, "/api/pdf/preview").await;
@@ -46,4 +48,20 @@ async fn activation_drops_the_cached_listing() {
     let third = preview(&app, &env).await;
     assert!(third.template.starts_with("// v1"), "{}", third.template);
     assert_eq!(third.data["assets"]["signature"], "signature.png");
+}
+
+#[tokio::test]
+async fn a_file_deleted_behind_a_cached_listing_is_relisted() {
+    let t = TestStorage::fs();
+    let s = &t.storage;
+    // Nothing fits the content cache: the second load downloads again.
+    let cache = Cache::with_limit(1);
+    s.put("design/logo.png", Bytes::from_static(b"png"))
+        .await
+        .expect("put");
+    let first = design::load(s, &cache, "a").await.expect("load");
+    assert_eq!(first.logo().as_deref(), Some("logo.png"));
+    s.delete("design/logo.png").await.expect("delete");
+    let second = design::load(s, &cache, "a").await.expect("relisted");
+    assert_eq!(second.logo(), None);
 }

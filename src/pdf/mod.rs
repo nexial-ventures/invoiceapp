@@ -118,7 +118,8 @@ impl PdfService {
         &self.storage
     }
 
-    /// Render `payload` with the current design (listed every time).
+    /// Render `payload` with the current live design (listing cached for
+    /// [`design_cache::LISTING_TTL`]).
     pub async fn render(&self, payload: Payload) -> Result<Vec<u8>, AppError> {
         self.render_with(payload, design::Layers::LIVE).await
     }

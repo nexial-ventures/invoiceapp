@@ -103,6 +103,14 @@ impl Cache {
         }
     }
 
+    /// Drop the listing of `scope` (it names a file that is gone); the
+    /// epoch for storing the next one.
+    pub(super) fn forget_listing(&self, scope: &str) -> u64 {
+        let mut inner = self.inner();
+        inner.listings.remove(scope);
+        inner.epoch
+    }
+
     /// Keep `files` as the listing of `scope`, unless an invalidation came
     /// after `epoch` (the listing may predate it). Expired listings of
     /// other spaces are dropped here.

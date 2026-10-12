@@ -4,9 +4,11 @@
 mod common;
 
 use axum::Router;
+use axum::http::Method;
 use axum::http::{HeaderMap, StatusCode, header};
 use common::mdcast::PdfEnv;
-use common::{TEST_TOKEN, TestDb, get, router, send};
+use common::{TEST_TOKEN, TestDb, authed, get, router, send};
+use serde_json::json;
 
 /// GET `uri` with `Accept-Encoding: encoding`: status, headers, raw body.
 async fn fetch(
@@ -63,4 +65,22 @@ async fn a_pdf_is_not_compressed() {
     assert_eq!(h[header::CONTENT_TYPE], "application/pdf");
     assert!(!h.contains_key(header::CONTENT_ENCODING), "{h:?}");
     assert_eq!(body, env.mock.last().pdf);
+}
+
+#[tokio::test]
+async fn a_fresh_token_is_never_compressed() {
+    let db = TestDb::new().await;
+    let app = router(db.conn.clone());
+    let body = json!({ "name": "ci", "role": "member", "expiresAt": null });
+    let mut req = authed(Method::POST, "/api/tokens", Some(body));
+    req.headers_mut()
+        .insert(header::ACCEPT_ENCODING, "gzip, br".parse().expect("header"));
+    let resp = send(app, req).await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    assert_eq!(resp.headers()[header::CONTENT_ENCODING], "identity");
+    let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20)
+        .await
+        .expect("read body");
+    let created: serde_json::Value = serde_json::from_slice(&bytes).expect("plain JSON");
+    assert!(created["token"].is_string(), "{created}");
 }

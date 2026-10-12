@@ -1,6 +1,7 @@
 //! The design file set: the default design embedded from `design/`,
 //! overridden file by file by the space's storage keys `design/…` (the
-//! listing reused for a few seconds and file contents cached by key +
+//! live listing reused for [`LISTING_TTL`](super::design_cache::LISTING_TTL)
+//! (30 s) and file contents cached by key +
 //! version in the bounded [`Cache`], so unchanged files are not downloaded
 //! again). The embedded files' digests are computed once per process.
 
@@ -249,21 +250,44 @@ pub async fn load_layers(
     scope: &str,
     layers: Layers<'_>,
 ) -> Result<Design, AppError> {
-    let custom = if layers.is_live() {
-        let custom = match cache.listing(scope) {
-            Ok(listed) => listed,
-            Err(epoch) => {
-                let listed = layers.overrides(storage).await?;
-                cache.store_listing(scope, epoch, listed.clone());
-                listed
-            }
-        };
+    if !layers.is_live() {
+        let custom = layers.overrides(storage).await?;
+        return assemble(storage, cache, scope, &custom, false).await;
+    }
+    let epoch = match cache.listing(scope) {
+        Ok(listed) => match assemble(storage, cache, scope, &listed, true).await {
+            // A file deleted outside the editor since the cached listing:
+            // list again, once.
+            Err(e) if is_gone(&e) => cache.forget_listing(scope),
+            other => return other,
+        },
+        Err(epoch) => epoch,
+    };
+    let listed = layers.overrides(storage).await?;
+    cache.store_listing(scope, epoch, listed.clone());
+    assemble(storage, cache, scope, &listed, true).await
+}
+
+/// A listed object missing from the storage (an inconsistency → 500
+/// elsewhere, so it arrives as `Internal`).
+fn is_gone(e: &AppError) -> bool {
+    matches!(e, AppError::Internal(e)
+        if matches!(e.downcast_ref(), Some(crate::storage::Error::NotFound(_))))
+}
+
+/// The design of embedded ∪ `custom`; `live`: `custom` is the live listing
+/// (its files cached, the scope's other cached files evicted).
+async fn assemble(
+    storage: &Storage,
+    cache: &Cache,
+    scope: &str,
+    custom: &BTreeMap<String, Object>,
+    live: bool,
+) -> Result<Design, AppError> {
+    if live {
         let keys: Vec<String> = custom.values().map(|o| scoped_key(scope, &o.key)).collect();
         cache.retain(scope, &keys);
-        custom
-    } else {
-        layers.overrides(storage).await?
-    };
+    }
     let mut files = BTreeMap::new();
     let mut digests = BTreeMap::new();
     for (path, e) in embedded_files() {
@@ -274,7 +298,7 @@ pub async fn load_layers(
         files.insert(path.clone(), e.bytes.clone());
         digests.insert(path.clone(), e.digest.clone());
     }
-    for (path, o) in &custom {
+    for (path, o) in custom {
         if path == QR_IMAGE {
             continue;
         }

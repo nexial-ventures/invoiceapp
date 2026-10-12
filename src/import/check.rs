@@ -40,8 +40,9 @@ pub async fn check(
     only: Option<&HashSet<String>>,
 ) -> Result<Vec<Option<Checked>>, AppError> {
     let plans: Vec<&Plan> = entries.iter().filter_map(|(_, p)| *p).collect();
-    // The database lookups run once for the whole batch; `looked[i]` is the
-    // position of entry `i` in their input.
+    // The database lookups run once for the whole batch over `lookup_plans`
+    // (the looked-up entries in order); `looked` counts them in the loop
+    // below, so it is each one's position in the result sets.
     let lookup_plans: Vec<&Plan> = entries
         .iter()
         .filter(|(key, _)| only.is_none_or(|o| o.contains(*key)))

@@ -5,6 +5,7 @@
 mod common;
 
 use chrono::NaiveDate;
+use common::auth::seed_space;
 use common::csvio::{HEADER, confirm, doc_id, file, row};
 use common::documents::{create_contact, set_company};
 use common::{TestDb, router};
@@ -191,4 +192,52 @@ async fn batched_lookups_match_the_per_entry_ones() {
             .expect("empty")
             .is_empty()
     );
+}
+
+#[tokio::test]
+async fn batched_lookups_stay_in_their_space() {
+    let db = TestDb::new().await;
+    seed(&db).await;
+    let (other, _) = seed_space(&db.conn, "beta", "beta@example.com", None).await;
+    let gama = party("Gama", Some("12345679"), None);
+    let beta = party("Beta s.r.o.", None, None);
+    let plans = [
+        plan(
+            ISSUED,
+            DocType::Invoice,
+            "F-1",
+            &gama,
+            ContactRule::IcoOrName,
+            None,
+        ),
+        plan(
+            RECEIVED,
+            DocType::Invoice,
+            "R-1",
+            &gama,
+            ContactRule::IcoOrName,
+            None,
+        ),
+        plan(
+            RECEIVED,
+            DocType::CreditNote,
+            "D-1",
+            &beta,
+            ContactRule::IcoDicName,
+            Some("R-2"),
+        ),
+    ];
+    let refs: &[&Plan] = &plans.iter().collect::<Vec<_>>();
+    let conn = &db.conn;
+    let sets = |space| async move {
+        [
+            batch::duplicates(conn, space, refs).await.expect("dup"),
+            batch::contacts(conn, space, refs).await.expect("contacts"),
+            batch::related(conn, space, refs).await.expect("related"),
+        ]
+    };
+    let own = sets(db.space).await;
+    assert!(own.iter().all(|s| !s.is_empty()), "{own:?}");
+    let foreign = sets(other).await;
+    assert!(foreign.iter().all(|s| s.is_empty()), "{foreign:?}");
 }

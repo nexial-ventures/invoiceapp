@@ -17,6 +17,7 @@ use crate::auth::ctx::{Authed, Read, Via};
 use crate::auth::entity::{api_token, user};
 use crate::auth::host::HostCtx;
 use crate::auth::mfa;
+use crate::compression::Identity;
 use crate::error::{AppError, ErrorBody, FieldErrors};
 use crate::extract::{ApiJson, ApiPath};
 use crate::space::Role;
@@ -174,7 +175,7 @@ pub async fn create(
     authed: Authed,
     Extension(host): Extension<HostCtx>,
     ApiJson(mut input): ApiJson<TokenInput>,
-) -> Result<(StatusCode, Json<CreatedToken>), AppError> {
+) -> Result<Identity<(StatusCode, Json<CreatedToken>)>, AppError> {
     let s = access.scope;
     // Minting a credential counts as a new login: the space's policy applies.
     if host.requires_mfa() && !authed.mfa_enabled {
@@ -201,13 +202,13 @@ pub async fn create(
     mfa::step_up(&state, &authed.user, mfa_on, code.as_deref(), &mut e).await?;
     e.into_result()?;
     let (row, token) = repo::create(&state.db, s.space, s.user_id, new).await?;
-    Ok((
+    Ok(Identity((
         StatusCode::CREATED,
         Json(CreatedToken {
             token_info: ApiToken::from_row(row, None),
             token,
         }),
-    ))
+    )))
 }
 
 /// Own token, or any token of the space for admin+; else 404.
