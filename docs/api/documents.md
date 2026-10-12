@@ -100,7 +100,9 @@ Payment { id, date, amount: string /* >0, doc currency */, note: string|null, cr
   currency; foreign currency → rate = manual `exchangeRate` or ČNB for `taxPointDate` (ČNB failure with no manual rate →
   422 `{"fields":{"exchangeRate":"required"}}`). In one transaction: allocate number from the doc type's series for the
   **issueDate year**, store `number`, `numberYear`, `numberSeq`; snapshot supplier (company), customer (contact), bank;
-  `variableSymbol` = digits of number (last 10) if null; recompute + store totals; status `issued`.
+  `variableSymbol` = digits of number (last 10) if null; recompute + store totals; status `issued`. The PDF is
+  rendered **before** that transaction (from a rolled-back dry run of it) and recorded in its commit — see
+  [pdf.md, Archive](pdf.md#archive).
 - `POST /api/documents/{id}/cancel` body `{ reason?: string }` → issued only (else 409 `invalid_state`); payments stay.
 - `POST /api/documents/{id}/mark-sent` body `{ sentAt?: datetime }` → issued only; idempotent (overwrites).
 - `PUT /api/documents/{id}/internal-note` body `{ internalNote }` → allowed in every status.
@@ -163,7 +165,11 @@ Issue
   `bankAccountId: required` (bank transfer without an existing account) / `invalid` (currency mismatch, any method).
 - ČNB unreachable **or** not listing the currency, with no manual rate → `exchangeRate: required`. A manual rate gives
   `exchangeRateSource: "manual"`, `exchangeRateDate: null`; a ČNB rate gives `"cnb"` and the ČNB publication date.
-- If the draft is edited between the issue checks and the locked write → 409 `conflict` (retry).
+- If the draft is edited, or its planned number taken, between the checks / render and the locked write, the issue
+  starts over with the current data (validations, rate, render): once after an edit (edited again → 409 `conflict`,
+  nothing issued), up to 5 times when only the number was taken by a concurrent issue.
+  No transaction is open while the PDF renders, so editing the draft or issuing other documents is never blocked by
+  a slow mdcast.
 - Supplier snapshot: company fields + `registration` + `vatPayer`; customer snapshot: contact fields with
   `registration: null`, `vatPayer: null`. `bankSnapshot` is set whenever the document has a bank account.
 

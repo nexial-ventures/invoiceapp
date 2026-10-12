@@ -5,32 +5,14 @@
 mod common;
 
 use axum::Router;
-use axum::extract::Request;
-use axum::http::{HeaderValue, Method, StatusCode, header};
+use axum::http::{Method, StatusCode};
 use common::auth::{As, on, seed_space};
 use common::documents::{create_doc, id, issuable, issue, item};
 use common::mcp::tool_as;
 use common::mdcast::PdfEnv;
-use common::members::{B_HOST, B_TOKEN};
+use common::members::{B_HOST, B_TOKEN, as_beta};
 use common::{TEST_HOST, TEST_TOKEN, TestDb, call};
 use serde_json::{Value, json};
-
-/// `app` as seen by space beta: every request goes to beta's host with
-/// beta's token, so the shared helpers (which use the default host and
-/// token) act in beta.
-fn as_beta(app: &Router) -> Router {
-    app.clone().layer(axum::middleware::map_request(
-        |mut req: Request| async move {
-            let h = req.headers_mut();
-            h.insert(header::HOST, HeaderValue::from_static(B_HOST));
-            if h.contains_key(header::AUTHORIZATION) {
-                let bearer = HeaderValue::from_str(&format!("Bearer {B_TOKEN}")).expect("header");
-                h.insert(header::AUTHORIZATION, bearer);
-            }
-            req
-        },
-    ))
-}
 
 /// The same data in a space: company, contact, bank, an issued invoice.
 async fn fill(app: &Router) -> (Value, Value) {
@@ -174,11 +156,11 @@ async fn two_spaces_with_identical_data_stay_apart() {
     assert_eq!(csv.rows.len(), 1, "only acme's document");
 
     // Archives live under each space's prefix.
-    let a_key = db.key(&format!("documents/2026/{}.pdf", id(&a_doc)));
+    let a_key = db.key(&common::documents::archive_rel(&db.conn, &a_doc).await);
     let b_key = format!(
-        "{}/documents/2026/{}.pdf",
+        "{}/{}",
         beta.storage_prefix(),
-        id(&b_doc)
+        common::documents::archive_rel(&db.conn, &b_doc).await
     );
     assert!(env.storage.bytes(&a_key).await.is_some(), "{a_key}");
     assert!(env.storage.bytes(&b_key).await.is_some(), "{b_key}");

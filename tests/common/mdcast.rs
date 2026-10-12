@@ -4,7 +4,8 @@
 //!
 //! A template containing `// mock-fail` fails like a template that does not
 //! compile; `// mock-fail-en` only for the `en` sample (design checks).
-//! `// mock-slow` delays the answer by half a second.
+//! `// mock-slow` delays the answer by half a second; [`MdcastMock::delay`]
+//! delays every render.
 
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
@@ -40,6 +41,9 @@ struct Inner {
     uploads: usize,
     /// `Some((status, code, message))` → every render fails with that error.
     fail: Option<(u16, String, String)>,
+    /// Render requests received (before any delay or failure).
+    started: usize,
+    delay: Option<std::time::Duration>,
 }
 
 #[derive(Clone, Default)]
@@ -74,6 +78,27 @@ impl MdcastMock {
     pub fn fail_as(&self, status: u16, code: &str, message: &str) {
         self.lock().fail = Some((status, code.to_string(), message.to_string()));
     }
+
+    /// Every render answers only after `d`.
+    pub fn delay(&self, d: std::time::Duration) {
+        self.lock().delay = Some(d);
+    }
+
+    /// Render requests received so far (also failed or still running ones).
+    pub fn started(&self) -> usize {
+        self.lock().started
+    }
+
+    /// Wait until `n` render requests have arrived (5 s at most).
+    pub async fn wait_started(&self, n: usize) {
+        for _ in 0..500 {
+            if self.started() >= n {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        panic!("only {} of {n} renders started", self.started());
+    }
 }
 
 async fn render(State(m): State<MdcastMock>, body: Bytes) -> Response {
@@ -84,6 +109,22 @@ async fn render(State(m): State<MdcastMock>, body: Bytes) -> Response {
             return (StatusCode::BAD_REQUEST, axum::Json(body)).into_response();
         }
     };
+    // The blob negotiation's first request (409) does not count as a start.
+    let first_try = !req["assets"].as_object().is_some_and(|a| {
+        let inner = m.lock();
+        a.values()
+            .all(|d| d.as_str().is_some_and(|d| inner.known.contains(d)))
+    });
+    let delay = {
+        let mut inner = m.lock();
+        if !first_try {
+            inner.started += 1;
+        }
+        inner.delay
+    };
+    if let Some(d) = delay.filter(|_| !first_try) {
+        tokio::time::sleep(d).await;
+    }
     if req["template_source"]
         .as_str()
         .is_some_and(|t| t.contains("// mock-slow"))

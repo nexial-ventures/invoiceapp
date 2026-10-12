@@ -67,10 +67,11 @@ save (refreshed on every PUT). `relatedDocuments` lists the link in both directi
 ## Original PDF (received and imported issued documents)
 - `PUT /api/documents/{id}/original` — `multipart/form-data`, one part `file`; must start with `%PDF-`, ≤ 20 MB
   (413 `{"code":"too_large"}`; other → 422 `{"fields":{"file":"invalid"}}`). Replaces any previous original. Stored
-  under the storage key `documents/{year}/{id}-original-{sha8}.pdf` (atomic put + sha256 like the archive; see
+  under the storage key `documents/{year}/{id}-original-{sha8}-{nonce}.pdf` (atomic put + sha256 like the archive; see
   [pdf.md § Storage](pdf.md#storage)); storage failure → 503 `storage_unavailable`, nothing changed. Over the space's
   storage quota ([spaces.md](spaces.md#limits); a replacement counts only what it adds) → 422
-  `{"code":"quota_exceeded","detail":"<used> / <limit> MB"}`, nothing changed.
+  `{"code":"quota_exceeded","detail":"<used> / <limit> MB"}`, nothing changed (the object, written before the
+  transaction, is removed again).
   Allowed for every received document and for imported issued documents (any status); a non-imported issued
   document → 409 `invalid_state` (its PDF is the rendered archive).
 - `DELETE /api/documents/{id}/original` → 204 (same rules).
@@ -173,10 +174,12 @@ Original PDF
 - 20 MB = 20 MiB (20 971 520 bytes, inclusive). The route's body limit is 20 MiB + 64 KiB; a larger body → 413
   `too_large` as well. Parts other than `file` are ignored; no `file` part → `file: required`; a malformed multipart
   body → 400 `bad_request`. Success → 204 without a body.
-- Stored as `documents/{year}/{id}-original-{sha8}.pdf` (first 8 hex digits of the sha256; year = `numberYear` ??
-  `issueDate` year) instead of `{id}-original.pdf`: a replacement is written under its own name inside the
-  transaction, the previous file is removed only after the commit (the new one if the commit fails); a same-content
-  re-upload reuses the same file. `DELETE …/original` is idempotent (204 without an original). A native document
+- Stored as `documents/{year}/{id}-original-{sha8}-{nonce}.pdf` (first 8 hex digits of the sha256 + 8 random hex
+  digits, a new key per upload; year = `numberYear` ??
+  `issueDate` year) instead of `{id}-original.pdf`: a replacement is written under its own name **before**
+  the transaction (no row lock held across the storage call), the previous file is removed only after the commit
+  (the new one if the transaction fails and no row points at it); a same-content
+  re-upload gets its own key too, the previous one is removed after its commit. `DELETE …/original` is idempotent (204 without an original). A native document
   (draft included) → 409 `invalid_state`.
 - The download filename is the document's `number` (imported drafts included).
 

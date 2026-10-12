@@ -9,6 +9,7 @@ use crate::ares::DEFAULT_ARES_URL;
 use crate::auth::google::GoogleConfig;
 use crate::auth::host::PublicUrl;
 use crate::cnb::DEFAULT_CNB_URL;
+use crate::db::DEFAULT_MAX_CONNECTIONS;
 use crate::email::SmtpConfig;
 use crate::pdf::DEFAULT_MDCAST_URL;
 use crate::secret::{Secret, SecretKey};
@@ -50,6 +51,11 @@ pub struct Config {
     pub mdcast_url: String,
     /// Optional Bearer token for mdcast (`INVOICE__MDCAST_TOKEN`).
     pub mdcast_token: Option<Secret<String>>,
+    /// `INVOICE__DB_MAX_CONNECTIONS`: pool size (default 20).
+    #[serde(default, rename = "db_max_connections")]
+    raw_db_max_connections: Option<String>,
+    #[serde(skip)]
+    pub db_max_connections: u32,
     /// `INVOICE__STORAGE_KIND` / `INVOICE__STORAGE_DIR` / `INVOICE__S3__*`.
     #[serde(skip)]
     pub storage: StorageConfig,
@@ -92,6 +98,11 @@ impl Config {
             cfg.raw_trust_forwarded.as_deref(),
         )?;
         cfg.secret_key = secret_key(cfg.raw_secret_key.as_ref())?;
+        cfg.db_max_connections = positive(
+            "INVOICE__DB_MAX_CONNECTIONS",
+            cfg.raw_db_max_connections.as_deref(),
+            DEFAULT_MAX_CONNECTIONS,
+        )?;
         let cfg = cfg.normalized();
         cfg.validate()?;
         Ok(cfg)
@@ -155,6 +166,17 @@ fn flag(name: &str, raw: Option<&str>) -> Result<bool> {
         None | Some("") | Some("false") | Some("0") => Ok(false),
         Some("true") | Some("1") => Ok(true),
         Some(_) => bail!("{name} must be true or false"),
+    }
+}
+
+/// A count of at least 1: unset or empty → `default`.
+fn positive(name: &str, raw: Option<&str>, default: u32) -> Result<u32> {
+    match raw.map(str::trim).filter(|s| !s.is_empty()) {
+        None => Ok(default),
+        Some(s) => match s.parse::<u32>() {
+            Ok(n) if n >= 1 => Ok(n),
+            _ => bail!("{name} must be a whole number of at least 1"),
+        },
     }
 }
 

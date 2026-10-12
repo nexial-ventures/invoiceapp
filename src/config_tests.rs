@@ -104,6 +104,33 @@ fn pdf_settings_are_read() {
 }
 
 #[test]
+fn pool_size() {
+    let base = [
+        ("INVOICE__DATABASE_URL", "postgres://x"),
+        ("INVOICE__PUBLIC_URL", "http://localhost:3000"),
+    ];
+    let cfg = Config::from_source(env(&base)).expect("defaults");
+    assert_eq!(cfg.db_max_connections, DEFAULT_MAX_CONNECTIONS);
+    let mut pairs = base.to_vec();
+    pairs.push(("INVOICE__DB_MAX_CONNECTIONS", " 50 "));
+    let cfg = Config::from_source(env(&pairs)).expect("set");
+    assert_eq!(cfg.db_max_connections, 50);
+    let mut pairs = base.to_vec();
+    pairs.push(("INVOICE__DB_MAX_CONNECTIONS", ""));
+    let cfg = Config::from_source(env(&pairs)).expect("empty");
+    assert_eq!(cfg.db_max_connections, DEFAULT_MAX_CONNECTIONS);
+    for bad in ["0", "-1", "lots"] {
+        let mut pairs = base.to_vec();
+        pairs.push(("INVOICE__DB_MAX_CONNECTIONS", bad));
+        let err = Config::from_source(env(&pairs)).expect_err(bad);
+        assert!(
+            format!("{err:#}").contains("INVOICE__DB_MAX_CONNECTIONS"),
+            "{err:#}"
+        );
+    }
+}
+
+#[test]
 fn empty_pdf_settings_mean_defaults() {
     let cfg = Config::from_source(env(&[
         ("INVOICE__DATABASE_URL", "postgres://x"),

@@ -47,10 +47,13 @@ async fn upload_replace_serve_delete(storage: TestStorage) {
     assert_eq!(d["original"]["size"], json!(PDF.len()));
     assert_eq!(d["pdf"], Value::Null);
     let sha = invoice::storage::sha256_hex(PDF);
-    let rel = db.key(&format!(
-        "documents/2026/{doc_id}-original-{}.pdf",
-        &sha[..8]
-    ));
+    let prefix = db.key(&format!("documents/2026/{doc_id}-original-{}-", &sha[..8]));
+    let keys = env.storage.keys(&db.key("documents/2026")).await;
+    let rel = keys
+        .iter()
+        .find(|k| k.starts_with(&prefix))
+        .cloned()
+        .expect("original stored under a per-upload key");
     let originals = || async {
         let prefix = db.key(&format!("documents/2026/{doc_id}-original"));
         let keys = env.storage.keys(&db.key("documents/2026")).await;
@@ -73,7 +76,7 @@ async fn upload_replace_serve_delete(storage: TestStorage) {
     let (_, _, bytes) = get_raw(&app, &uri).await;
     assert_eq!(bytes.as_slice(), other);
     assert_eq!(env.mock.count(), 0, "never rendered");
-    // The replaced file is gone; a same-content re-upload keeps the one file.
+    // The replaced file is gone; a same-content re-upload replaces it too.
     assert_eq!(env.storage.bytes(&rel).await, None);
     assert_eq!(originals().await, 1);
     let (status, _) = upload(&app, &doc_id, other).await;

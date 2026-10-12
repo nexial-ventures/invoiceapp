@@ -67,6 +67,12 @@ fn map_err(key: &str, err: object_store::Error) -> Error {
     }
 }
 
+/// 8 random hex digits: makes a content-derived key unique per write
+/// attempt, so a failed attempt only ever removes its own object.
+pub fn nonce() -> String {
+    uuid::Uuid::new_v4().simple().to_string()[..8].to_string()
+}
+
 pub fn sha256_hex(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()

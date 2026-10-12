@@ -78,6 +78,70 @@ async fn isdoc_confirm_refuses_pdfs_over_the_quota() {
     assert_eq!(results[0]["status"], "imported", "{results:?}");
 }
 
+/// The space's quota lock, held until the returned transaction ends.
+async fn quota_lock(db: &TestDb) -> sea_orm::DatabaseTransaction {
+    use sea_orm::{ConnectionTrait, TransactionTrait};
+    let txn = db.conn.begin().await.expect("begin");
+    txn.execute_unprepared(&format!(
+        "SELECT pg_advisory_xact_lock(hashtextextended('space-quota:{}', 0))",
+        db.space
+    ))
+    .await
+    .expect("take the quota lock");
+    txn
+}
+
+async fn wait_for_lock_waiter(db: &TestDb) {
+    let waiting = "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted";
+    for _ in 0..500 {
+        if count(&db.conn, waiting).await > 0 {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    panic!("nobody waited on the quota lock");
+}
+
+#[tokio::test]
+async fn an_entry_refused_by_the_quota_leaves_no_object() {
+    let db = TestDb::new().await;
+    let env = PdfEnv::new();
+    let app = env.router(db.conn.clone());
+    set_company(&app, true).await;
+    set_quota(&db.conn, db.space, MIB).await;
+    let a = isdocx("A-1", &pdf_of(600 * KIB));
+    let files = [("a.isdocx", a.as_slice())];
+
+    // The batch check passes; the quota shrinks while the entry, its PDF
+    // already put, waits for the quota lock.
+    let held = quota_lock(&db).await;
+    let task = {
+        let app = app.clone();
+        let form = form(
+            &files,
+            Some(&json!({ "selected": ["a.isdocx"] }).to_string()),
+        );
+        tokio::spawn(async move { post_form(&app, "/api/import/isdoc/confirm", form).await })
+    };
+    wait_for_lock_waiter(&db).await;
+    set_quota(&db.conn, db.space, 100 * KIB as u64).await;
+    held.commit().await.expect("release the quota lock");
+
+    let (status, body) = task.await.expect("task");
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.to_string().contains("quota_exceeded"), "{body}");
+    let docs = format!(
+        "SELECT count(*) FROM documents WHERE space_id = '{}'",
+        db.space
+    );
+    assert_eq!(count(&db.conn, &docs).await, 0);
+    assert_eq!(used(&app).await, 0);
+    assert!(
+        env.storage.keys(&db.key("documents")).await.is_empty(),
+        "the entry's PDF was removed"
+    );
+}
+
 #[tokio::test]
 async fn design_uploads_count_toward_the_space_quota() {
     let db = TestDb::new().await;

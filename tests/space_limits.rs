@@ -85,6 +85,9 @@ async fn original_uploads_respect_the_quota_and_deletes_free_it() {
     );
     let (_, d) = call(&app, Method::GET, &format!("/api/documents/{second}"), None).await;
     assert_eq!(d["original"], serde_json::Value::Null, "nothing stored");
+    // The object put before the transaction was removed with the refusal.
+    let keys = env.storage.keys(&db.key("documents")).await;
+    assert!(!keys.iter().any(|k| k.contains(&second)), "{keys:?}");
     // Replacing counts only the difference: 600 → 1000 KiB fits 1 MiB.
     let (status, body) = upload(&app, &first, &pdf_of(1000 * KIB)).await;
     assert_eq!(status, StatusCode::NO_CONTENT, "{body}");

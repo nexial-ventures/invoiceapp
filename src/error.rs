@@ -133,8 +133,9 @@ pub enum AppError {
     #[error("PDF service unavailable: {0}")]
     PdfUnavailable(String),
 
-    /// mdcast answered but the render failed; the message (typst diagnostics
-    /// of the user's own template) is returned to the client as `detail`.
+    /// mdcast answered `render_failed`; its message is returned as `detail`.
+    /// mdcast sanitises it to `render failed (incident <id>)` — the typst
+    /// diagnostics stay in mdcast's logs, the incident id finds them.
     #[error("PDF render failed: {0}")]
     PdfRenderFailed(String),
 
@@ -271,7 +272,8 @@ pub struct ErrorBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fields: Option<BTreeMap<String, String>>,
     /// For `mfa_required` after an invitation created the account
-    /// (`account_created`), `pdf_render_failed` (the render service's message), `smtp_failed`
+    /// (`account_created`), `pdf_render_failed` (the render service's message, an incident id),
+    /// `smtp_failed`
     /// (the SMTP server's response), `template_invalid` (line + message),
     /// `design_invalid` (locale + render message), `quota_exceeded` (usage) and a
     /// `validation` error that names the offending input part (e.g. the CSV

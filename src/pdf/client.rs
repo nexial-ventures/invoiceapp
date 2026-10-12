@@ -7,8 +7,9 @@ use crate::error::AppError;
 
 /// Unreachable, credentials refused, or a gateway answering for a dead
 /// upstream → 503 `pdf_unavailable`; a template that does not compile →
-/// 502 `pdf_render_failed` with mdcast's message (diagnostics of the user's
-/// own template); anything else → 502 without detail (logged only).
+/// 502 `pdf_render_failed` with mdcast's message as `detail` (mdcast
+/// sanitises it to `render failed (incident <id>)`; the typst diagnostics
+/// are only in its logs); anything else → 502 without detail (logged only).
 pub fn map_error(e: E) -> AppError {
     match e {
         E::Transport(_) | E::Unauthorized { .. } | E::Config(_) => {

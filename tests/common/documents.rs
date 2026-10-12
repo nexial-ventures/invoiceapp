@@ -75,6 +75,25 @@ pub fn id(doc: &Value) -> String {
     doc["id"].as_str().expect("document id").to_string()
 }
 
+/// The archive key (within its space) of an issued document, as stored in
+/// `pdf_path` (`documents/{year}/{id}-{sha8}-{nonce}.pdf`).
+pub async fn archive_rel(db: &sea_orm::DatabaseConnection, doc: &Value) -> String {
+    use sea_orm::{ConnectionTrait, Statement};
+    let row = db
+        .query_one(Statement::from_sql_and_values(
+            db.get_database_backend(),
+            "SELECT pdf_path FROM documents WHERE id = $1",
+            [id(doc).parse::<uuid::Uuid>().expect("uuid").into()],
+        ))
+        .await
+        .expect("read pdf_path")
+        .expect("document row");
+    let rel: String = row.try_get_by_index(0).expect("archived document");
+    let sha = doc["pdf"]["sha256"].as_str().expect("sha256");
+    assert!(rel.contains(&format!("-{}-", &sha[..8])), "{rel}");
+    rel
+}
+
 pub async fn issue(app: &Router, doc_id: &str) -> (StatusCode, Value) {
     call(
         app,

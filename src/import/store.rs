@@ -26,7 +26,6 @@ use crate::settings::doc_type::{DocType, ISSUED, RECEIVED};
 use crate::settings::entity::bank_account;
 use crate::settings::repo::number_series;
 use crate::space::{SpaceId, limits};
-use crate::storage;
 use crate::validation::normalize_iban;
 
 /// What a source decides per entry beyond the plan.
@@ -140,19 +139,15 @@ fn payable(t: DocType) -> bool {
     t != DocType::AdvanceTaxDoc
 }
 
-struct Stored {
-    id: Uuid,
-    file: Option<String>,
-}
-
 async fn insert(
     txn: &DatabaseTransaction,
     space: SpaceId,
+    id: Uuid,
     plan: &Plan,
-    file: Option<&[u8]>,
+    file: Option<&original::Original>,
     rate: &Rate,
     opts: &Options,
-) -> Result<Stored, AppError> {
+) -> Result<(), AppError> {
     // Serialise imports of the same document and re-check under the lock: no
     // unique index covers received documents (supplier + supplier number).
     txn.query_one(Statement::from_sql_and_values(
@@ -164,7 +159,6 @@ async fn insert(
     if lookup::duplicate(txn, space, plan).await? {
         return Err(AppError::Conflict(DUPLICATE.into()));
     }
-    let id = Uuid::new_v4();
     let now = chrono::Utc::now();
     let issued = plan.direction == ISSUED;
     let contact_id = match plan.counterparty() {
@@ -182,14 +176,14 @@ async fn insert(
     } else {
         (None, None)
     };
-    let (number, year, seq) = if issued {
-        (plan.number.clone(), plan.issue_date.year(), None)
+    let year = year(plan);
+    let (number, seq) = if issued {
+        (plan.number.clone(), None)
     } else {
-        let year = received_date.year();
         let (n, seq) =
             number_series::allocate_number(txn, space, plan.doc_type.series(RECEIVED), year)
                 .await?;
-        (n, year, Some(seq))
+        (n, Some(seq))
     };
     let mut row = document::ActiveModel {
         id: Set(id),
@@ -249,20 +243,9 @@ async fn insert(
         ..Default::default()
     };
     write::apply_totals(&mut row, &plan.totals);
-    let stored_file = match file {
-        Some(bytes) => {
-            let sha = storage::sha256_hex(bytes);
-            let rel = original::relative_path(year, id, &sha);
-            row.original_path = Set(Some(rel.clone()));
-            row.original_sha256 = Set(Some(sha));
-            row.original_size = Set(Some(
-                i64::try_from(bytes.len()).map_err(|_| AppError::TooLarge)?,
-            ));
-            row.original_uploaded_at = Set(Some(now.into()));
-            Some(rel)
-        }
-        None => None,
-    };
+    if let Some(f) = file {
+        f.apply(&mut row, now);
+    }
     row.insert(txn).await.map_err(|e| {
         number_violation(e, || {
             AppError::Conflict(if issued { DUPLICATE } else { NUMBER_TAKEN }.into())
@@ -289,15 +272,22 @@ async fn insert(
         .await?;
         payments::resum(txn, id).await?;
     }
-    Ok(Stored {
-        id,
-        file: stored_file,
-    })
+    Ok(())
 }
 
-/// Store one document: rows first, then the PDF inside the transaction. A
-/// failed write or commit removes the possibly written PDF again (unless a
-/// row points at it).
+/// The number year of the stored document (also the year of its original's key).
+fn year(plan: &Plan) -> i32 {
+    if plan.direction == ISSUED {
+        plan.issue_date.year()
+    } else {
+        plan.received_date().year()
+    }
+}
+
+/// Store one document: the PDF first (own per-attempt key, so no row lock
+/// is held across the storage call), then the rows in one transaction. A
+/// failed transaction removes the written PDF again (unless a row points at
+/// it).
 pub async fn import(
     db: &DatabaseConnection,
     pdf: &PdfService,
@@ -306,36 +296,46 @@ pub async fn import(
     rate: &Rate,
     opts: &Options,
 ) -> Result<Uuid, AppError> {
-    if file.is_some() {
-        ensure_usage(db, pdf.space_id(), pdf.storage()).await?;
-    }
-    let txn = db.begin().await?;
     let space = pdf.space_id();
-    let added = file.as_ref().map_or(0, |b| b.len() as u64);
-    let inserted = async {
-        let stored = insert(&txn, space, plan, file.as_deref(), rate, opts).await?;
-        limits::check_documents(&txn, space, added, 0).await?;
-        Ok(stored)
+    let id = Uuid::new_v4();
+    let stored = match file {
+        Some(bytes) => {
+            ensure_usage(db, space, pdf.storage()).await?;
+            let f = original::Original::new(year(plan), id, &bytes)?;
+            pdf.storage().put(&f.rel, bytes).await?;
+            Some(f)
+        }
+        None => None,
+    };
+    let added = stored
+        .as_ref()
+        .map_or(0, |f| u64::try_from(f.size).unwrap_or(0));
+    let txn = match db.begin().await {
+        Ok(txn) => txn,
+        Err(e) => {
+            if let Some(f) = &stored {
+                pdf.storage().remove(&f.rel).await;
+            }
+            return Err(e.into());
+        }
+    };
+    let result = async {
+        insert(&txn, space, id, plan, stored.as_ref(), rate, opts).await?;
+        // Last, under the space's quota lock; a refusal removes the object.
+        limits::check_documents(&txn, space, added, 0).await
     }
     .await;
-    let stored = match inserted {
-        Ok(s) => s,
-        Err(e) => return Err(rollback(txn, e).await),
+    let result = match result {
+        Ok(()) => txn.commit().await.map_err(AppError::from),
+        Err(e) => Err(rollback(txn, e).await),
     };
-    if let (Some(rel), Some(bytes)) = (&stored.file, file)
-        && let Err(e) = pdf.storage().put(rel, bytes).await
-    {
-        let e = rollback(txn, e.into()).await;
-        original::remove_unreferenced(db, pdf, rel).await;
+    if let Err(e) = result {
+        if let Some(f) = &stored {
+            original::remove_unreferenced(db, pdf, &f.rel).await;
+        }
         return Err(e);
     }
-    if let Err(e) = txn.commit().await {
-        if let Some(rel) = &stored.file {
-            original::remove_unreferenced(db, pdf, rel).await;
-        }
-        return Err(e.into());
-    }
-    Ok(stored.id)
+    Ok(id)
 }
 
 async fn rollback(txn: DatabaseTransaction, e: AppError) -> AppError {
