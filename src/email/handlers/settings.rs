@@ -9,6 +9,7 @@ use utoipa::ToSchema;
 
 use super::{mailer, reply_to, sample_contexts};
 use crate::app::AppState;
+use crate::auth::ratelimit::TEMPLATE_SPACE;
 use crate::auth::{Manage, Read, Write};
 use crate::email::input::parse_address;
 use crate::email::limits::{self, Kind};
@@ -67,16 +68,22 @@ fn path_locale(s: &str) -> Result<Locale, AppError> {
     Locale::parse(s).ok_or(AppError::NotFound)
 }
 
-/// Compile + strict render on both samples (presence and limits are
-/// checked by [`TemplateInput::validate`]).
+/// Compile + strict render on every sample (presence and limits are
+/// checked by [`TemplateInput::validate`]); `TEMPLATE_SPACE` per space.
 async fn validate(
     state: &AppState,
     space: SpaceId,
     locale: Locale,
     t: &Template,
 ) -> Result<Rendered, AppError> {
+    let key = space.to_string();
+    let bucket = [(TEMPLATE_SPACE, key.as_str())];
+    state.limiter.reserve(&bucket)?;
     let company = company::get(&state.db, space).await?;
-    templates::validate(t, &sample_contexts(&state.db, &company, locale).await?)
+    let samples = sample_contexts(&state.db, &company, locale).await?;
+    // No renderer free: the check never ran, so it does not count.
+    let result = state.templates.validate(t, &samples).await;
+    state.limiter.refund_if_busy(&bucket, result)
 }
 
 #[utoipa::path(
@@ -186,7 +193,8 @@ pub async fn list_templates(
         (status = 200, body = TemplateEntry),
         (status = 404, description = "Unknown locale", body = ErrorBody),
         (status = 422, description = "`validation` (`subject`: `required` / `too_long`, `body`: `required` / `too_long`) or `template_invalid` (+ `fields`, `detail`)", body = ErrorBody),
-        (status = 503, description = "`storage_unavailable`", body = ErrorBody),
+        (status = 429, description = "`rate_limited` + `Retry-After`: 60 template saves / previews per hour per space", body = ErrorBody),
+        (status = 503, description = "`storage_unavailable`, `busy` (every template renderer taken)", body = ErrorBody),
     )
 )]
 pub async fn put_template(
@@ -237,6 +245,8 @@ pub async fn delete_template(
         (status = 200, description = "Rendered on the sample invoice; nothing stored", body = Rendered),
         (status = 404, description = "Unknown locale", body = ErrorBody),
         (status = 422, description = "As for `PUT`", body = ErrorBody),
+        (status = 429, description = "As for `PUT`", body = ErrorBody),
+        (status = 503, description = "`storage_unavailable`, `busy`", body = ErrorBody),
     )
 )]
 pub async fn preview(

@@ -63,6 +63,14 @@ pub const INVITE_USER: Limit = hard("invite-user", 20, HOUR);
 pub const INVITE_SPACE: Limit = hard("invite-space", 50, HOUR);
 /// Design activations and restores per space (each costs two renders).
 pub const DESIGN_SPACE: Limit = hard("design-space", 10, HOUR);
+/// PDF previews per space (live sample, design draft, draft document):
+/// `pdf::limits`, which also allows only one in flight per space.
+pub const PREVIEW_SPACE: Limit = hard("preview-space", 60, HOUR);
+/// E-mail template saves and previews per space (each renders the samples
+/// in a child process, `email::sandbox`).
+pub const TEMPLATE_SPACE: Limit = hard("template-space", 60, HOUR);
+/// E-mail prefills per space (each renders the template in a child).
+pub const PREFILL_SPACE: Limit = hard("prefill-space", 120, HOUR);
 
 /// The [`LOGIN_EMAIL`] key: one e-mail from one client (its rate-limit IP
 /// key — an IPv6 client by its /64).

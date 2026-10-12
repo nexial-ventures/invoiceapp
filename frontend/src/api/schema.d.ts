@@ -2515,6 +2515,7 @@ export interface components {
             /**
              * @description For `mfa_required` after an invitation created the account
              *     (`account_created`), `pdf_render_failed` (the render service's message, an incident id),
+             *     `pdf_unavailable` when every render slot is taken (`busy`),
              *     `smtp_failed`
              *     (the SMTP server's response), `template_invalid` (line + message),
              *     `design_invalid` (locale + render message), `quota_exceeded` (usage) and a
@@ -5258,7 +5259,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description `storage_unavailable` */
+            /** @description `rate_limited` + `Retry-After`: 120 prefills per hour per space */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `storage_unavailable`, `busy` (every template renderer taken) */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -5874,6 +5884,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            /** @description `rate_limited`: a preview of the space is in flight, or 60 in the last hour (draft documents only) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
             /** @description `pdf_render_failed` (+ `detail`) */
             502: {
                 headers: {
@@ -5883,7 +5902,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description `pdf_unavailable`, `storage_unavailable` */
+            /** @description `pdf_unavailable` (`detail: busy` when every render slot is taken), `storage_unavailable` */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -7006,6 +7025,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            /** @description `rate_limited`: a preview of the space is in flight, or 60 in the last hour */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
             /** @description `pdf_render_failed` (+ `detail`) */
             502: {
                 headers: {
@@ -7015,7 +7043,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description `pdf_unavailable`, `storage_unavailable` */
+            /** @description `pdf_unavailable` (`detail: busy` when every render slot is taken), `storage_unavailable` */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -7240,6 +7268,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            /** @description `rate_limited`: a preview of the space is in flight, or 60 in the last hour */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
             /** @description `pdf_render_failed` (+ `detail`) */
             502: {
                 headers: {
@@ -7249,7 +7286,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description `pdf_unavailable`, `storage_unavailable` */
+            /** @description `pdf_unavailable` (`detail: busy` when every render slot is taken), `storage_unavailable` */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -7825,7 +7862,16 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description `storage_unavailable` */
+            /** @description `rate_limited` + `Retry-After`: 60 template saves / previews per hour per space */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `storage_unavailable`, `busy` (every template renderer taken) */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -7913,6 +7959,24 @@ export interface operations {
             };
             /** @description As for `PUT` */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description As for `PUT` */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `storage_unavailable`, `busy` */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

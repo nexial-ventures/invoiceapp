@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 use super::{mailer, reply_to};
 use crate::app::AppState;
+use crate::auth::ratelimit::PREFILL_SPACE;
 use crate::auth::{Read, Write};
 use crate::document::entity::document;
 use crate::document::line::Direction;
@@ -105,7 +106,8 @@ async fn live_contact_email(
         (status = 404, description = "`not_found` (also a received document)", body = ErrorBody),
         (status = 409, description = "`invalid_state` (a draft)", body = ErrorBody),
         (status = 422, description = "`locale`: `invalid`; `template_invalid`", body = ErrorBody),
-        (status = 503, description = "`storage_unavailable`", body = ErrorBody),
+        (status = 429, description = "`rate_limited` + `Retry-After`: 120 prefills per hour per space", body = ErrorBody),
+        (status = 503, description = "`storage_unavailable`, `busy` (every template renderer taken)", body = ErrorBody),
     )
 )]
 pub async fn prefill(
@@ -134,7 +136,14 @@ pub async fn prefill(
         Company::from_row(&company),
         live_email.as_deref(),
     );
-    let rendered = templates::render(&template, &Value::from_serialize(&ctx))?;
+    let key = space.to_string();
+    let bucket = [(PREFILL_SPACE, key.as_str())];
+    state.limiter.reserve(&bucket)?;
+    let rendered = state
+        .templates
+        .render(&template, &Value::from_serialize(&ctx))
+        .await;
+    let rendered = state.limiter.refund_if_busy(&bucket, rendered)?;
     let to = ctx.contact.and_then(|c| c.email);
     let row = src.row;
     let stem = export::stem(&row);

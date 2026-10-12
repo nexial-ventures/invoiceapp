@@ -157,7 +157,8 @@ pub fn serves_original(direction: Direction, imported: bool) -> bool {
 
 /// The PDF for `GET /api/documents/{id}/pdf`: a received or imported
 /// document serves its uploaded original (none → `pdf_missing`), never a
-/// render; a draft is rendered live and never stored; an issued or cancelled
+/// render; a draft is rendered live as a preview ([`super::limits`]) and never
+/// stored; an issued or cancelled
 /// document serves its archive (stored ones streamed).
 pub async fn document_pdf(
     db: &DatabaseConnection,
@@ -171,7 +172,7 @@ pub async fn document_pdf(
         return Ok((row, body));
     }
     if row.status == Status::Draft {
-        let (row, bytes) = render(db, pdf, id).await?;
+        let (row, bytes) = render(db, &pdf.preview(), id).await?;
         return Ok((row, PdfBody::Rendered(bytes)));
     }
     let body = match &row.pdf_path {

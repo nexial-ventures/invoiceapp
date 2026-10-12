@@ -48,7 +48,8 @@ are never re-rendered (1d). All routes are on a space host, **admin+** (Settings
   path → 404.
 - `DELETE /api/pdf/design/draft` → 204 discard the whole draft.
 - `GET /api/pdf/design/draft/preview?locale=cs|en` → `200 application/pdf`: the 1d sample invoice rendered with
-  **embedded ∪ live ∪ draft (minus deletions)**; render errors as 1d (`502 pdf_render_failed` with `detail`).
+  **embedded ∪ live ∪ draft (minus deletions)**; render errors as 1d (`502 pdf_render_failed` with `detail`). A
+  preview under the per-space preview limits ([pdf.md, Render limits](pdf.md#render-limits)): 429 `rate_limited`.
 - `POST /api/pdf/design/activate` → `200 { version }`: (1) renders the sample with the draft set in **both**
   locales, **without** holding the lock — a template failure → 422 `{"code":"design_invalid","detail":"<locale>:
   <mdcast message>"}` (the message is mdcast's sanitised `render failed (incident <id>)`; the typst diagnostics are in
@@ -136,6 +137,9 @@ are never re-rendered (1d). All routes are on a space host, **admin+** (Settings
   Only a template failure (mdcast `render_failed`, a design file over 10 MB, a non-UTF-8 template) becomes
   `design_invalid` (cs is checked first, so its error wins); mdcast unreachable stays 503 `pdf_unavailable`, other
   upstream errors 502 `pdf_render_failed` — nothing changes in either case.
+- **Render limits**: the activation / restore checks are not previews (no per-space preview limits) — they take
+  the preview share of the instance-wide render slots, never the one kept for issuing (503 `pdf_unavailable` `busy`, which gives the `design-space` attempt back) and keep the 60 s timeout
+  ([pdf.md](pdf.md#render-limits)).
 - **Rate limit**: bucket `design-space` (10 / hour per space, in memory per instance) shared by activate and
   restore; reserved after the `draft_empty` / 404 / `version_incomplete` checks and before the renders, never
   refunded (also not on `design_invalid`, `design_busy`, `draft_changed`). Reset is not limited.

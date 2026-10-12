@@ -123,14 +123,15 @@ snapshot has an IBAN, `payable > 0`. Generated server-side as SVG (crate `qrcode
 
 - `GET /api/documents/{id}/pdf?download=1` → `200 application/pdf`, `Content-Disposition: inline` (`attachment` with
   `download=1`), filename `{number}.pdf` (draft: `draft-{first 8 chars of id}.pdf`), `Cache-Control: no-store`.
-  - draft → rendered live, `draft: true`, never stored;
+  - draft → rendered live, `draft: true`, never stored — a **preview** ([Render limits](#render-limits));
   - issued / cancelled with an archive → the stored file, streamed with `Content-Length` (sha256 not re-checked);
   - issued / cancelled without an archive (DDPP only) → render + archive, as above;
   - archive object missing → 500 (logged); storage unreachable → 503 `storage_unavailable`.
 - `GET /api/pdf/preview?locale=cs|en` → `200 application/pdf` of a sample invoice (never stored): supplier = the
   company profile (placeholder name when empty), fictional customer, CZK, standard VAT, items at 21 % and 12 %, one
   with a 10 % discount, a collapsed subtotal group, a text line, bank = default CZK account (if any → QR shown),
-  `draft: false`, number `{YYYY}0001`-style sample. `locale` missing → company `defaultLocale`; invalid → 422.
+  `draft: false`, number `{YYYY}0001`-style sample. `locale` missing → company `defaultLocale`; invalid → 422. A
+  **preview** ([Render limits](#render-limits)).
 - `GET /api/pdf/design` → `{ storage: "fs" | "s3", files: [ { path, source: "custom" | "default", size } ] }`
   (effective set, sorted by path; `custom` = from the storage's `design/`).
   4f extends this response with `draft` and `quota` and adds draft / activation / version routes (admin+):
@@ -140,8 +141,31 @@ snapshot has an IBAN, `payable > 0`. Generated server-side as SVG (crate `qrcode
 
 Fetch the PDF with the Bearer header (blob → object URL); a plain link cannot carry the token.
 
+## Render limits
+
+- **Instance-wide**: at most `INVOICE__MDCAST_CONCURRENCY` (default 4) mdcast renders run at once (a semaphore around
+  the mdcast call; design listing / downloads happen before it). A render waits at most 10 s for a slot, then 503
+  `{"code":"pdf_unavailable","detail":"busy"}` + `Retry-After: 10`. This applies to every render, issue included.
+- **Previews** — `GET /api/pdf/preview`, `GET /api/pdf/design/draft/preview`, `GET /api/documents/{id}/pdf` of a
+  draft — are additionally limited **per space**: one in flight (a second concurrent one → 429 `rate_limited`,
+  `Retry-After: 1`) and 60 per hour (bucket `preview-space`, in memory per instance; then 429 `rate_limited` +
+  `Retry-After` until the oldest leaves the hour). Both are checked before the design is loaded; a preview refused
+  by a full render queue (503 busy) does not count against the hour. A preview's mdcast call times out after
+  **20 s** (→ 503 `pdf_unavailable`); issue, archive-on-download and the design activation / restore checks keep
+  the 60 s client timeout. A timed-out preview only stops waiting: mdcast may still finish the render (its own
+  limits bound it).
+- **A slot for issuing**: previews and the design activation / restore checks together hold at most
+  `INVOICE__MDCAST_CONCURRENCY − 1` slots (at least one), so one is always left for issue / archive renders when the
+  concurrency is 2 or more (with 1 they share it). The checks keep the 60 s timeout and are not under the per-space
+  preview limits (they have `design-space`).
+- **Issuing is never refused by the preview limits** (only the instance-wide slots apply), nor is an archive render
+  on first download, an e-mail attachment or an ISDOC export (they serve the archive). The activation / restore
+  checks have their own `design-space` limit ([design.md](design.md)).
+
 ## Errors
-- 503 `{"code":"pdf_unavailable"}` — mdcast unreachable, token rejected, gateway 502–504.
+- 503 `{"code":"pdf_unavailable"}` — mdcast unreachable, token rejected, gateway 502–504, a preview over its 20 s;
+  with `"detail":"busy"` + `Retry-After: 10` when every render slot stayed taken for 10 s.
+- 429 `{"code":"rate_limited"}` + `Retry-After` — a preview over the per-space limits.
 - 503 `{"code":"storage_unavailable"}` — the storage (directory or bucket) failed: design listing / download, archive
   write or read. The cause is logged only.
 - 502 `{"code":"pdf_render_failed","detail":"…"}` — mdcast answered but the template failed, or a design file is too
@@ -154,11 +178,12 @@ Fetch the PDF with the Bearer header (blob → object URL); a plain link cannot 
 |---|---|---|
 | `INVOICE__MDCAST_URL` | `https://mdcast.nexial.cz` | empty → default |
 | `INVOICE__MDCAST_TOKEN` | — | optional Bearer for mdcast |
+| `INVOICE__MDCAST_CONCURRENCY` | `4` | concurrent mdcast renders of the instance (≥ 1), see [Render limits](#render-limits) |
 | `INVOICE__STORAGE_KIND` | `fs` | `fs` or `s3` (see [Storage](#storage)) |
 | `INVOICE__STORAGE_DIR` | `./data` | `fs` root, created at start; Docker image uses `/data` (volume) |
 | `INVOICE__S3__ENDPOINT` / `BUCKET` / `REGION` / `ACCESS_KEY_ID` / `SECRET_ACCESS_KEY` / `PATH_STYLE` | — / — / `us-east-1` / — / — / `false` | `s3` only; endpoint empty → AWS |
 
-mdcast HTTP timeout 60 s.
+mdcast HTTP timeout 60 s (previews 20 s).
 
 ## Storage
 
@@ -181,8 +206,17 @@ contain empty, `.` or `..` segments: `documents/{year}/{id}-{sha8}-{nonce}.pdf` 
   wrote, unless a document row points at that key. Every write attempt gets its own key (`…-{sha8}-{nonce}.pdf`), so
   the cleanup never removes an object another attempt (a double-clicked issue, an identical upload) just wrote.
 - **Crash orphans**: objects are written before the transaction that references them, so a crash (or a lost
-  connection) between the put and the commit leaves an unreferenced object behind. Nothing sweeps them yet; they
-  are harmless (never served) and can be found as `documents/` keys no `pdf_path` / `original_path` points at.
+  connection) between the put and the commit leaves an unreferenced object behind (harmless, never served). The
+  **orphan sweep** (`src/storage/sweep.rs`) runs in `serve` daily — the first time 1 hour after the start (a crash
+  loop does not sweep; a deployment restarted daily still does) — and on demand as `invoice storage sweep [--dry-run] [--force]` (needs the database).
+  It lists `spaces/*/documents/`, keeps only the objects of spaces that exist in `spaces` (another prefix is never
+  touched), then reads every `documents.pdf_path` / `original_path`; an unreferenced object whose modification time
+  is more than **1 hour** old is an orphan (younger ones may belong to an issue or upload still before its commit).
+  **Guard**: when orphans exist but no row references any object (a wrong database or schema), or the orphans exceed
+  max(100, 10 % of the examined objects), it deletes nothing and logs an error; only the CLI's `--force` overrides
+  it. Nothing else is recomputed (stored-byte usage comes from the rows). `serve` logs the counts; the CLI prints
+  `deleted` / `failed` (stderr) / `orphan` (dry run or refused) lines and a summary, and exits 1 when it refused or
+  a deletion failed.
 - `invoice storage migrate --from-dir <old INVOICE__STORAGE_DIR> [--design-dir <old INVOICE__DESIGN_DIR>]` copies
   every non-hidden file into the configured backend (keys = relative paths; the design dir under `design/`), reads
   each one back and compares sha256. Identical objects are skipped (re-runs are no-ops; decided by size + the MD5
@@ -242,8 +276,8 @@ contain empty, `.` or `..` segments: `documents/{year}/{id}-{sha8}-{nonce}.pdf` 
 - **Preview**: VAT mode `standard` and CZK regardless of the company's payer flag; due date = today + 14 days;
   supplier placeholder "Vaše firma s.r.o." / "Your Company Ltd." when the company name is empty; the bank is the
   default CZK account; VS = the sample number.
-- **Deferred for the invite-only test phase** (reasonable, invited users; mdcast load and hostile templates are not
-  a concern yet): no instance-wide cap on concurrent mdcast renders, no per-space preview rate limit / one preview in
-  flight per space, no shorter timeout for previews (all renders use the 60 s client timeout), and no fuel /
-  recursion / output caps on the MiniJinja e-mail templates (only their size limits). Revisit before opening
-  registration to the public.
+- **Render and template limits** (issue #40, before public registration): mdcast renders are capped instance-wide,
+  previews per space with a shorter timeout ([Render limits](#render-limits)); the "busy" case reuses
+  `pdf_unavailable` (with `detail: "busy"`) instead of a new code, so clients need no new handling. The MiniJinja
+  e-mail templates run with fuel, a recursion limit, an output cap and a timeout ([email.md](email.md)). Orphaned
+  document objects are swept ([Storage](#storage)).

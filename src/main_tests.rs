@@ -1,3 +1,5 @@
+//! Unit tests of `main.rs` (CLI parsing).
+
 use super::*;
 
 #[test]
@@ -34,6 +36,24 @@ fn cli_parses_subcommands() {
     ));
     assert!(Cli::try_parse_from(["invoice", "storage", "migrate"]).is_err());
     assert!(matches!(
+        Cli::try_parse_from(["invoice", "storage", "sweep", "--dry-run"]).map(|c| c.command),
+        Ok(Command::Storage {
+            action: StorageAction::Sweep {
+                dry_run: true,
+                force: false
+            }
+        })
+    ));
+    assert!(matches!(
+        Cli::try_parse_from(["invoice", "storage", "sweep", "--force"]).map(|c| c.command),
+        Ok(Command::Storage {
+            action: StorageAction::Sweep {
+                dry_run: false,
+                force: true
+            }
+        })
+    ));
+    assert!(matches!(
         Cli::try_parse_from([
             "invoice",
             "design",
@@ -55,4 +75,8 @@ fn cli_parses_subcommands() {
     ));
     assert!(Cli::try_parse_from(["invoice", "design", "ls"]).is_err());
     assert!(Cli::try_parse_from(["invoice", "design", "rm"]).is_err());
+    assert!(matches!(
+        Cli::try_parse_from(["invoice", "render-template"]).map(|c| c.command),
+        Ok(Command::RenderTemplate)
+    ));
 }

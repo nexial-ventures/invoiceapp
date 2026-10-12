@@ -1682,6 +1682,7 @@ dependencies = [
  "hmac",
  "jsonwebtoken",
  "lettre",
+ "libc",
  "md-5 0.10.6",
  "mdcast-client",
  "mime_guess",

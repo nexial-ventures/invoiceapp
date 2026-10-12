@@ -77,7 +77,8 @@ pub(crate) fn pdf_response(body: PdfBody, stem: &str, download: bool) -> Respons
         (status = 200, description = "The PDF: received / imported → the uploaded original; a draft rendered live (watermark, no QR, never stored); otherwise the archive", content_type = "application/pdf"),
         (status = 404, description = "`not_found`, or `pdf_missing` (received / imported without an original)", body = ErrorBody),
         (status = 502, description = "`pdf_render_failed` (+ `detail`)", body = ErrorBody),
-        (status = 503, description = "`pdf_unavailable`, `storage_unavailable`", body = ErrorBody),
+        (status = 429, description = "`rate_limited`: a preview of the space is in flight, or 60 in the last hour (draft documents only)", body = ErrorBody),
+        (status = 503, description = "`pdf_unavailable` (`detail: busy` when every render slot is taken), `storage_unavailable`", body = ErrorBody),
     )
 )]
 pub async fn document_pdf(
@@ -108,7 +109,8 @@ pub async fn document_pdf(
         (status = 200, description = "A sample invoice in the current design", content_type = "application/pdf"),
         (status = 422, description = "`locale`: `invalid`", body = ErrorBody),
         (status = 502, description = "`pdf_render_failed` (+ `detail`)", body = ErrorBody),
-        (status = 503, description = "`pdf_unavailable`, `storage_unavailable`", body = ErrorBody),
+        (status = 429, description = "`rate_limited`: a preview of the space is in flight, or 60 in the last hour", body = ErrorBody),
+        (status = 503, description = "`pdf_unavailable` (`detail: busy` when every render slot is taken), `storage_unavailable`", body = ErrorBody),
     )
 )]
 pub async fn preview(
@@ -122,6 +124,7 @@ pub async fn preview(
     let bytes = state
         .pdf
         .space(access.space())?
+        .preview()
         .render(payload::build(&sample.input())?)
         .await?;
     Ok(pdf_response(

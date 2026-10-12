@@ -323,7 +323,8 @@ mod tests {
             .collect();
         for locale in [Locale::Cs, Locale::En] {
             let t = crate::email::templates::default(locale);
-            crate::email::templates::validate(&t, &values).expect("default template is valid");
+            crate::email::template_render::validate(&t, &values)
+                .expect("default template is valid");
         }
     }
 

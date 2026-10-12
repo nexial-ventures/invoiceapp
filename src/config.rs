@@ -14,6 +14,7 @@ use crate::db::DEFAULT_MAX_CONNECTIONS;
 use crate::email::SmtpConfig;
 use crate::pdf::DEFAULT_MDCAST_URL;
 use crate::pdf::design_cache::DEFAULT_LIMIT_MB as DEFAULT_DESIGN_CACHE_MB;
+use crate::pdf::limits::DEFAULT_CONCURRENCY as DEFAULT_MDCAST_CONCURRENCY;
 use crate::secret::{Secret, SecretKey};
 use crate::storage::StorageConfig;
 
@@ -64,6 +65,11 @@ pub struct Config {
     pub mdcast_url: String,
     /// Optional Bearer token for mdcast (`INVOICE__MDCAST_TOKEN`).
     pub mdcast_token: Option<Secret<String>>,
+    /// `INVOICE__MDCAST_CONCURRENCY`: concurrent mdcast renders (default 4).
+    #[serde(default, rename = "mdcast_concurrency")]
+    raw_mdcast_concurrency: Option<String>,
+    #[serde(skip)]
+    pub mdcast_concurrency: u32,
     /// `INVOICE__DB_MAX_CONNECTIONS`: pool size (default 20).
     #[serde(default, rename = "db_max_connections")]
     raw_db_max_connections: Option<String>,
@@ -133,6 +139,11 @@ impl Config {
             DEFAULT_MAX_CONNECTIONS,
         )?;
         cfg.db_pgbouncer = flag("INVOICE__DB_PGBOUNCER", cfg.raw_db_pgbouncer.as_deref())?;
+        cfg.mdcast_concurrency = positive(
+            "INVOICE__MDCAST_CONCURRENCY",
+            cfg.raw_mdcast_concurrency.as_deref(),
+            DEFAULT_MDCAST_CONCURRENCY,
+        )?;
         cfg.design_cache_mb = positive(
             "INVOICE__DESIGN_CACHE_MB",
             cfg.raw_design_cache_mb.as_deref(),

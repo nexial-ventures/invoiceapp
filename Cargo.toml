@@ -29,11 +29,12 @@ getrandom = "0.3"
 hmac = "0.12"
 jsonwebtoken = { version = "10", default-features = false, features = ["aws_lc_rs"] }
 futures-util = { version = "0.3", default-features = false }
+libc = "0.2"
 lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls", "aws-lc-rs", "webpki-roots", "hostname"] }
 md-5 = "0.10"
 mdcast-client = "0.4.2"
 mime_guess = "2"
-minijinja = "2"
+minijinja = { version = "2", features = ["fuel"] }
 object_store = { version = "0.14", features = ["aws", "fs"] }
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 reqwest = { version = "0.13", default-features = false, features = ["json", "form", "rustls", "charset", "http2"] }
@@ -49,7 +50,7 @@ sha1 = "0.10"
 sha2 = "0.10"
 subtle = "2"
 thiserror = "2"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "sync", "time"] }
+tokio = { version = "1", features = ["io-util", "macros", "process", "rt-multi-thread", "net", "signal", "sync", "time"] }
 tower-http = { version = "0.6", features = ["trace", "compression-br", "compression-gzip"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

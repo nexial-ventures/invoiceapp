@@ -29,6 +29,22 @@ MiniJinja plain-text templates (one set for all document types, per locale), edi
   503 `storage_unavailable`.
 - MiniJinja, `UndefinedBehavior::Strict`, no HTML auto-escape, `none` renders as an empty string. The rendered
   subject is trimmed and newlines in it are replaced by spaces; the body keeps its text, trailing whitespace trimmed.
+- **Isolation and limits.** A template is member input, and MiniJinja's fuel bounds work, not memory (a string
+  repeated and concatenated with itself reaches gigabytes in a few steps). So the server never renders one in its
+  own process: every render — save validation (all sample variants in one child), preview and the send prefill —
+  runs its own binary as the hidden `invoice render-template` (`src/email/sandbox.rs`; the job as JSON on stdin,
+  progress lines and the result on stdout, empty environment). On Linux the child gets `RLIMIT_DATA` 256 MiB and
+  `RLIMIT_CPU` 5 s (`setrlimit` between fork and exec; elsewhere only the wall clock applies); after 5 s wall
+  clock it is killed. Inside it the engine (`src/email/template_render.rs`) still applies fuel 100 000
+  instructions per part (the defaults use a few hundred), recursion limit 100 and at most 1 MiB output per part.
+  Every limit is 422 `template_invalid` for the part being rendered, `detail` (led by the sample variant's prefix
+  where one applies): `line N: too much work (more than 100000 steps)`, a recursion-limit message, `the output is
+  larger than 1024 KB`, `the template needs too much memory or time` (the child died: memory or CPU limit), or
+  `rendering took longer than 5 s` (killed).
+- At most 2 children run at once per instance; a render that waits over 2 s for one → 503 `{"code":"busy"}`.
+  Template save + preview share a per-space budget of 60 / hour (bucket `template-space`, in memory) → 429
+  `rate_limited` + `Retry-After`; the send prefill has its own 120 / hour per space (bucket `prefill-space`) → 429
+  `rate_limited` + `Retry-After`. A `busy` refusal gives the attempt back in both.
 - Context (all display values are pre-formatted strings in the template's locale, same formatting as the PDF payload;
   missing values are `none`):
 
@@ -87,6 +103,7 @@ contact: { name, email } | none   // none for a contactless simplified document
   e-mail when set; `pdf.available` false only for an imported document without an original. Only for an issued
   (non-draft, cancelled included) document of direction `issued`; a draft → 409 `invalid_state`, a received
   document → 404. Template error on real data (cannot normally happen after validation) → 422 `template_invalid`.
+  120 prefills / hour per space → 429 `rate_limited` + `Retry-After`; no free renderer → 503 `busy` (not counted).
 - `POST /api/documents/{id}/email` `{ to: [string], cc: [string], bcc: [string], subject, body, attachPdf: bool,
   attachIsdoc: bool }`:
   - 422: `to` empty → `to: required`; an unparsable address → `to.0: invalid` (same for cc/bcc); more than **10**

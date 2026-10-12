@@ -1,6 +1,8 @@
 //! Unit tests of `error.rs`.
 
 use super::*;
+use axum::http::{HeaderValue, header};
+use axum::response::IntoResponse;
 
 async fn body(err: AppError) -> (StatusCode, serde_json::Value) {
     let resp = err.into_response();
@@ -181,6 +183,17 @@ async fn auth_errors() {
     );
     let resp = AppError::InvalidCredentials.into_response();
     assert!(resp.headers().get(header::WWW_AUTHENTICATE).is_none());
+    let resp = AppError::PdfBusy.into_response();
+    assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(
+        resp.headers().get(header::RETRY_AFTER),
+        Some(&HeaderValue::from_static("10"))
+    );
+    let (_, json) = body(AppError::PdfBusy).await;
+    assert_eq!(
+        json,
+        serde_json::json!({ "code": "pdf_unavailable", "detail": "busy" })
+    );
 }
 
 #[tokio::test]

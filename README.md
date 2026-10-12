@@ -75,6 +75,7 @@ Sending documents by e-mail needs an SMTP server (`INVOICE__SMTP__HOST`, `PORT`,
 
 ```sh
 invoice storage migrate --from-dir ./data --design-dir ./my-design   # fs archive (+ old design dir) → configured storage
+invoice storage sweep --dry-run                                    # unreferenced document objects older than 1 h (guarded; --force)
 invoice design push ./my-design --space firma   # override design files of a space (invoice.typ, fonts/, logo.svg|png, signature.png)
 invoice design ls --space firma                 # effective design: custom vs built-in
 invoice design pull ./backup --space firma      # download the overrides
@@ -112,6 +113,23 @@ PDFs need an mdcast (`INVOICE__MDCAST_URL`, `INVOICE__MDCAST_TOKEN`).
   disables creating spaces (403 `space_creation_disabled`): only people invited into existing spaces can enter.
 - **mdcast** renders each space's own typst templates: run it **sandboxed** (no file system or network access
   beyond the request, resource limits) — template isolation is mdcast's, not the app's.
+- **Render limits:** at most `INVOICE__MDCAST_CONCURRENCY` (default 4) renders run at once per instance — size it to
+  what the mdcast behind it handles; a render that waits over 10 s for a slot is 503 `pdf_unavailable` (`busy`).
+  Previews (sample, design draft, draft documents) are limited to one in flight and 60 / hour per space with a 20 s
+  timeout; issuing is never refused by them. The limits are in memory per instance (several replicas multiply
+  them). A timed-out preview may still run to its end in mdcast; previews never take the last slot.
+- **E-mail templates** render in a child process of the same binary (`invoice render-template`, hidden) with
+  `RLIMIT_DATA` 256 MiB and `RLIMIT_CPU` 5 s on **Linux** (other platforms: only the 5 s wall-clock kill), at most 2
+  at once. The container needs nothing extra (no seccomp / capability changes).
+- **Orphan sweep:** `serve` deletes document objects no row references (left by a crash between the object write and
+  its commit) once a day, the first time 1 hour after the start, only when older than 1 hour and only for spaces
+  that exist. It deletes nothing (logs an error) when no row references any object or the orphans exceed
+  max(100, 10 %) — check the database, then run `invoice storage sweep --force`. `--dry-run` lists them (needs
+  `INVOICE__DATABASE_URL` and the storage settings).
+- **Restoring an older database snapshot** while the storage keeps newer objects: the newer archives and originals
+  look like orphans to the sweep. Stop the server (or restore within its first hour and fix the storage before the
+  sweep runs), restore, then check `invoice storage sweep --dry-run`; below the guard's threshold the sweep **would
+  delete** them, so copy them aside or restore the storage to the same point first.
 - **Sign in with Google** (optional): the only redirect URI to register is
   `{INVOICE__PUBLIC_URL}/api/auth/google/callback`.
 - **PgBouncer:** in transaction mode set `INVOICE__DB_PGBOUNCER=true` (otherwise every connection fails with
