@@ -5259,6 +5259,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            /** @description `rate_limited` + `Retry-After`: 120 prefills per hour per space */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
             /** @description `storage_unavailable`, `busy` (every template renderer taken) */
             503: {
                 headers: {
