@@ -4,7 +4,7 @@ use chrono::Utc;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    Set, Statement, TransactionTrait,
+    Set, TransactionTrait,
 };
 use uuid::Uuid;
 
@@ -135,17 +135,6 @@ pub async fn update(
 /// their children, contacts, settings, memberships, tokens, its sessions).
 pub async fn delete(db: &DatabaseConnection, space: SpaceId) -> Result<(), AppError> {
     let txn = db.begin().await?;
-    // `document_lines.advance_document_id` has no ON DELETE action: within
-    // the one cascading delete its check can fire for a DDPP before the
-    // deducting invoice's lines are gone (it depends on the row order of
-    // the plan). Removing the space's lines first makes it order-proof.
-    txn.execute(Statement::from_sql_and_values(
-        txn.get_database_backend(),
-        "DELETE FROM document_lines WHERE document_id IN \
-         (SELECT id FROM documents WHERE space_id = $1)",
-        [space.uuid().into()],
-    ))
-    .await?;
     space::Entity::delete_by_id(space.uuid()).exec(&txn).await?;
     txn.commit().await?;
     Ok(())

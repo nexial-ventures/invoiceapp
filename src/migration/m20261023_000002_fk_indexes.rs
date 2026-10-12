@@ -1,6 +1,7 @@
 //! Indexes on the referencing side of foreign keys that had none: deleting a
-//! bank account, a user or a space (cascade / SET NULL) otherwise scans the
-//! whole referencing table. Plus the received-document duplicate lookup by
+//! user or a space (cascade / SET NULL) otherwise scans the whole
+//! referencing table (`documents.bank_account_id` is indexed by
+//! `m20261023_000001_tenant_fks`). Plus the received-document duplicate lookup by
 //! supplier number (`import::lookup`).
 
 use sea_orm_migration::prelude::*;
@@ -9,8 +10,6 @@ use sea_orm_migration::prelude::*;
 pub struct Migration;
 
 const UP: &str = r#"
-CREATE INDEX documents_bank_account_idx ON documents (bank_account_id)
-    WHERE bank_account_id IS NOT NULL;
 -- Not partial on direction: the lookup binds `direction` as a parameter,
 -- and a generic plan could not use an index with a literal predicate.
 CREATE INDEX documents_received_supplier_number_idx ON documents (space_id, supplier_number);
@@ -45,7 +44,6 @@ DROP INDEX mfa_logins_user_idx;
 DROP INDEX sessions_space_idx;
 DROP INDEX bank_accounts_space_idx;
 DROP INDEX documents_received_supplier_number_idx;
-DROP INDEX documents_bank_account_idx;
 "#;
 
 #[async_trait::async_trait]
