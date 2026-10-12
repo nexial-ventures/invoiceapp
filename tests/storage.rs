@@ -160,7 +160,8 @@ async fn design_overlays_the_default(t: TestStorage) {
 
 async fn design_cache_downloads_only_changes(t: TestStorage) {
     let s = &t.storage;
-    let cache = Cache::default();
+    // Listed on every load: the files below change behind the cache.
+    let cache = Cache::default().with_listing_ttl(std::time::Duration::ZERO);
     s.put("design/logo.png", Bytes::from_static(b"v1"))
         .await
         .expect("put");

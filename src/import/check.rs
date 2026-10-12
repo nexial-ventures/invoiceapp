@@ -5,8 +5,8 @@ use std::collections::HashSet;
 
 use sea_orm::DatabaseConnection;
 
-use super::lookup;
 use super::model::{Code, Plan};
+use super::{batch, lookup};
 use crate::error::AppError;
 use crate::space::SpaceId;
 
@@ -40,6 +40,18 @@ pub async fn check(
     only: Option<&HashSet<String>>,
 ) -> Result<Vec<Option<Checked>>, AppError> {
     let plans: Vec<&Plan> = entries.iter().filter_map(|(_, p)| *p).collect();
+    // The database lookups run once for the whole batch over `lookup_plans`
+    // (the looked-up entries in order); `looked` counts them in the loop
+    // below, so it is each one's position in the result sets.
+    let lookup_plans: Vec<&Plan> = entries
+        .iter()
+        .filter(|(key, _)| only.is_none_or(|o| o.contains(*key)))
+        .filter_map(|(_, p)| *p)
+        .collect();
+    let stored = batch::duplicates(db, space, &lookup_plans).await?;
+    let contacts = batch::contacts(db, space, &lookup_plans).await?;
+    let originals = batch::related(db, space, &lookup_plans).await?;
+    let mut looked = 0usize;
     let mut seen = HashSet::new();
     let mut out = Vec::with_capacity(entries.len());
     for (key, plan) in entries {
@@ -61,21 +73,16 @@ pub async fn check(
             }));
             continue;
         }
+        let n = looked;
+        looked += 1;
         let mut warnings = Vec::new();
-        let duplicate = in_batch || lookup::duplicate(db, space, plan).await?;
-        let contact_exists = match plan.counterparty() {
-            Some(p) => Some(
-                lookup::contact(db, space, p, plan.contact_rule)
-                    .await?
-                    .is_some(),
-            ),
-            None => None,
-        };
+        let duplicate = in_batch || stored.contains(&n);
+        let contact_exists = plan.counterparty().map(|_| contacts.contains(&n));
         if contact_exists == Some(false) {
             warnings.push(CONTACT_CREATED);
         }
         let related_found = plan.original_ref.is_some()
-            && (lookup::related(db, space, plan).await?.is_some()
+            && (originals.contains(&n)
                 || plans
                     .iter()
                     .any(|o| !std::ptr::eq(*o, *plan) && lookup::is_original_of(plan, o)));

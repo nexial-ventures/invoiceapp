@@ -24,7 +24,7 @@ async fn archive_and_design(storage: TestStorage) {
     let db = TestDb::new().await;
     let env = PdfEnv::with_storage(storage);
     let kind = env.storage.kind();
-    let app = env.router(db.conn.clone());
+    let (app, pdf) = env.router_and_pdf(db.conn.clone());
     // The space's design overlay: `spaces/{id}/design/…`.
     let put = |key: &'static str, bytes: &'static [u8]| {
         let (key, storage) = (db.key(key), env.storage.storage.clone());
@@ -82,8 +82,9 @@ async fn archive_and_design(storage: TestStorage) {
             .any(|f| f["path"].as_str().is_some_and(|p| p.contains("hidden")))
     );
 
-    // A replaced override is picked up by the next render; a removed one
-    // falls back to the default.
+    // A replaced override is picked up by the next render once the cached
+    // listing is gone (expired, or dropped as the editor does); a removed
+    // one falls back to the default.
     put("design/logo.png", b"\x89PNG v2")
         .await
         .expect("replace logo");
@@ -92,6 +93,7 @@ async fn archive_and_design(storage: TestStorage) {
         .delete(&db.key("design/invoice.typ"))
         .await
         .expect("remove template");
+    pdf.design_cache().invalidate(&db.space.storage_prefix());
     let (status, _, _) = get_raw(&app, "/api/pdf/preview").await;
     assert_eq!(status, StatusCode::OK);
     let render = env.mock.last();

@@ -1,8 +1,11 @@
 //! Embedded Vue SPA (`frontend/dist`) served for every non-`/api` path.
 
+use std::borrow::Cow;
+
 use axum::extract::Request;
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
+use bytes::Bytes;
 use rust_embed::Embed;
 
 // `allow_missing` lets the crate build (and clippy/tests run) before the
@@ -16,7 +19,7 @@ pub async fn serve(req: Request) -> Response {
     let path = req.uri().path().trim_start_matches('/');
 
     if let Some(asset) = FrontendAssets::get(path) {
-        return asset_response(path, asset.data.as_ref());
+        return asset_response(path, asset.data);
     }
 
     // A missing file with an extension must 404 — falling through to
@@ -27,7 +30,7 @@ pub async fn serve(req: Request) -> Response {
 
     // Client-side route: hand index.html to the Vue router.
     match FrontendAssets::get("index.html") {
-        Some(asset) => asset_response("index.html", asset.data.as_ref()),
+        Some(asset) => asset_response("index.html", asset.data),
         None => (StatusCode::SERVICE_UNAVAILABLE, "frontend not built").into_response(),
     }
 }
@@ -47,14 +50,20 @@ fn cache_control(path: &str) -> &'static str {
     }
 }
 
-fn asset_response(path: &str, bytes: &[u8]) -> Response {
+/// Release builds embed the files (`Cow::Borrowed` of static bytes, served
+/// without a copy); debug builds read them from disk (`Cow::Owned`).
+fn asset_response(path: &str, data: Cow<'static, [u8]>) -> Response {
+    let body = match data {
+        Cow::Borrowed(b) => Bytes::from_static(b),
+        Cow::Owned(v) => Bytes::from(v),
+    };
     let mime = mime_guess::from_path(path).first_or_octet_stream();
     (
         [
             (header::CONTENT_TYPE, mime.as_ref()),
             (header::CACHE_CONTROL, cache_control(path)),
         ],
-        bytes.to_vec(),
+        body,
     )
         .into_response()
 }

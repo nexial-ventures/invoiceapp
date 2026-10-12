@@ -14,6 +14,7 @@ use crate::app::AppState;
 use crate::auth::crypto;
 use crate::auth::ctx::Authed;
 use crate::auth::handlers::{ClientIp, check_password};
+use crate::compression::Identity;
 use crate::error::{AppError, ErrorBody, FieldErrors};
 use crate::extract::ApiJson;
 use crate::secret::SecretKey;
@@ -83,7 +84,7 @@ pub async fn setup(
     authed: Authed,
     ClientIp(ip): ClientIp,
     ApiJson(input): ApiJson<SetupInput>,
-) -> Result<Json<Setup>, AppError> {
+) -> Result<Identity<Json<Setup>>, AppError> {
     authed.require_session()?;
     authed.require_verified()?;
     let user = &authed.user;
@@ -99,10 +100,10 @@ pub async fn setup(
         return Err(AppError::MfaEnabled);
     }
     let secret = totp::base32(&secret);
-    Ok(Json(Setup {
+    Ok(Identity(Json(Setup {
         otpauth_uri: totp::otpauth_uri(&state.public.host, &user.email, &secret),
         secret,
-    }))
+    })))
 }
 
 #[derive(Debug, Default, Deserialize, ToSchema)]
@@ -146,7 +147,7 @@ pub async fn enable(
     State(state): State<AppState>,
     authed: Authed,
     ApiJson(input): ApiJson<EnableInput>,
-) -> Result<Json<RecoveryCodes>, AppError> {
+) -> Result<Identity<Json<RecoveryCodes>>, AppError> {
     authed.require_session()?;
     authed.require_verified()?;
     let user = &authed.user;
@@ -170,9 +171,9 @@ pub async fn enable(
     if !repo::activate(&state.db, user.id, pending, step, hashes).await? {
         return Err(AppError::field("code", "expired"));
     }
-    Ok(Json(RecoveryCodes {
+    Ok(Identity(Json(RecoveryCodes {
         recovery_codes: codes,
-    }))
+    })))
 }
 
 #[derive(Debug, Default, Deserialize, ToSchema)]
@@ -252,7 +253,7 @@ pub async fn regenerate(
     authed: Authed,
     ClientIp(ip): ClientIp,
     ApiJson(input): ApiJson<ConfirmInput>,
-) -> Result<Json<RecoveryCodes>, AppError> {
+) -> Result<Identity<Json<RecoveryCodes>>, AppError> {
     authed.require_session()?;
     if !authed.mfa_enabled {
         return Err(AppError::MfaDisabled);
@@ -260,7 +261,7 @@ pub async fn regenerate(
     confirm(&state, &authed, &ip, input).await?;
     let (codes, hashes) = fresh_codes(&state.secret_key)?;
     repo::set_recovery(&state.db, authed.user.id, hashes).await?;
-    Ok(Json(RecoveryCodes {
+    Ok(Identity(Json(RecoveryCodes {
         recovery_codes: codes,
-    }))
+    })))
 }

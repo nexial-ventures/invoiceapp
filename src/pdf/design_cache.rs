@@ -1,9 +1,13 @@
 //! The downloaded design overrides of every space, by storage key: bounded
 //! by their total size (`INVOICE__DESIGN_CACHE_MB`), least recently used
-//! evicted first.
+//! evicted first. Also each space's live listing, for [`LISTING_TTL`]: a
+//! render does not list the storage again until it expires or the editor
+//! invalidates the space (activation, restore, reset); a change made
+//! outside the editor (`invoice design push`) shows within the TTL.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::{Duration, Instant};
 
 use bytes::Bytes;
 
@@ -12,6 +16,17 @@ use crate::storage::{Object, Storage, Version};
 
 /// `INVOICE__DESIGN_CACHE_MB` default.
 pub const DEFAULT_LIMIT_MB: u32 = 128;
+
+/// How long a space's live design listing is reused.
+pub const LISTING_TTL: Duration = Duration::from_secs(30);
+
+/// A live listing by design path.
+pub type Listing = BTreeMap<String, Object>;
+
+struct CachedListing {
+    at: Instant,
+    files: Listing,
+}
 
 struct Entry {
     version: Version,
@@ -26,6 +41,11 @@ struct Inner {
     total: u64,
     limit: u64,
     tick: u64,
+    listings: HashMap<String, CachedListing>,
+    listing_ttl: Duration,
+    /// Bumped by every invalidation: a listing read before one is not
+    /// stored after it.
+    epoch: u64,
 }
 
 impl Inner {
@@ -60,7 +80,54 @@ impl Cache {
             total: 0,
             limit,
             tick: 0,
+            listings: HashMap::new(),
+            listing_ttl: LISTING_TTL,
+            epoch: 0,
         })))
+    }
+
+    /// Reuse a listing for `ttl` instead of [`LISTING_TTL`] (`ZERO`: list
+    /// on every render).
+    pub fn with_listing_ttl(self, ttl: Duration) -> Self {
+        self.inner().listing_ttl = ttl;
+        self
+    }
+
+    /// The fresh cached listing of `scope`, else the epoch to hand to
+    /// [`store_listing`](Self::store_listing) with the new one.
+    pub(super) fn listing(&self, scope: &str) -> Result<Listing, u64> {
+        let inner = self.inner();
+        match inner.listings.get(scope) {
+            Some(l) if l.at.elapsed() < inner.listing_ttl => Ok(l.files.clone()),
+            _ => Err(inner.epoch),
+        }
+    }
+
+    /// Drop the listing of `scope` (it names a file that is gone); the
+    /// epoch for storing the next one.
+    pub(super) fn forget_listing(&self, scope: &str) -> u64 {
+        let mut inner = self.inner();
+        inner.listings.remove(scope);
+        inner.epoch
+    }
+
+    /// Keep `files` as the listing of `scope`, unless an invalidation came
+    /// after `epoch` (the listing may predate it). Expired listings of
+    /// other spaces are dropped here.
+    pub(super) fn store_listing(&self, scope: &str, epoch: u64, files: Listing) {
+        let mut inner = self.inner();
+        if inner.epoch != epoch || inner.listing_ttl.is_zero() {
+            return;
+        }
+        let ttl = inner.listing_ttl;
+        inner.listings.retain(|_, l| l.at.elapsed() < ttl);
+        inner.listings.insert(
+            scope.to_string(),
+            CachedListing {
+                at: Instant::now(),
+                files,
+            },
+        );
     }
 
     fn inner(&self) -> MutexGuard<'_, Inner> {
@@ -140,10 +207,13 @@ impl Cache {
         }
     }
 
-    /// Forget every cached file of `scope` (a design activation, restore or
-    /// reset of that space, or the space's deletion).
+    /// Forget every cached file and the listing of `scope` (a design
+    /// activation, restore or reset of that space, or the space's deletion).
     pub fn invalidate(&self, scope: &str) {
         self.retain(scope, &[]);
+        let mut inner = self.inner();
+        inner.listings.remove(scope);
+        inner.epoch += 1;
     }
 
     pub(super) async fn fetch(
@@ -216,6 +286,48 @@ mod tests {
         put(&c, "s|a", 50);
         put(&c, "s|big", 101);
         assert_eq!((c.len(), c.total_bytes()), (1, 50));
+    }
+
+    fn listed(c: &Cache, scope: &str) -> Option<usize> {
+        c.listing(scope).ok().map(|l| l.len())
+    }
+
+    fn object(key: &str) -> Object {
+        Object {
+            key: key.into(),
+            version: version(1),
+        }
+    }
+
+    #[test]
+    fn listing_is_reused_until_invalidated() {
+        let c = Cache::with_limit(100);
+        let epoch = c.listing("s1").expect_err("nothing cached");
+        let files = Listing::from([("a".to_string(), object("design/a"))]);
+        c.store_listing("s1", epoch, files.clone());
+        assert_eq!(listed(&c, "s1"), Some(1));
+        assert_eq!(listed(&c, "s2"), None, "per scope");
+        c.invalidate("s2");
+        assert_eq!(listed(&c, "s1"), Some(1), "other scopes keep theirs");
+        c.invalidate("s1");
+        assert_eq!(listed(&c, "s1"), None);
+    }
+
+    #[test]
+    fn a_listing_older_than_an_invalidation_is_not_stored() {
+        let c = Cache::with_limit(100);
+        let epoch = c.listing("s1").expect_err("nothing cached");
+        c.invalidate("s1");
+        c.store_listing("s1", epoch, Listing::new());
+        assert_eq!(listed(&c, "s1"), None);
+    }
+
+    #[test]
+    fn a_zero_ttl_never_reuses() {
+        let c = Cache::with_limit(100).with_listing_ttl(Duration::ZERO);
+        let epoch = c.listing("s1").expect_err("nothing cached");
+        c.store_listing("s1", epoch, Listing::new());
+        assert_eq!(listed(&c, "s1"), None);
     }
 
     #[test]

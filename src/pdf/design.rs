@@ -1,13 +1,17 @@
 //! The design file set: the default design embedded from `design/`,
-//! overridden file by file by the space's storage keys `design/…` (listed on every
-//! render; file contents cached by key + version in the bounded
-//! [`Cache`], so unchanged files are not downloaded again).
+//! overridden file by file by the space's storage keys `design/…` (the
+//! live listing reused for [`LISTING_TTL`](super::design_cache::LISTING_TTL)
+//! (30 s) and file contents cached by key +
+//! version in the bounded [`Cache`], so unchanged files are not downloaded
+//! again). The embedded files' digests are computed once per process.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::sync::LazyLock;
 
 use anyhow::Context as _;
 use bytes::Bytes;
+use mdcast_client::mdcast_api::Digest;
 use rust_embed::Embed;
 use serde::Serialize;
 use utoipa::ToSchema;
@@ -63,28 +67,47 @@ pub async fn remove(storage: &Storage, path: &str) -> Result<bool, crate::storag
     Ok(true)
 }
 
-/// The embedded default files by path, with their sizes.
-pub(crate) fn embedded() -> BTreeMap<String, u64> {
+/// An embedded default file and its mdcast digest.
+pub(crate) struct Embedded {
+    pub bytes: Bytes,
+    pub digest: Digest,
+}
+
+/// Hashed once: the default fonts alone are ~1.7 MB, and every render
+/// names each file by digest. Debug builds read the embedded folder from
+/// disk, so an edit of `design/` needs a restart there.
+static EMBEDDED: LazyLock<BTreeMap<String, Embedded>> = LazyLock::new(|| {
     DefaultDesign::iter()
         .filter(|p| !p.split('/').any(is_hidden))
         .filter_map(|p| {
-            let size = DefaultDesign::get(&p)?.data.len() as u64;
-            Some((p.into_owned(), size))
+            let bytes = match DefaultDesign::get(&p)?.data {
+                Cow::Borrowed(b) => Bytes::from_static(b),
+                Cow::Owned(v) => Bytes::from(v),
+            };
+            let digest = mdcast_client::sha256(&bytes);
+            Some((p.into_owned(), Embedded { bytes, digest }))
         })
+        .collect()
+});
+
+pub(crate) fn embedded_files() -> &'static BTreeMap<String, Embedded> {
+    &EMBEDDED
+}
+
+/// The embedded default files by path, with their sizes.
+pub(crate) fn embedded() -> BTreeMap<String, u64> {
+    EMBEDDED
+        .iter()
+        .map(|(p, e)| (p.clone(), e.bytes.len() as u64))
         .collect()
 }
 
 pub(crate) fn embedded_bytes(path: &str) -> anyhow::Result<Bytes> {
-    Ok(
-        match DefaultDesign::get(path)
-            .with_context(|| format!("embedded design file {path} vanished"))?
-            .data
-        {
-            Cow::Borrowed(b) => Bytes::from_static(b),
-            // Debug builds read the embedded folder from disk.
-            Cow::Owned(v) => Bytes::from(v),
-        },
-    )
+    Ok(EMBEDDED
+        .get(path)
+        .with_context(|| format!("embedded design file {path} vanished"))?
+        .bytes
+        .clone())
 }
 
 /// The stored files under the directory `prefix` by relative path (hidden
@@ -124,6 +147,10 @@ impl Layers<'static> {
 }
 
 impl Layers<'_> {
+    fn is_live(&self) -> bool {
+        self.base == DESIGN_PREFIX && self.top.is_none() && self.deleted.is_empty()
+    }
+
     async fn overrides(&self, storage: &Storage) -> Result<BTreeMap<String, Object>, AppError> {
         let mut files = stored(storage, self.base).await?;
         files.retain(|path, _| !self.deleted.contains(path));
@@ -174,6 +201,8 @@ pub struct Design {
     /// Every other file, keyed by relative path (the template and `qr.svg`
     /// excluded). Embedded files borrow the binary's static data.
     pub files: BTreeMap<String, Bytes>,
+    /// The known digests of `files` (the embedded ones).
+    pub digests: BTreeMap<String, Digest>,
 }
 
 impl Design {
@@ -221,21 +250,55 @@ pub async fn load_layers(
     scope: &str,
     layers: Layers<'_>,
 ) -> Result<Design, AppError> {
-    let custom = layers.overrides(storage).await?;
-    if layers.base == DESIGN_PREFIX && layers.top.is_none() && layers.deleted.is_empty() {
+    if !layers.is_live() {
+        let custom = layers.overrides(storage).await?;
+        return assemble(storage, cache, scope, &custom, false).await;
+    }
+    let epoch = match cache.listing(scope) {
+        Ok(listed) => match assemble(storage, cache, scope, &listed, true).await {
+            // A file deleted outside the editor since the cached listing:
+            // list again, once.
+            Err(e) if is_gone(&e) => cache.forget_listing(scope),
+            other => return other,
+        },
+        Err(epoch) => epoch,
+    };
+    let listed = layers.overrides(storage).await?;
+    cache.store_listing(scope, epoch, listed.clone());
+    assemble(storage, cache, scope, &listed, true).await
+}
+
+/// A listed object missing from the storage (an inconsistency → 500
+/// elsewhere, so it arrives as `Internal`).
+fn is_gone(e: &AppError) -> bool {
+    matches!(e, AppError::Internal(e)
+        if matches!(e.downcast_ref(), Some(crate::storage::Error::NotFound(_))))
+}
+
+/// The design of embedded ∪ `custom`; `live`: `custom` is the live listing
+/// (its files cached, the scope's other cached files evicted).
+async fn assemble(
+    storage: &Storage,
+    cache: &Cache,
+    scope: &str,
+    custom: &BTreeMap<String, Object>,
+    live: bool,
+) -> Result<Design, AppError> {
+    if live {
         let keys: Vec<String> = custom.values().map(|o| scoped_key(scope, &o.key)).collect();
         cache.retain(scope, &keys);
     }
     let mut files = BTreeMap::new();
-    for (path, size) in embedded() {
-        if path == QR_IMAGE || custom.contains_key(&path) {
+    let mut digests = BTreeMap::new();
+    for (path, e) in embedded_files() {
+        if path == QR_IMAGE || custom.contains_key(path) {
             continue;
         }
-        too_large(&path, size)?;
-        let bytes = embedded_bytes(&path)?;
-        files.insert(path, bytes);
+        too_large(path, e.bytes.len() as u64)?;
+        files.insert(path.clone(), e.bytes.clone());
+        digests.insert(path.clone(), e.digest.clone());
     }
-    for (path, o) in &custom {
+    for (path, o) in custom {
         if path == QR_IMAGE {
             continue;
         }
@@ -252,9 +315,14 @@ pub async fn load_layers(
     let template = files
         .remove(TEMPLATE)
         .context("the design has no invoice.typ")?;
+    digests.remove(TEMPLATE);
     let template = String::from_utf8(template.to_vec())
         .map_err(|_| AppError::PdfRenderFailed(format!("{TEMPLATE} is not valid UTF-8")))?;
-    Ok(Design { template, files })
+    Ok(Design {
+        template,
+        files,
+        digests,
+    })
 }
 
 #[cfg(test)]
@@ -283,10 +351,20 @@ mod tests {
     }
 
     #[test]
+    fn embedded_digests_are_computed_once_and_match() {
+        let e = &embedded_files()[TEMPLATE];
+        assert_eq!(e.digest, mdcast_client::sha256(&e.bytes));
+        let again = &embedded_files()[TEMPLATE];
+        assert!(std::ptr::eq(e, again), "one table per process");
+        assert_eq!(embedded()[TEMPLATE], e.bytes.len() as u64);
+    }
+
+    #[test]
     fn logo_prefers_svg() {
         let mut design = Design {
             template: String::new(),
             files: BTreeMap::new(),
+            digests: BTreeMap::new(),
         };
         assert_eq!((design.logo(), design.signature()), (None, None));
         design.files.insert("logo.png".into(), Bytes::new());

@@ -257,7 +257,7 @@ Mapping
   - one transaction per row with the advisory lock and the duplicate re-check;
   - failure codes `duplicate`, `number_taken`, `storage_unavailable`, `internal` (CSV rows carry no PDF, so the
     space's storage quota never refuses them);
-  - the database lookups only for the selected rows.
+  - the database lookups only for the selected rows (one query per kind for the whole file, as in the preview).
 - **Sample:** the rate columns are Settings → VAT rates plus 21 % (the rate the example rows use). Dates are fixed in
   2026. Categories are `Služby` (issued) and `Software` (received). The parties are IČO 12345679 / 87654326.
   `Content-Type: text/csv; charset=utf-8`. The sample imports back without errors for any company whose IČO
