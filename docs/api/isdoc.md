@@ -324,7 +324,11 @@ Import
   the same received document twice (no unique index backs supplier + supplier number). A duplicate found then is
   `failed` with `duplicate`. Failure codes: `rate_unavailable`, `storage_unavailable` (the file storage is down
   while storing the entry's original PDF; the entry's transaction is rolled back, other entries are still tried),
-  `duplicate`, `number_taken` (the received series counter collides), `internal`.
+  `duplicate`, `number_taken` (the received series counter collides), `quota_exceeded` (the entry's PDF no longer
+  fits the space's storage quota — the batch was checked up front, see below), `internal`.
+- **Storage quota** ([spaces.md](spaces.md#limits)): before anything is imported, the PDFs of all selected `ok`
+  entries must fit the space's storage quota, else 422 `{"code":"quota_exceeded","detail":"<used> / <limit> MB"}`
+  and nothing is imported. Entries without a PDF add nothing.
 - **`markPaid`:** the payment is dated `dueDate ?? issueDate`; types: all but `advance_tax_doc`, `payable > 0`.
 
 Export

@@ -12,8 +12,8 @@ use utoipa::{IntoParams, ToSchema};
 
 use super::files::Stored;
 use super::{
-    DRAFT_PREFIX, QUOTA_BYTES, UserRef, draft_key, in_txn, locked, megabytes, repo, safe_path,
-    valid_upload_path,
+    DRAFT_PREFIX, QUOTA_BYTES, UserRef, draft_key, in_txn, locked, refresh_usage, repo, safe_path,
+    usage, valid_upload_path,
 };
 use crate::app::AppState;
 use crate::auth::{Manage, Read};
@@ -22,6 +22,7 @@ use crate::extract::ApiQuery;
 use crate::pdf::PdfService;
 use crate::pdf::design::{self, DesignFile, MAX_FILE_BYTES, TEMPLATE};
 use crate::pdf::handlers::safe_filename;
+use crate::space::limits::{self, megabytes};
 use crate::storage;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
@@ -85,7 +86,8 @@ pub struct FileQuery {
 
 async fn listing(state: &AppState, pdf: &PdfService) -> Result<DesignListing, AppError> {
     let storage = pdf.storage();
-    let stored = Stored::load(storage).await?;
+    // The space quota counts these bytes without listing storage.
+    let stored = usage::recorded(&state.db, pdf.space_id(), storage).await?;
     let files = design::effective(&stored.live_files());
     let row = repo::draft(&state.db, pdf.space_id()).await?;
     let draft_files: Vec<DraftFile> = stored
@@ -269,7 +271,7 @@ async fn read_capped(headers: &HeaderMap, body: Body) -> Result<Bytes, AppError>
     responses(
         (status = 200, description = "Stored in the draft; the design listing", body = DesignListing),
         (status = 409, description = "`design_busy` (another design change holds the lock)", body = ErrorBody),
-        (status = 422, description = "`validation` (`path`: `invalid`; `file`: `too_large` / `invalid` — a non-UTF-8 `invoice.typ`), `quota_exceeded` (+ `detail`)", body = ErrorBody),
+        (status = 422, description = "`validation` (`path`: `invalid`; `file`: `too_large` / `invalid` — a non-UTF-8 `invoice.typ`), `quota_exceeded` (+ `detail`: the design's 50 MB or the space's storage quota)", body = ErrorBody),
         (status = 503, description = "`storage_unavailable`", body = ErrorBody),
     )
 )]
@@ -304,6 +306,9 @@ pub async fn put_file(
                 megabytes(used)
             )));
         }
+        // Records the new design total, committed with the upload.
+        let added = bytes.len() as u64;
+        limits::check_design(&txn, access.space(), used, added, replaced).await?;
         storage.put(&draft_key(&q.path), bytes).await?;
         let deleted = row
             .deleted
@@ -385,5 +390,6 @@ pub async fn discard(
     }
     .await;
     in_txn(txn, result).await?;
+    refresh_usage(&state.db, access.space(), pdf.storage()).await;
     Ok(StatusCode::NO_CONTENT)
 }

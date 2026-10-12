@@ -88,6 +88,9 @@ describe("OriginalPdfPanel", () => {
     answer = reply(422, { code: "validation", fields: { file: "invalid" } });
     await pick(w, pdfFile());
     expect(w.find('[data-test="original-error"]').text()).toBe("The file is not a PDF.");
+    answer = reply(422, { code: "quota_exceeded", detail: "99.5 / 100 MB" });
+    await pick(w, pdfFile());
+    expect(w.find('[data-test="original-error"]').text()).toContain("storage quota of the space (99.5 / 100 MB)");
   });
 
   it("deletes after confirmation; a missing PDF on open reads as not uploaded", async () => {

@@ -145,6 +145,8 @@ pub fn failure(e: AppError) -> Code {
         AppError::Conflict(m) if m == DUPLICATE => DUPLICATE,
         AppError::Conflict(m) if m == NUMBER_TAKEN => NUMBER_TAKEN,
         AppError::NumberTaken => NUMBER_TAKEN,
+        // The space's storage quota has no room for this entry's PDF.
+        AppError::QuotaExceeded(_) => "quota_exceeded",
         // Like `rate_unavailable`: a temporary outage, worth a retry later.
         AppError::StorageUnavailable(m) => {
             tracing::warn!(error = %m, "import: storage unavailable");
@@ -154,5 +156,23 @@ pub fn failure(e: AppError) -> Code {
             tracing::error!(error = %other, "import entry failed");
             "internal"
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn store_failures_map_to_entry_codes() {
+        let quota = AppError::QuotaExceeded("99.0 / 100 MB".into());
+        assert_eq!(failure(quota), "quota_exceeded");
+        assert_eq!(failure(AppError::NumberTaken), NUMBER_TAKEN);
+        assert_eq!(failure(AppError::Conflict(DUPLICATE.into())), DUPLICATE);
+        assert_eq!(
+            failure(AppError::StorageUnavailable("down".into())),
+            "storage_unavailable"
+        );
+        assert_eq!(failure(AppError::NotFound), "internal");
     }
 }

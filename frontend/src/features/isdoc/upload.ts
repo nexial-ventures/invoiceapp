@@ -26,6 +26,7 @@ export const ENTRY_ERRORS = [
   "number_taken",
   "rate_unavailable",
   "storage_unavailable",
+  "quota_exceeded",
   "internal",
 ] as const;
 

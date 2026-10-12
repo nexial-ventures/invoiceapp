@@ -37,6 +37,11 @@
     "slug": "Adresa",
     "saved": "Název je uložen."
   },
+  "storage": {
+    "title": "Úložiště",
+    "usage": "Využito {used} z {limit}",
+    "hint": "Počítají se nahrané a importované originály PDF, archivovaná PDF vystavených dokladů a soubory designu PDF. Vystavení dokladu se nikdy nezablokuje; nahrání nad limit se odmítne. Limit nastavuje provozovatel instance."
+  },
   "delete": {
     "title": "Smazat space",
     "warning": "Smazání nevratně odstraní všechny doklady, kontakty, nastavení, API tokeny a uložené soubory tohoto space. Daňové doklady musíte ze zákona archivovat (zpravidla 10 let) – před smazáním si je vyexportujte.",

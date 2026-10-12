@@ -110,3 +110,10 @@ PDFs need an mdcast (`INVOICE__MDCAST_URL`, `INVOICE__MDCAST_TOKEN`).
   `{INVOICE__PUBLIC_URL}/api/auth/google/callback`.
 - **Storage:** the image's `/data` volume (`INVOICE__STORAGE_KIND=fs`, default) or an S3-compatible bucket
   (`INVOICE__STORAGE_KIND=s3`, `INVOICE__S3__*`).
+- **Space limits:** every space has a hidden storage quota (default 100 MB: originals, archived PDFs, design files;
+  issuing is never blocked). There is no API or admin UI for it — raise a space's quota in the database
+  ([docs/api/spaces.md](docs/api/spaces.md#limits)):
+  ```sql
+  UPDATE space_limits SET storage_quota_bytes = 500 * 1024 * 1024, updated_at = now()
+  WHERE space_id = (SELECT id FROM spaces WHERE slug = 'firma');
+  ```

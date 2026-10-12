@@ -13,7 +13,8 @@
     "tooLarge": "Soubory jsou dohromady příliš velké (nejvýše 50 MB).",
     "tooMany": "Příliš mnoho dokladů najednou (nejvýše 500). Rozdělte import na menší části.",
     "unpackedTooLarge": "Rozbalené archivy jsou příliš velké (nejvýše 200 MB). Rozdělte import na menší části.",
-    "category": "Vybraná kategorie už není aktivní. Vyberte jinou."
+    "category": "Vybraná kategorie už není aktivní. Vyberte jinou.",
+    "quotaExceeded": "PDF vybraných dokladů se nevejdou do kvóty úložiště prostoru ({detail}). Importujte méně dokladů nebo smažte soubory."
   },
   "preview": {
     "empty": "V souborech nebyl nalezen žádný doklad ISDOC."
@@ -34,6 +35,7 @@
     "duplicate": "Doklad už je v evidenci (vznikl mezitím).",
     "number_taken": "Číslo z řady přijatých dokladů je už obsazené. Zkontrolujte počítadlo v Nastavení.",
     "unsupported_currency": "Nepodporovaná místní měna dokladu (očekává se CZK)",
+    "quota_exceeded": "PDF se nevejde do kvóty úložiště prostoru.",
     "unknown": "Chyba ({code})."
   },
   "warning": {

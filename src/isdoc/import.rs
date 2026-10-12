@@ -24,7 +24,7 @@ use crate::import::{form, lookup};
 use crate::pdf::PdfService;
 use crate::settings::doc_type::RECEIVED;
 use crate::settings::entity::category;
-use crate::space::SpaceId;
+use crate::space::{SpaceId, limits};
 use crate::time::today;
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -163,7 +163,7 @@ async fn import_one(
     responses(
         (status = 200, body = Confirmed),
         (status = 413, description = "`too_large`", body = ErrorBody),
-        (status = 422, description = "`files` / `options` / `categoryId`", body = ErrorBody),
+        (status = 422, description = "`files` / `options` / `categoryId`; `quota_exceeded` (+ `detail`) when the selected entries' PDFs do not fit the space's storage quota", body = ErrorBody),
     )
 )]
 pub async fn confirm(
@@ -187,6 +187,15 @@ pub async fn confirm(
         })
         .collect();
     todo.sort_by_key(|(_, r)| lookup::rank(r.plan.doc_type));
+    // All or nothing up front; a concurrent upload can still make a later
+    // entry fail with `quota_exceeded`.
+    let pdf_bytes = todo
+        .iter()
+        .filter_map(|(_, r)| r.pdf.as_ref())
+        .map(|b| b.len() as u64)
+        .sum();
+    crate::pdf::editor::ensure_usage(&state.db, space, pdf.storage()).await?;
+    limits::check_room(&state.db, space, pdf_bytes).await?;
     let mut done: HashMap<&str, Result<Uuid, Code>> = HashMap::new();
     for (key, r) in todo {
         let opts = entry_options(&input, r);

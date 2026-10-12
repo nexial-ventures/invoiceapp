@@ -166,5 +166,8 @@ describe("IsdocImportView", () => {
     answer = reply(422, { code: "validation", fields: { files: "too_large" } });
     await pick(w, [isdocFile("a.zip")]);
     expect(alert()).toContain("200 MB at most");
+    answer = reply(422, { code: "quota_exceeded", detail: "99.0 / 100 MB" });
+    await pick(w, [isdocFile("a.zip")]);
+    expect(alert()).toContain("storage quota of the space (99.0 / 100 MB)");
   });
 });

@@ -6,6 +6,7 @@
 
 pub mod entity;
 pub mod handlers;
+pub mod limits;
 pub mod repo;
 pub mod seed;
 pub mod slug;

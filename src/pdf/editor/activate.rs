@@ -14,7 +14,10 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::preview::SampleSource;
-use super::{DRAFT_PREFIX, Version, VersionFile, files, in_txn, locked, repo, version_prefix};
+use super::{
+    DRAFT_PREFIX, Version, VersionFile, files, in_txn, locked, refresh_usage, repo, usage,
+    version_prefix,
+};
 use crate::app::AppState;
 use crate::auth::Manage;
 use crate::auth::ratelimit::DESIGN_SPACE;
@@ -152,6 +155,8 @@ pub async fn activate(
         }
         files::apply_draft(storage, &draft, &row.deleted).await?;
         let recorded = record(&txn, &pdf, "activation", user).await?;
+        // Live + the new version grew the design bytes: recorded before the commit.
+        usage::record_in(&txn, space, storage).await?;
         repo::touch(&txn, &row, user, Vec::new()).await?;
         Ok(recorded)
     }
@@ -159,6 +164,7 @@ pub async fn activate(
     let response = finish(&pdf, txn, result).await?;
     // Already live; a file re-uploaded meanwhile is kept.
     files::remove_applied(storage, &draft).await;
+    refresh_usage(&state.db, space, storage).await;
     Ok(response)
 }
 
@@ -233,7 +239,9 @@ pub async fn restore(
         // Pruned meanwhile → 404; its objects re-checked under the lock.
         let files = complete_version(&txn, &pdf, id).await?;
         files::replace_live(pdf.storage(), id, &files).await?;
-        record(&txn, &pdf, "revert", access.scope.user_id).await
+        let recorded = record(&txn, &pdf, "revert", access.scope.user_id).await?;
+        usage::record_in(&txn, access.space(), pdf.storage()).await?;
+        Ok(recorded)
     }
     .await;
     finish(&pdf, txn, result).await
@@ -261,5 +269,7 @@ pub async fn reset(
         record(&txn, &pdf, "default", access.scope.user_id).await
     }
     .await;
-    finish(&pdf, txn, result).await
+    let response = finish(&pdf, txn, result).await?;
+    refresh_usage(&state.db, access.space(), pdf.storage()).await;
+    Ok(response)
 }

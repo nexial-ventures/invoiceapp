@@ -14,6 +14,7 @@ mod files;
 pub mod handlers;
 pub mod preview;
 mod repo;
+mod usage;
 
 use axum::Router;
 use axum::routing::{delete, get, post, put};
@@ -26,8 +27,10 @@ use uuid::Uuid;
 use super::design::QR_IMAGE;
 use crate::app::AppState;
 use crate::error::AppError;
+use crate::space::SpaceId;
 
 pub use handlers::DesignListing;
+pub use usage::{ensure_usage, refresh_all, refresh_usage};
 
 /// The draft files, relative to the space prefix.
 pub const DRAFT_PREFIX: &str = "design-draft";
@@ -105,11 +108,6 @@ pub fn version_prefix(id: Uuid) -> String {
     format!("{VERSIONS_PREFIX}/{id}")
 }
 
-/// `12.3` (MiB, one decimal) for the quota detail.
-fn megabytes(bytes: u64) -> String {
-    format!("{:.1}", bytes as f64 / (1024.0 * 1024.0))
-}
-
 /// Who made a change; `null` once the account is deleted.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -145,7 +143,7 @@ pub struct Version {
 /// draft row (created on first use), or 409 `design_busy`.
 async fn locked(
     db: &DatabaseConnection,
-    space: crate::space::SpaceId,
+    space: SpaceId,
 ) -> Result<(DatabaseTransaction, entity::draft::Model), AppError> {
     repo::ensure(db, space).await?;
     let txn = begin(db).await?;
@@ -254,14 +252,12 @@ mod tests {
     }
 
     #[test]
-    fn keys_and_sizes() {
+    fn keys() {
         assert_eq!(draft_key("fonts/a.ttf"), "design-draft/fonts/a.ttf");
         let id = Uuid::nil();
         assert_eq!(
             version_prefix(id),
             "design-versions/00000000-0000-0000-0000-000000000000"
         );
-        assert_eq!(megabytes(QUOTA_BYTES), "50.0");
-        assert_eq!(megabytes(1024 * 1024 + 300 * 1024), "1.3");
     }
 }

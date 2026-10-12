@@ -76,6 +76,7 @@ pub fn doc() -> document::Model {
         pdf_path: None,
         pdf_sha256: None,
         pdf_rendered_at: None,
+        pdf_size: None,
         supplier_number: Some("ignored".into()),
         received_date: Some(date(3, 2)),
         vat_deductible: true,

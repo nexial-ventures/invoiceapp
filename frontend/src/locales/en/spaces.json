@@ -37,6 +37,11 @@
     "slug": "Address",
     "saved": "The name is saved."
   },
+  "storage": {
+    "title": "Storage",
+    "usage": "Used {used} of {limit}",
+    "hint": "Counts uploaded and imported original PDFs, archived PDFs of issued documents and the PDF design files. Issuing is never blocked; uploads over the limit are refused. The limit is set by the operator of the instance."
+  },
   "delete": {
     "title": "Delete space",
     "warning": "Deleting irreversibly removes every document, contact, setting, API token and stored file of this space. Tax documents must be archived by law (usually 10 years) – export them before deleting.",

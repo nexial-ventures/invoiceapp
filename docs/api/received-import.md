@@ -68,7 +68,9 @@ save (refreshed on every PUT). `relatedDocuments` lists the link in both directi
 - `PUT /api/documents/{id}/original` — `multipart/form-data`, one part `file`; must start with `%PDF-`, ≤ 20 MB
   (413 `{"code":"too_large"}`; other → 422 `{"fields":{"file":"invalid"}}`). Replaces any previous original. Stored
   under the storage key `documents/{year}/{id}-original-{sha8}.pdf` (atomic put + sha256 like the archive; see
-  [pdf.md § Storage](pdf.md#storage)); storage failure → 503 `storage_unavailable`, nothing changed.
+  [pdf.md § Storage](pdf.md#storage)); storage failure → 503 `storage_unavailable`, nothing changed. Over the space's
+  storage quota ([spaces.md](spaces.md#limits); a replacement counts only what it adds) → 422
+  `{"code":"quota_exceeded","detail":"<used> / <limit> MB"}`, nothing changed.
   Allowed for every received document and for imported issued documents (any status); a non-imported issued
   document → 409 `invalid_state` (its PDF is the rendered archive).
 - `DELETE /api/documents/{id}/original` → 204 (same rules).

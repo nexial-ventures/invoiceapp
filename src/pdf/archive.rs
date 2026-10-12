@@ -71,12 +71,14 @@ async fn store<C: ConnectionTrait>(
     let updated = txn
         .execute(Statement::from_sql_and_values(
             txn.get_database_backend(),
-            "UPDATE documents SET pdf_path = $2, pdf_sha256 = $3, pdf_rendered_at = now() \
-             WHERE id = $1 AND pdf_path IS NULL",
+            "UPDATE documents SET pdf_path = $2, pdf_sha256 = $3, pdf_size = $4, \
+             pdf_rendered_at = now() WHERE id = $1 AND pdf_path IS NULL",
             [
                 row.id.into(),
                 rel.clone().into(),
                 storage::sha256_hex(bytes).into(),
+                // Counted by the space quota, never checked: issuing is not blocked.
+                i64::try_from(bytes.len()).unwrap_or(i64::MAX).into(),
             ],
         ))
         .await?;
