@@ -138,7 +138,7 @@ fn fresh_codes(key: &SecretKey) -> Result<(Vec<String>, Vec<String>), AppError> 
         (status = 403, description = "`forbidden` with a token, `email_unverified`", body = ErrorBody),
         (status = 409, description = "`mfa_enabled`", body = ErrorBody),
         (status = 422, description = "`code: required | expired | invalid`", body = ErrorBody),
-        (status = 429, description = "`rate_limited` (login bucket)", body = ErrorBody),
+        (status = 429, description = "`rate_limited` (code bucket)", body = ErrorBody),
     )
 )]
 pub async fn enable(
@@ -209,7 +209,7 @@ async fn confirm(state: &AppState, authed: &Authed, input: ConfirmInput) -> Resu
         (status = 204, description = "TOTP off; sessions and tokens in spaces that require it are deleted"),
         (status = 403, description = "`forbidden` with a token", body = ErrorBody),
         (status = 422, description = "`password: invalid | not_set`, `code: required | invalid`", body = ErrorBody),
-        (status = 429, description = "`rate_limited` (login bucket)", body = ErrorBody),
+        (status = 429, description = "`rate_limited` (login / code bucket)", body = ErrorBody),
     )
 )]
 pub async fn disable(
@@ -237,7 +237,7 @@ pub async fn disable(
         (status = 403, description = "`forbidden` with a token", body = ErrorBody),
         (status = 409, description = "`mfa_disabled`: TOTP is off", body = ErrorBody),
         (status = 422, description = "`password: invalid | not_set`, `code: required | invalid`", body = ErrorBody),
-        (status = 429, description = "`rate_limited` (login bucket)", body = ErrorBody),
+        (status = 429, description = "`rate_limited` (login / code bucket)", body = ErrorBody),
     )
 )]
 pub async fn regenerate(

@@ -135,7 +135,7 @@ expires_at; unique (space_id, email)).
 - Rate limit: a per-IP bucket of 20 requests / 15 min shared by `GET` and `POST` accept, every request counts,
   checked first (429 `rate_limited` + `Retry-After`).
 - `POST` order: rate limit → token (422 `token: invalid`; argon2 never runs for a dead token) → existing account:
-  the login buckets (e-mail 5 / 15 min and IP 20 / 15 min, reserved before the check, refunded on success — the
+  the login buckets (e-mail: progressive delay, IP 20 / 15 min, reserved before the check, refunded on success — the
   same buckets as `POST /api/auth/login`), wrong password or disabled → 401 `invalid_credentials` (the invitation
   stays usable); new account: `displayName` (trimmed, `required | too_long`) and `password` (`too_short | too_long`)
   reported together, then hashed. Then one transaction: the invitation is deleted (`DELETE … RETURNING`, so of two

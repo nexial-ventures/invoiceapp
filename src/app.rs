@@ -18,7 +18,7 @@ use crate::pdf::PdfRoot;
 use crate::secret::SecretKey;
 use crate::{
     ares, auth, catalog, cnb, contact, csvio, document, email, health, isdoc, mcp, members,
-    openapi, pdf, settings, spa, space,
+    openapi, pdf, security_headers, settings, spa, space,
 };
 
 #[derive(Clone)]
@@ -49,7 +49,8 @@ pub struct AppState {
 /// base-host routes (`/api/spaces`); the public invitation accept routes
 /// (space host); space-host routes (everything of phases 1–3, `/api/space`,
 /// `/api/tokens`, members and invitations, MCP). Non-API paths fall
-/// through to the embedded SPA.
+/// through to the embedded SPA. Every response carries the security headers
+/// (`security_headers`).
 pub fn router(state: AppState) -> Router {
     let authenticate = || middleware::from_fn_with_state(state.clone(), auth::ctx::authenticate);
 
@@ -110,6 +111,11 @@ pub fn router(state: AppState) -> Router {
         .layer(TraceLayer::new_for_http().make_span_with(|req: &Request<Body>| {
             tracing::debug_span!("request", method = %req.method(), path = %req.uri().path())
         }))
+        // Outermost: every response gets them, rejections and 404s included.
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            security_headers::security_headers,
+        ))
         .with_state(state)
 }
 

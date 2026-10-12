@@ -18,7 +18,7 @@ use crate::auth::handlers::ClientIp;
 use crate::auth::handlers::login::with_cookie;
 use crate::auth::host::{ContextSpace, HostCtx};
 use crate::auth::mfa::verify::Verifier;
-use crate::auth::ratelimit::{INVITE_IP, LOGIN_EMAIL, LOGIN_IP};
+use crate::auth::ratelimit::{INVITE_IP, LOGIN_EMAIL, LOGIN_IP, MFA_EMAIL};
 use crate::auth::session::Method;
 use crate::auth::{crypto, mfa, session, users};
 use crate::error::{AppError, ErrorBody, FieldErrors};
@@ -235,7 +235,7 @@ pub async fn accept(
             Box::pin(async move {
                 let joined = match who {
                     Who::Existing { id, email, code } => {
-                        let buckets = [(LOGIN_EMAIL, email.as_str()), (LOGIN_IP, ip.as_str())];
+                        let buckets = [(MFA_EMAIL, email.as_str()), (LOGIN_IP, ip.as_str())];
                         let code = code.as_deref().map(|code| Code {
                             verifier: &v,
                             code,

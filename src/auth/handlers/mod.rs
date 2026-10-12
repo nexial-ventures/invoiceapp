@@ -36,8 +36,8 @@ pub fn email(raw: &str) -> Result<String, &'static str> {
 /// delete, TOTP setup / disable / regenerate, Google unlink): `Err` carries
 /// the field reason — `not_set` for an account without a password (nothing
 /// is counted), `invalid` for a wrong one. Failures count in the user's
-/// login bucket (5 / 15 min, shared with login), so the check cannot be used
-/// to guess; 429 when used up.
+/// login bucket (shared with login: after 3 failures a growing delay), so
+/// the check cannot be used to guess; 429 while the delay runs.
 pub async fn check_password(
     state: &AppState,
     user: &crate::auth::entity::user::Model,

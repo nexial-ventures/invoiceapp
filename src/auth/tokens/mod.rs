@@ -165,7 +165,7 @@ pub async fn list(
         (status = 201, body = CreatedToken),
         (status = 403, description = "`mfa_required`: the space requires TOTP and the caller has none", body = ErrorBody),
         (status = 422, description = "Validation failed (`role: too_high`, `expiresAt: invalid | too_late` (after the calling token's expiry), …; `code: required | invalid` for a user with TOTP)", body = ErrorBody),
-        (status = 429, description = "`rate_limited` (login bucket, code checks)", body = ErrorBody),
+        (status = 429, description = "`rate_limited` (login / code bucket)", body = ErrorBody),
     )
 )]
 pub async fn create(

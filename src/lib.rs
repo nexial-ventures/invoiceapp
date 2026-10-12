@@ -24,6 +24,7 @@ pub mod num_text;
 pub mod openapi;
 pub mod pdf;
 pub mod secret;
+pub mod security_headers;
 pub mod settings;
 pub mod spa;
 pub mod space;

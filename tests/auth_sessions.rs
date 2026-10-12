@@ -122,7 +122,7 @@ async fn every_login_failure_is_the_same_401() {
 async fn login_failures_are_rate_limited() {
     let db = TestDb::new().await;
     let app = router(db.conn.clone());
-    for _ in 0..5 {
+    for _ in 0..3 {
         assert_eq!(
             login(&app, TEST_HOST, OWNER_EMAIL, "wrong password!").await,
             Err(invalid())
@@ -151,7 +151,8 @@ async fn login_failures_are_rate_limited() {
         .ok()
         .and_then(|v| v.parse().ok())
         .expect("Retry-After seconds");
-    assert!((1..=900).contains(&retry), "{retry}");
+    // The first step of the progressive delay: 1 s since the third failure.
+    assert_eq!(retry, 1);
     // Per e-mail: another account from the same client still logs in (IP: 20 / 15 min).
     common::auth::user(&db.conn, "other@example.com").await;
     assert!(

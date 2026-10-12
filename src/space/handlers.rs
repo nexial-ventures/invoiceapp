@@ -167,7 +167,7 @@ pub struct UpdateInput {
         (status = 200, body = SpaceInfo),
         (status = 403, description = "`forbidden` below admin, or `requireMfa` sent by a non-owner or with a token", body = ErrorBody),
         (status = 422, description = "`name: required | too_long`, `requireMfa: mfa_not_enabled`, `code: required | invalid`", body = ErrorBody),
-        (status = 429, description = "`rate_limited` (login bucket, code checks)", body = ErrorBody),
+        (status = 429, description = "`rate_limited` (login / code bucket)", body = ErrorBody),
     )
 )]
 pub async fn update(

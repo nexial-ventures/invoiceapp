@@ -77,7 +77,12 @@ way when an `Origin` is present (a cross-site form post is refused).
 
 ## Rate limits (in memory, per instance)
 429 `{"code":"rate_limited"}` with `Retry-After`:
-- login: 5 failures / 15 min per e-mail, 20 / 15 min per IP;
+- login per e-mail: a **progressive delay**, not a lock — 3 failures pass freely; after that each further attempt
+  must wait 1 s, 2 s, 4 s … (doubling per failure, capped at 30 s) since the last failure, counted over a sliding
+  15 min. An attempt inside the delay → 429 with `Retry-After` = the remaining wait; after it the attempt is checked
+  as usual (a correct password signs in). Nobody can lock someone else out by guessing their e-mail;
+- login per IP: 20 failures / 15 min (hard);
+- TOTP / recovery codes: 5 failures / 15 min per user (hard, the **code bucket**, [mfa.md](mfa.md));
 - register, verify/resend, password-reset: 5 / hour per IP and 3 / hour per e-mail.
 
 Rate-limit keys: an IPv4 client by its address, an **IPv6 client by its /64** (one subscriber usually holds a
@@ -102,7 +107,7 @@ Nothing secret (password, cookie, token, reset / verify token) is ever logged.
 
 ## Tests
 - Register → verify → login → create space → login on its host; disabled registration → 404; enumeration-safe 202.
-- Login failures (wrong password, unknown e-mail, not a member, unverified, disabled) all 401 alike; rate limit 429.
+- Login failures (wrong password, unknown e-mail, not a member, unverified, disabled) all 401 alike; the progressive per-e-mail delay (growth, cap, success after the wait, other e-mails unaffected) and the hard per-IP limit → 429.
 - Session expiry (idle + absolute, by adjusting the stored timestamps), logout, revoke-others, cookie of the base
   host refused on a space host and vice versa.
 - CSRF: cookie POST without / with a foreign Origin → 403; Bearer unaffected.
@@ -124,8 +129,10 @@ Nothing secret (password, cookie, token, reset / verify token) is ever logged.
   finish). Resend mails only unverified, non-disabled users. Every e-mail body accepts `locale` (`cs` default,
   `en`); the links always point to the base host.
 - Login: one attempt is **reserved** in the e-mail and the IP bucket at once (check + record under one lock,
-  before the argon2 verification), so a parallel burst cannot pass the limit (12 parallel wrong logins → 5 × 401,
-  7 × 429); a successful login gives its reservation back, so only failures count. One argon2 verification always
+  before the argon2 verification), so a parallel burst cannot pass the limit (12 parallel wrong logins → 3 × 401,
+  9 × 429: the fourth would have to wait 1 s after the third); a successful login gives its reservation back, so
+  only failures count — and only its own: the failures before it stay (a correct password does not reset the delay,
+  which would otherwise let anyone who knows the password wipe the failed TOTP codes after it). One argon2 verification always
   runs (a dummy hash for unknown or empty e-mails).
 - Sessions: the cookie has `Max-Age` = 90 days; the DB keeps sha256 (hex) of the cookie value and `user_agent`
   cut to 200 characters. Expired sessions are deleted when presented. A session row stores the space of its host
@@ -137,8 +144,12 @@ Nothing secret (password, cookie, token, reset / verify token) is ever logged.
   (a too-short password does not burn it), then consumes the token (single-use update, row-locked) **before**
   hashing — argon2 runs only for a live token; request and confirm work on any known host; disabled users get no
   mail. Confirm is limited to 20 requests / 15 min per IP (every request counts).
-- The own-password checks (`currentPassword` of a password change, `password` of `DELETE /api/space`) count a
-  failure in the user's login bucket (5 / 15 min, shared with login, keyed by the user's e-mail); used up → 429.
+- The own-password checks (`currentPassword` of a password change, `password` of `DELETE /api/space`, MFA setup /
+  disable / regenerate, Google unlink) count a failure in the user's login bucket (the progressive delay, shared with
+  login, keyed by the user's e-mail); inside the delay → 429. TOTP / recovery codes (login step, step-up, enable)
+  count in the separate, hard code bucket (5 / 15 min per user, plus the IP bucket where the login has one):
+  reaching a code check takes the password or a session, so a stranger cannot lock it, and a 6-digit code must not
+  get the far higher rate the delay allows (~2 / min).
 - Verify / reset tokens of one kind are refused by the other route (`token: invalid`). Several live tokens may
   exist (each resend / request issues a new one); each is single use.
 - CSRF: `Origin` is compared case-insensitively with `{scheme of INVOICE__PUBLIC_URL}://{request host incl. port}`;
@@ -147,9 +158,12 @@ Nothing secret (password, cookie, token, reset / verify token) is ever logged.
 - Rate limits: `register`, `verify/resend` and `password-reset` share one per-IP bucket (5 / h) and one per-e-mail
   bucket (3 / h); every request counts there (not only failures). `Retry-After` is in whole seconds (≥ 1). Without
   `INVOICE__TRUST_FORWARDED` the socket address is the IP; with it the **last** `X-Forwarded-For` hop (the one the
-  trusted proxy appended — earlier hops are client-controlled; the proxy must append, not pass through). The
-  limiter is bounded: keys (cut to 320 bytes) are swept in insertion order a few per request once their newest
-  event is older than an hour, and above 100 000 keys the oldest-inserted are dropped.
+  trusted proxy appended — earlier hops are client-controlled; the proxy must append, not pass through).
+  `Retry-After` is rounded **up** (a client that waits it is not refused again). The limiter is in memory (single
+  instance) and bounded without dropping state that still counts: keys (cut to 320 bytes) are swept in insertion
+  order a few per request, removing only **idle** keys (no event left in their window or delay); above 100 000
+  keys every idle key is dropped at once, and only if all are still active the oldest are evicted (last resort,
+  one warning per process).
 - Each authenticated request resolves the cookie / token, its user and the membership in one joined query (plus
   the host's slug lookup); `last_seen_at` / `last_used_at` are written at most once a minute.
 - Request logs record method + path only (never the query string: the SPA's `/verify?token=…` / `/reset?token=…`
@@ -165,6 +179,9 @@ Nothing secret (password, cookie, token, reset / verify token) is ever logged.
   counts nothing in the login bucket. `GET /api/context` gains `google`; `me.user` gains `hasPassword`,
   `googleLinked`.
 - **Accepted risks** (decided with the product owner):
+  - *Login delay per e-mail* (#40): anyone can keep someone's e-mail in its delay (each attempt at most 30 s after
+    the last failure), so the owner may wait up to 30 s before a login is checked — never locked out. In exchange a
+    password guesser gets ~2 attempts / min per e-mail (and 20 / 15 min per IP).
   - *No instance-wide e-mail limit*: register, verify/resend and password-reset are limited per IP and per address
     (invitations per inviter and space, [members.md](members.md)), but many clients together can still make the
     instance send a lot of mail through its SMTP. Mitigation: open registration only to vetted users at first, or
