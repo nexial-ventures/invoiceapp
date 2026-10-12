@@ -25,7 +25,8 @@ pub struct Rate {
 /// once it can no longer change: when it was
 /// published for exactly `date`, or `date` is already in the past. Today's
 /// request before ČNB publishes (~14:30) returns yesterday's list, which must
-/// not stick for the rest of the day.
+/// not stick for the rest of the day; it is kept in memory for
+/// [`super::recent::TTL`] instead.
 pub async fn rate<C: ConnectionTrait>(
     db: &C,
     cnb: &CnbClient,
@@ -51,8 +52,18 @@ pub async fn rate<C: ConnectionTrait>(
             rate: rate.normalize(),
         });
     }
-    let list = cnb.fetch(date).await.map_err(AppError::CnbUnavailable)?;
-    if list.published == date || date < today {
+    let (list, fetched) = match cnb.recent.get(date) {
+        Some(list) => (list, false),
+        None => (
+            cnb.fetch(date).await.map_err(AppError::CnbUnavailable)?,
+            true,
+        ),
+    };
+    if !fetched {
+        // A provisional list from memory: nothing to store.
+    } else if list.published != date && date >= today {
+        cnb.recent.put(date, list.clone());
+    } else {
         let mut rows: Vec<_> = list
             .rates
             .iter()

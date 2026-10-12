@@ -80,7 +80,7 @@ async fn ids<C: ConnectionTrait>(
 /// What an export writes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Format {
-    /// Streamed CSV; the label names the export in the logs.
+    /// CSV (built whole, then sent); the label names the export in the logs.
     Csv(&'static str),
     /// The accountant period as a program's XML (built whole, then sent).
     Xml {
@@ -90,9 +90,9 @@ enum Format {
     },
 }
 
-/// The whole export reads one snapshot: for CSV the transaction lives in
-/// the streamed body, so the header's rate columns, the id list and every
-/// chunk agree even while documents change.
+/// The whole export reads one snapshot, so the header's rate columns, the
+/// id list and every chunk agree even while documents change. The file is
+/// built inside it and sent after it ended.
 async fn export(
     state: &AppState,
     space: SpaceId,
@@ -107,11 +107,6 @@ async fn export(
             Some(AccessMode::ReadOnly),
         )
         .await?;
-    // The snapshot lives as long as the client takes to read the body.
-    if let Err(e) = crate::db::allow_idle(&txn).await {
-        export_load::rollback(txn, "export").await;
-        return Err(e.into());
-    }
     let ids = match ids(&txn, space, select).await {
         Ok(ids) => ids,
         Err(e) => {
@@ -123,7 +118,7 @@ async fn export(
         Format::Csv(label) => attachment(
             CSV,
             filename,
-            export_load::body(txn, space, ids, label).await?,
+            export_load::csv(txn, space, ids, label).await?,
         ),
         Format::Xml { program, from, to } => attachment(
             match program {
@@ -153,7 +148,7 @@ fn list_direction(d: Option<&str>) -> Result<&'static str, AppError> {
     security(("cookie" = []), ("bearer" = [])),
     params(ListQuery),
     responses(
-        (status = 200, description = "`doklady-{direction}-{yyyy-mm-dd}.csv`: the documents of the list filter without drafts and cancelled ones (`limit` / `offset` ignored), streamed", content_type = "text/csv"),
+        (status = 200, description = "`doklady-{direction}-{yyyy-mm-dd}.csv`: the documents of the list filter without drafts and cancelled ones (`limit` / `offset` ignored)", content_type = "text/csv"),
         (status = 422, description = "`direction`: `required` / `invalid`; `filter`: `too_many` (more than 10 000)", body = ErrorBody),
     )
 )]
@@ -261,7 +256,7 @@ impl AccountantQuery {
     security(("cookie" = []), ("bearer" = [])),
     params(AccountantQuery),
     responses(
-        (status = 200, description = "Every non-proforma, non-draft, non-cancelled document whose tax date (received: else the received date) is in the period. `format=csv`: `ucetni-{from}-{to}.csv`, streamed; `format=pohoda`: `pohoda-{from}-{to}.xml` (Windows-1250, Stormware dataPack 2.0); `format=money`: `money-{from}-{to}.xml` (UTF-8, Money S3 `MoneyData`)", content(
+        (status = 200, description = "Every non-proforma, non-draft, non-cancelled document whose tax date (received: else the received date) is in the period. `format=csv`: `ucetni-{from}-{to}.csv`; `format=pohoda`: `pohoda-{from}-{to}.xml` (Windows-1250, Stormware dataPack 2.0); `format=money`: `money-{from}-{to}.xml` (UTF-8, Money S3 `MoneyData`)", content(
             (String = "text/csv; charset=utf-8"),
             (String = "application/xml; charset=windows-1250"),
             (String = "application/xml; charset=utf-8"),
@@ -302,100 +297,5 @@ pub async fn accountant(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn q(from: Option<&str>, to: Option<&str>, direction: Option<&str>) -> AccountantQuery {
-        AccountantQuery {
-            from: from.map(str::to_string),
-            to: to.map(str::to_string),
-            direction: direction.map(str::to_string),
-            format: None,
-        }
-    }
-
-    fn fields(r: Result<Accountant, AppError>) -> Vec<(String, &'static str)> {
-        match r {
-            Err(AppError::Validation(e)) => {
-                let mut v: Vec<_> = ["from", "to", "direction", "format"]
-                    .into_iter()
-                    .filter_map(|f| e.get(f).map(|r| (f.to_string(), r)))
-                    .collect();
-                v.sort();
-                v
-            }
-            other => panic!("expected validation, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn accountant_period() {
-        let date = |m, d| NaiveDate::from_ymd_opt(2026, m, d).expect("date");
-        assert_eq!(
-            q(Some("2026-01-01"), Some("2026-01-31"), None)
-                .check()
-                .expect("ok"),
-            Accountant {
-                from: date(1, 1),
-                to: date(1, 31),
-                direction: None,
-                format: AccountantFormat::Csv,
-            }
-        );
-        let one_day = q(Some("2026-03-05"), Some("2026-03-05"), Some("received"));
-        assert_eq!(one_day.check().expect("ok").direction, Some(RECEIVED));
-        assert!(
-            q(Some("2026-01-01"), Some("2027-01-02"), Some("both"))
-                .check()
-                .is_ok()
-        );
-        let inv = |f: &str| (f.to_string(), "invalid");
-        assert_eq!(
-            fields(q(Some("2026-01-01"), Some("2027-01-03"), None).check()),
-            [inv("from"), inv("to")],
-            "367 days"
-        );
-        assert_eq!(
-            fields(q(Some("2026-02-01"), Some("2026-01-31"), None).check()),
-            [inv("from"), inv("to")]
-        );
-        assert_eq!(
-            fields(q(None, Some("31.01.2026"), Some("x")).check()),
-            [inv("direction"), inv("from"), inv("to")]
-        );
-    }
-
-    #[test]
-    fn accountant_formats() {
-        let with = |f: &str| AccountantQuery {
-            format: Some(f.into()),
-            ..q(Some("2026-01-01"), Some("2026-01-31"), None)
-        };
-        assert_eq!(
-            with("pohoda").check().expect("ok").format,
-            AccountantFormat::Xml(Program::Pohoda)
-        );
-        assert_eq!(
-            with(" money").check().expect("ok").format,
-            AccountantFormat::Xml(Program::Money)
-        );
-        assert_eq!(
-            with(" csv ").check().expect("ok").format,
-            AccountantFormat::Csv
-        );
-        for bad in ["Money", "xml", ""] {
-            assert_eq!(
-                fields(with(bad).check()),
-                [("format".to_string(), "invalid")]
-            );
-        }
-    }
-
-    #[test]
-    fn list_directions() {
-        assert_eq!(list_direction(Some("issued")).ok(), Some(ISSUED));
-        assert_eq!(list_direction(Some("received")).ok(), Some(RECEIVED));
-        assert!(list_direction(None).is_err());
-        assert!(list_direction(Some("both")).is_err());
-    }
-}
+#[path = "export_tests.rs"]
+mod tests;

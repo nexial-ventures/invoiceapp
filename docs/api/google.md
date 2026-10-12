@@ -141,7 +141,7 @@ redirects with `unavailable` too (logged), never a JSON 500.
 - **Flow**: the state is used up by the callback (`DELETE … RETURNING`). Unknown / used state → the origin is unknown:
   `{base}/login?google_error=invalid`; a flow whose space was deleted likewise. Expired → `expired` on the origin
   host, without a code exchange. Provider `error=access_denied` → `cancelled`, any other `error` or a missing `code`
-  → `invalid`. Flows and handoffs expired are purged when a new flow starts.
+  → `invalid`. Flows and handoffs expired are purged when a new flow starts and by the hourly expired-row purge.
 - **Invitation token in the redirects**: rows store the invitation's sha256 (as `space_invites`) plus the token
   sealed with AES-256-GCM under `INVOICE__SECRET_KEY` (associated data = the space id), only to build
   `/invite?token=…&google_error=`.

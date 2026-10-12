@@ -223,7 +223,8 @@ For MCP and scripts. A token belongs to **one user in one space** and works only
   categories, custom fields or counters exist, or the company row was filled in (name or IČO); the untouched seed
   rows are deleted. Its `down` refuses (restore a backup instead).
 - **Storage**: `PdfRoot::space(id)` gives a storage scoped to `spaces/{id}/`; the DB keeps the space-relative key
-  (`documents/2026/….pdf`). The shared design cache is namespaced by the space prefix. `invoice storage migrate`
+  (`documents/2026/….pdf`). The shared design cache is namespaced by the space prefix, bounded by `INVOICE__DESIGN_CACHE_MB`
+  (LRU), and a deleted space's entries are dropped. `invoice storage migrate`
   is unchanged (copies keys as they are; no single-tenant archive is mapped into a space). `invoice design …
   --space <slug>` resolves the slug in the database, so it also needs `INVOICE__DATABASE_URL`.
 - **Tokens**: `inv_{prefix}_{secret}`, prefix 8 lowercase hex chars, secret 32 bytes base64url (43 chars); anything

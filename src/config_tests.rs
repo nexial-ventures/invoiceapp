@@ -131,6 +131,29 @@ fn pool_size() {
 }
 
 #[test]
+fn design_cache_size() {
+    let base = [
+        ("INVOICE__DATABASE_URL", "postgres://x"),
+        ("INVOICE__PUBLIC_URL", "http://localhost:3000"),
+    ];
+    let cfg = Config::from_source(env(&base)).expect("defaults");
+    assert_eq!(cfg.design_cache_mb, 128);
+    let mut pairs = base.to_vec();
+    pairs.push(("INVOICE__DESIGN_CACHE_MB", "16"));
+    let cfg = Config::from_source(env(&pairs)).expect("set");
+    assert_eq!(cfg.design_cache_mb, 16);
+    for bad in ["0", "big"] {
+        let mut pairs = base.to_vec();
+        pairs.push(("INVOICE__DESIGN_CACHE_MB", bad));
+        let err = Config::from_source(env(&pairs)).expect_err(bad);
+        assert!(
+            format!("{err:#}").contains("INVOICE__DESIGN_CACHE_MB"),
+            "{err:#}"
+        );
+    }
+}
+
+#[test]
 fn empty_pdf_settings_mean_defaults() {
     let cfg = Config::from_source(env(&[
         ("INVOICE__DATABASE_URL", "postgres://x"),

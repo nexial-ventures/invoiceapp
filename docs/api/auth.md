@@ -49,7 +49,9 @@ created through Google that has not set one (4d) —, email_verified_at, disable
   `Path=/`, `Secure` when `INVOICE__PUBLIC_URL` is https. The DB stores sha256 of it (table `sessions`: user_id,
   space_id (null on the base host), created_at, last_seen_at, expires_at, user_agent ≤ 200). A session is valid only
   on the host it was created for (the base host or its space).
-- Expiry: idle **14 days** (sliding; `last_seen_at` written at most once a minute), absolute **90 days**.
+- Expiry: idle **14 days** (sliding; `last_seen_at` written at most once a minute), absolute **90 days**. Expired sessions,
+  e-mail / link tokens, pending TOTP logins, Google flows / handoffs and invitations are deleted by an hourly
+  background purge (`src/cleanup.rs`); every reader ignores an expired row before that.
 - `POST /api/auth/logout` → 204, deletes the session, clears the cookie.
 - `POST /api/auth/sessions/revoke-others` → 204, deletes all other sessions of the user (all hosts), the pending
   TOTP logins and **every API token of the user (all spaces)**.

@@ -5,6 +5,7 @@ pub mod amounts;
 pub mod archive;
 pub mod client;
 pub mod design;
+pub mod design_cache;
 pub mod editor;
 pub mod format;
 pub mod handlers;
@@ -77,6 +78,13 @@ impl PdfRoot {
             design_cache: self.design_cache.clone(),
             space,
         })
+    }
+
+    /// Bound the design cache to `mb` MiB (`INVOICE__DESIGN_CACHE_MB`;
+    /// [`design_cache::DEFAULT_LIMIT_MB`] otherwise).
+    pub fn with_design_cache_mb(mut self, mb: u32) -> Self {
+        self.design_cache = design::Cache::with_limit(u64::from(mb) * 1024 * 1024);
+        self
     }
 
     /// The unscoped storage (space delete removes a whole prefix).

@@ -256,6 +256,15 @@ impl Storage {
         }
     }
 
+    /// Startup reachability check. Only logs: requests touching the storage
+    /// answer 503 `storage_unavailable` while it is down.
+    pub async fn probe(self) {
+        match self.head("reachability-probe").await {
+            Ok(_) => tracing::info!(kind = self.kind(), "storage reachable"),
+            Err(e) => tracing::error!(kind = self.kind(), error = %e, "storage unreachable"),
+        }
+    }
+
     pub async fn exists(&self, key: &str) -> Result<bool, Error> {
         Ok(self.head(key).await?.is_some())
     }

@@ -1,12 +1,10 @@
 //! The export's database side: the CSV rate columns, the documents of a
 //! chunk with what their rows need ([`Loaded`], shared with the Pohoda
-//! export), and the streamed CSV body. Everything runs in the caller's
-//! snapshot transaction.
+//! export), and the CSV file built inside the caller's snapshot
+//! transaction.
 
 use std::collections::HashMap;
 
-use axum::body::Body;
-use futures_util::{StreamExt as _, TryStreamExt as _, stream};
 use rust_decimal::Decimal;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseTransaction, EntityTrait, QueryFilter, QuerySelect,
@@ -162,36 +160,6 @@ async fn chunk<C: ConnectionTrait>(db: &C, ids: &[Uuid], w: &Walk) -> Result<Vec
     Ok(write::body(&w.rates, &rows)?)
 }
 
-/// What the stream walks: the snapshot (committed after the last chunk),
-/// the chunks left, the header's rates.
-struct Walk {
-    txn: Option<DatabaseTransaction>,
-    chunks: std::vec::IntoIter<Vec<Uuid>>,
-    rates: Vec<Decimal>,
-    categories: HashMap<Uuid, String>,
-    /// Which export, for the logs.
-    label: &'static str,
-}
-
-async fn next(mut w: Walk) -> Result<Option<(Vec<u8>, Walk)>, AppError> {
-    let Some(txn) = w.txn.take() else {
-        return Ok(None);
-    };
-    match w.chunks.next() {
-        Some(ids) => {
-            let bytes = chunk(&txn, &ids, &w).await?;
-            w.txn = Some(txn);
-            Ok(Some((bytes, w)))
-        }
-        // Ended explicitly: a dropped transaction would only queue its
-        // rollback and keep the snapshot open on a pooled connection.
-        None => {
-            txn.commit().await?;
-            Ok(None)
-        }
-    }
-}
-
 async fn prepare(
     txn: &DatabaseTransaction,
     space: SpaceId,
@@ -214,38 +182,51 @@ pub async fn rollback(txn: DatabaseTransaction, label: &str) {
     }
 }
 
-/// The CSV of `ids` (already ordered), read in `txn`: the header right
-/// away, then the rows chunk by chunk. A failure mid-way aborts the body
-/// (logged). `label` names the export in the logs.
-pub async fn body(
+/// What every chunk shares: the header's rates and the category names.
+struct Walk {
+    rates: Vec<Decimal>,
+    categories: HashMap<Uuid, String>,
+    /// Which export, for the logs.
+    label: &'static str,
+}
+
+/// The CSV of `ids` (already ordered), built whole inside the snapshot
+/// `txn`, which is then committed (rolled back on a failure): the response
+/// goes out after the transaction ended, so a slow client never holds a
+/// snapshot open on a pooled connection. `label` names the export in the
+/// logs.
+pub async fn csv(
     txn: DatabaseTransaction,
     space: SpaceId,
     ids: Vec<Uuid>,
     label: &'static str,
-) -> Result<Body, AppError> {
-    let (rates, head, categories) = match prepare(&txn, space, &ids).await {
-        Ok(x) => x,
+) -> Result<Vec<u8>, AppError> {
+    match build(&txn, space, &ids, label).await {
+        Ok(bytes) => {
+            txn.commit().await?;
+            Ok(bytes)
+        }
         Err(e) => {
             rollback(txn, label).await;
-            return Err(e);
+            Err(e)
         }
-    };
-    let walk = Walk {
-        txn: Some(txn),
-        chunks: ids
-            .chunks(CHUNK)
-            .map(<[Uuid]>::to_vec)
-            .collect::<Vec<_>>()
-            .into_iter(),
+    }
+}
+
+async fn build(
+    txn: &DatabaseTransaction,
+    space: SpaceId,
+    ids: &[Uuid],
+    label: &'static str,
+) -> Result<Vec<u8>, AppError> {
+    let (rates, mut out, categories) = prepare(txn, space, ids).await?;
+    let w = Walk {
         rates,
         categories,
         label,
     };
-    let rest = stream::try_unfold(walk, next).map_err(move |e| {
-        tracing::error!(export = label, error = %e, "export aborted");
-        std::io::Error::other("export failed")
-    });
-    Ok(Body::from_stream(
-        stream::once(async move { Ok(head) }).chain(rest),
-    ))
+    for ids in ids.chunks(CHUNK) {
+        out.extend(chunk(txn, ids, &w).await?);
+    }
+    Ok(out)
 }

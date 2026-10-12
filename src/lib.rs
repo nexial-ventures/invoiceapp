@@ -3,6 +3,7 @@ pub mod app;
 pub mod ares;
 pub mod auth;
 pub mod catalog;
+pub mod cleanup;
 pub mod cnb;
 pub mod config;
 pub mod contact;

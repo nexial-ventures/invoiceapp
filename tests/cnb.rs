@@ -12,6 +12,7 @@ use common::documents::{
 };
 use common::{TestDb, call, router_with_cnb};
 use invoice::time::today;
+use sea_orm::{ConnectionTrait, Statement};
 use serde_json::{Value, json};
 
 async fn rate(app: &Router, uri: &str) -> (StatusCode, Value) {
@@ -84,13 +85,27 @@ async fn a_list_that_may_still_change_is_not_cached() {
             (StatusCode::OK, &json!("2026-10-01"))
         );
     }
-    assert_eq!(hits(&counter), 2);
+    assert_eq!(
+        hits(&counter),
+        1,
+        "reused from memory for a few minutes, never stored"
+    );
+    let stored = db
+        .conn
+        .query_one(Statement::from_string(
+            db.conn.get_database_backend(),
+            format!("SELECT count(*) AS n FROM exchange_rates WHERE requested_date = '{today}'"),
+        ))
+        .await
+        .expect("count")
+        .and_then(|r| r.try_get::<i64>("", "n").ok());
+    assert_eq!(stored, Some(0));
     // A past date (e.g. a weekend) answered with an older list is final.
     let past = today.checked_sub_days(Days::new(400)).expect("date");
     for _ in 0..2 {
         rate(&app, &format!("/api/exchange-rates/EUR?date={past}")).await;
     }
-    assert_eq!(hits(&counter), 3);
+    assert_eq!(hits(&counter), 2);
 }
 
 async fn eur_draft(app: &Router, extra: Value) -> String {

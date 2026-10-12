@@ -12,6 +12,7 @@ use crate::cnb::DEFAULT_CNB_URL;
 use crate::db::DEFAULT_MAX_CONNECTIONS;
 use crate::email::SmtpConfig;
 use crate::pdf::DEFAULT_MDCAST_URL;
+use crate::pdf::design_cache::DEFAULT_LIMIT_MB as DEFAULT_DESIGN_CACHE_MB;
 use crate::secret::{Secret, SecretKey};
 use crate::storage::StorageConfig;
 
@@ -56,6 +57,11 @@ pub struct Config {
     raw_db_max_connections: Option<String>,
     #[serde(skip)]
     pub db_max_connections: u32,
+    /// `INVOICE__DESIGN_CACHE_MB`: design file cache bound (default 128).
+    #[serde(default, rename = "design_cache_mb")]
+    raw_design_cache_mb: Option<String>,
+    #[serde(skip)]
+    pub design_cache_mb: u32,
     /// `INVOICE__STORAGE_KIND` / `INVOICE__STORAGE_DIR` / `INVOICE__S3__*`.
     #[serde(skip)]
     pub storage: StorageConfig,
@@ -102,6 +108,11 @@ impl Config {
             "INVOICE__DB_MAX_CONNECTIONS",
             cfg.raw_db_max_connections.as_deref(),
             DEFAULT_MAX_CONNECTIONS,
+        )?;
+        cfg.design_cache_mb = positive(
+            "INVOICE__DESIGN_CACHE_MB",
+            cfg.raw_design_cache_mb.as_deref(),
+            DEFAULT_DESIGN_CACHE_MB,
         )?;
         let cfg = cfg.normalized();
         cfg.validate()?;

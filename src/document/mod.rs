@@ -30,7 +30,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(documents::list).post(documents::create))
         .route("/compute", post(documents::compute))
-        .route("/isdoc", get(crate::isdoc::export::bulk))
+        .route("/isdoc", get(crate::isdoc::export_bulk::bulk))
         .route(
             "/{id}",
             get(documents::get)

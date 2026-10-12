@@ -156,8 +156,8 @@ exported. Rows are ordered by direction (issued first), tax date (issue date whe
 - `format=csv` (default) | `pohoda` (3b, [accounting.md](accounting.md)); anything else → 422 `format: invalid`.
 
 ### Both
-- `200 text/csv; charset=utf-8`, `Content-Disposition: attachment`, streamed. More than 10 000 matching documents →
-  422 `{"fields":{"filter":"too_many"}}` (checked before streaming). An empty result is a header-only file.
+- `200 text/csv; charset=utf-8`, `Content-Disposition: attachment`. More than 10 000 matching documents →
+  422 `{"fields":{"filter":"too_many"}}` (checked before the file is built). An empty result is a header-only file.
 - **Values per column:**
   - `number`: our number (received: the internal number), `supplier_number`: received only.
   - `related_number`: the linked original (issued: its number; received: its supplier number), else empty.
@@ -277,13 +277,13 @@ Additive details settled during the Phase 2c backend. No field of the contract c
   date), else the issue date, then `number_year`, `number_seq` (allocated numbers in series order), then the number
   text (imported numbers), then id.
 - **One snapshot:** the id list, the rate columns of the header and every row are read in one read-only
-  `REPEATABLE READ` transaction that lives in the streamed body (committed after the last chunk), so documents
+  `REPEATABLE READ` transaction; the whole file is built inside it and sent after the commit, so documents
   edited, cancelled or re-dated meanwhile are exported as they were when the export started, and no recap rate is
   ever missing from the header.
-- **Rows** are loaded and written 500 documents at a time; the header goes out first. A document whose row cannot
+- **Rows** are loaded and written 500 documents at a time. A document whose row cannot
   be built (an undecodable counterparty snapshot, an unknown stored value, a foreign recap row with neither a
   stored CZK amount nor an exchange rate) is **skipped and logged** with its id; the rest of the file is written.
-  A database failure after the header aborts the body (logged) — the client sees a truncated download.
+  A database failure while building fails the request (500 `internal`, logged) — no partial file is sent.
 - **Formula guard (CSV injection):** a free-text cell (`number`, `supplier_number`, `related_number`, the
   counterparty cells, `variable_symbol`, `category`, `note`) that starts with `=`, `+`, `-`, `@`, TAB or CR —
   also behind leading `'`s — is written with one `'` in front. Amount, date, rate and code cells are never

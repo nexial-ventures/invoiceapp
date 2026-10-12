@@ -31,6 +31,8 @@ impl RateList {
 pub struct CnbClient {
     http: reqwest::Client,
     url: String,
+    /// Lists not final yet, reused for [`super::recent::TTL`].
+    pub recent: super::recent::Recent,
 }
 
 impl CnbClient {
@@ -44,6 +46,7 @@ impl CnbClient {
         Ok(Self {
             http,
             url: url.to_string(),
+            recent: Default::default(),
         })
     }
 

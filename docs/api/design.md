@@ -74,7 +74,7 @@ are never re-rendered (1d). All routes are on a space host, **admin+** (Settings
 
 ## Interaction with existing behaviour
 - Renders (issue, preview) keep reading **live** only. The design cache (1d, per space since 4a) is invalidated by
-  the activation / restore / reset of that space.
+  the activation / restore / reset or the deletion of that space, and bounded by `INVOICE__DESIGN_CACHE_MB` (LRU).
 - `invoice design push|pull|ls|rm --space` keep working on live directly (operator tool, no versions); the next
   activation snapshots whatever is live.
 - Space delete removes the whole `spaces/{id}/` prefix incl. drafts and versions (4a).
