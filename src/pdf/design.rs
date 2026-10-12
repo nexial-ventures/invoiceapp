@@ -1,11 +1,10 @@
 //! The design file set: the default design embedded from `design/`,
 //! overridden file by file by the space's storage keys `design/…` (listed on every
-//! render; file contents cached by key + version, so unchanged files are not
-//! downloaded again).
+//! render; file contents cached by key + version in the bounded
+//! [`Cache`], so unchanged files are not downloaded again).
 
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashMap};
-use std::sync::{Arc, Mutex};
+use std::collections::BTreeMap;
 
 use anyhow::Context as _;
 use bytes::Bytes;
@@ -15,7 +14,10 @@ use utoipa::ToSchema;
 
 use crate::error::AppError;
 use crate::storage::local::{is_hidden, rel_key};
-use crate::storage::{DESIGN_PREFIX, Object, Storage, Version};
+use crate::storage::{DESIGN_PREFIX, Object, Storage};
+
+pub use super::design_cache::Cache;
+use super::design_cache::scoped_key;
 
 #[derive(Embed)]
 #[folder = "design/"]
@@ -164,64 +166,6 @@ pub fn effective(custom: &BTreeMap<String, Object>) -> Vec<DesignFile> {
 fn is_font(path: &str) -> bool {
     let lower = path.to_ascii_lowercase();
     lower.starts_with("fonts/") && (lower.ends_with(".ttf") || lower.ends_with(".otf"))
-}
-
-/// Downloaded overrides by storage key. Shared by every clone of the PDF
-/// service; entries whose key disappeared from the listing are dropped.
-#[derive(Clone, Default)]
-pub struct Cache(Arc<Mutex<HashMap<String, (Version, Bytes)>>>);
-
-impl Cache {
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    fn hit(&self, key: &str, version: &Version) -> Option<Bytes> {
-        let map = self.0.lock().unwrap_or_else(|e| e.into_inner());
-        map.get(key)
-            .filter(|(v, _)| v == version)
-            .map(|(_, b)| b.clone())
-    }
-
-    fn store(&self, key: String, version: Version, bytes: Bytes) {
-        let mut map = self.0.lock().unwrap_or_else(|e| e.into_inner());
-        map.insert(key, (version, bytes));
-    }
-
-    /// Drop the entries of `scope` whose key is not in `keys` (other
-    /// scopes untouched).
-    fn retain(&self, scope: &str, keys: &[String]) {
-        let mut map = self.0.lock().unwrap_or_else(|e| e.into_inner());
-        map.retain(|k, _| !k.starts_with(&format!("{scope}|")) || keys.contains(k));
-    }
-
-    /// Forget every cached file of `scope` (a design activation, restore or
-    /// reset of that space).
-    pub fn invalidate(&self, scope: &str) {
-        self.retain(scope, &[]);
-    }
-
-    /// Cached files (tests check what was downloaded).
-    pub fn len(&self) -> usize {
-        self.0.lock().unwrap_or_else(|e| e.into_inner()).len()
-    }
-
-    async fn fetch(&self, storage: &Storage, scope: &str, o: &Object) -> Result<Bytes, AppError> {
-        let cache_key = scoped_key(scope, &o.key);
-        if let Some(bytes) = self.hit(&cache_key, &o.version) {
-            return Ok(bytes);
-        }
-        // Cached under the listed version (a GET reports e.g. a coarser
-        // Last-Modified): a file replaced between the listing and this read
-        // no longer matches the next listing and is fetched again.
-        let bytes = storage.get(&o.key).await?;
-        self.store(cache_key, o.version.clone(), bytes.clone());
-        Ok(bytes)
-    }
-}
-
-fn scoped_key(scope: &str, key: &str) -> String {
-    format!("{scope}|{key}")
 }
 
 /// A loaded design, ready to go into a render request.

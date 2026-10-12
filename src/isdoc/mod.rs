@@ -3,6 +3,7 @@
 pub mod analyze;
 pub mod export;
 pub mod export_body;
+pub mod export_bulk;
 pub mod export_xml;
 pub mod import;
 pub mod model;

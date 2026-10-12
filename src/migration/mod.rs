@@ -24,6 +24,7 @@ mod m20261020_000001_defaults;
 mod m20261021_000001_design;
 mod m20261022_000001_space_limits;
 mod m20261023_000001_tenant_fks;
+mod m20261023_000002_fk_indexes;
 
 pub struct Migrator;
 
@@ -48,6 +49,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20261021_000001_design::Migration),
             Box::new(m20261022_000001_space_limits::Migration),
             Box::new(m20261023_000001_tenant_fks::Migration),
+            Box::new(m20261023_000002_fk_indexes::Migration),
         ]
     }
 }

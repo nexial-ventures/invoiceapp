@@ -1,16 +1,14 @@
-//! `GET /api/documents/{id}/isdoc` and `GET /api/documents/isdoc`: issued
-//! documents as `.isdocx` (ISDOC + PDF + manifest) or plain `.isdoc`.
+//! `GET /api/documents/{id}/isdoc`: one issued document as `.isdocx`
+//! (ISDOC + PDF + manifest) or plain `.isdoc`; the per-document export the
+//! bulk ZIP (`export_bulk.rs`) is made of.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::io::{Cursor, Write as _};
 
 use anyhow::Context as _;
 use axum::extract::State;
 use axum::response::Response;
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect,
-};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
@@ -19,19 +17,15 @@ use crate::app::AppState;
 use crate::auth::Read;
 use crate::document::compute::RecapRow;
 use crate::document::entity::document::{self, Column, Entity};
-use crate::document::handlers::dto::{BankSnapshot, ListQuery, PartySnapshot};
+use crate::document::handlers::dto::{BankSnapshot, PartySnapshot};
 use crate::document::line::{LineData, PaymentMethod, Status, VatMode};
 use crate::document::repo::query::{self, Full};
 use crate::error::{AppError, ErrorBody};
-use crate::extract::{ApiPath, ApiQuery};
+use crate::extract::ApiPath;
 use crate::pdf::handlers::safe_filename;
 use crate::pdf::{PdfService, archive};
 use crate::settings::doc_type::{DocType, ISSUED, RECEIVED};
 use crate::space::SpaceId;
-use crate::time::today;
-
-/// Most documents one bulk export may hold.
-pub const MAX_BULK: u64 = 1000;
 
 /// One exported document file.
 pub struct Exported {
@@ -170,11 +164,21 @@ async fn visual(
     }
 }
 
-type ZipOut = zip::ZipWriter<Cursor<Vec<u8>>>;
+pub(super) type ZipOut = zip::ZipWriter<Cursor<Vec<u8>>>;
 
-fn zip_add(w: &mut ZipOut, name: &str, bytes: &[u8]) -> Result<(), AppError> {
-    let opts = zip::write::SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Deflated);
+/// Stored for a payload that is compressed already (a PDF, an `.isdocx`
+/// archive): deflating it again costs CPU and saves nothing.
+fn compression(name: &str) -> zip::CompressionMethod {
+    let lower = name.to_ascii_lowercase();
+    if lower.ends_with(".pdf") || lower.ends_with(".isdocx") {
+        zip::CompressionMethod::Stored
+    } else {
+        zip::CompressionMethod::Deflated
+    }
+}
+
+pub(super) fn zip_add(w: &mut ZipOut, name: &str, bytes: &[u8]) -> Result<(), AppError> {
+    let opts = zip::write::SimpleFileOptions::default().compression_method(compression(name));
     w.start_file(name, opts).context("start zip entry")?;
     w.write_all(bytes).context("write zip entry")?;
     Ok(())
@@ -250,7 +254,7 @@ pub async fn plain(
     plain_of(db, query::load(db, space, id).await?).await
 }
 
-fn attachment(e: Exported) -> Response {
+pub(super) fn attachment(e: Exported) -> Response {
     crate::download::attachment(e.content_type, &e.filename, e.bytes)
 }
 
@@ -274,103 +278,4 @@ pub async fn document_isdoc(
 ) -> Result<Response, AppError> {
     let pdf = state.pdf.space(access.space())?;
     Ok(attachment(export(&state.db, &pdf, id).await?))
-}
-
-/// `name`, or `name` with `-2`, `-3`… before the extension when taken.
-fn unique_name(taken: &mut HashSet<String>, name: &str) -> String {
-    let (stem, ext) = name.rsplit_once('.').unwrap_or((name, ""));
-    let mut candidate = name.to_string();
-    let mut n = 1;
-    while !taken.insert(candidate.clone()) {
-        n += 1;
-        candidate = format!("{stem}-{n}.{ext}");
-    }
-    candidate
-}
-
-#[utoipa::path(
-    get,
-    path = "/api/documents/isdoc",
-    tag = "documents",
-    security(("cookie" = []), ("bearer" = [])),
-    params(ListQuery),
-    responses(
-        (status = 200, description = "`isdoc-export.zip` of the matching issued non-draft documents", content_type = "application/zip"),
-        (status = 422, description = "`filter`: `too_many` (more than 1000)", body = ErrorBody),
-        (status = 503, description = "`storage_unavailable` (the export stops at the first document it hits)", body = ErrorBody),
-    )
-)]
-pub async fn bulk(
-    State(state): State<AppState>,
-    access: Read,
-    ApiQuery(mut q): ApiQuery<ListQuery>,
-) -> Result<Response, AppError> {
-    q.direction = Some(ISSUED.into());
-    let space = access.space();
-    let select = || {
-        query::export_select(space, &q, today()).filter(Column::Status.ne(Status::Draft.as_str()))
-    };
-    if select().count(&state.db).await? > MAX_BULK {
-        return Err(AppError::field("filter", "too_many"));
-    }
-    let docs: Vec<(Uuid, Option<String>)> = select()
-        .select_only()
-        .column(Column::Id)
-        .column(Column::Number)
-        .order_by_asc(Column::IssueDate)
-        .order_by_asc(Column::Number)
-        .into_tuple()
-        .all(&state.db)
-        .await?;
-    let pdf = state.pdf.space(space)?;
-    // Entries go straight into the archive; a document that fails is
-    // skipped and listed in `errors.txt` instead of failing the export.
-    let mut w = zip::ZipWriter::new(Cursor::new(Vec::new()));
-    let (mut taken, mut errors, mut first_error, mut written) =
-        (HashSet::new(), String::new(), None, 0usize);
-    for (id, number) in docs {
-        match export(&state.db, &pdf, id).await {
-            Ok(e) => {
-                zip_add(&mut w, &unique_name(&mut taken, &e.filename), &e.bytes)?;
-                written += 1;
-            }
-            // Every further document would fail the same way: the whole
-            // export is unavailable, not a partial archive.
-            Err(e @ AppError::StorageUnavailable(_)) => return Err(e),
-            Err(e) => {
-                tracing::warn!(document = %id, error = %e, "ISDOC bulk export skipped a document");
-                let number = number.unwrap_or_else(|| id.to_string());
-                errors.push_str(&format!(
-                    "{number}: export failed ({})\n",
-                    e.status_and_code().1
-                ));
-                first_error.get_or_insert(e);
-            }
-        }
-    }
-    if let (0, Some(e)) = (written, first_error) {
-        return Err(e);
-    }
-    if !errors.is_empty() {
-        zip_add(&mut w, "errors.txt", errors.as_bytes())?;
-    }
-    Ok(attachment(Exported {
-        filename: "isdoc-export.zip".into(),
-        content_type: "application/zip",
-        bytes: w.finish().context("finish zip")?.into_inner(),
-    }))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn names_are_made_unique() {
-        let mut taken = HashSet::new();
-        assert_eq!(unique_name(&mut taken, "1.isdocx"), "1.isdocx");
-        assert_eq!(unique_name(&mut taken, "1.isdocx"), "1-2.isdocx");
-        assert_eq!(unique_name(&mut taken, "1.isdocx"), "1-3.isdocx");
-        assert_eq!(unique_name(&mut taken, "1.isdoc"), "1.isdoc");
-    }
 }

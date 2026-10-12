@@ -13,13 +13,23 @@ use serde_json::json;
 async fn space_delete_removes_rows_files_and_frees_the_slug() {
     let db = TestDb::new().await;
     let env = PdfEnv::new();
-    let app = env.router(db.conn.clone());
+    let (app, pdf) = env.router_and_pdf(db.conn.clone());
     let (other, _) = seed_space(&db.conn, "beta", "beta@example.com", None).await;
-    // Data and files in acme; one file in beta that must survive.
+    // Data and files in acme (a custom logo the issue render caches); one
+    // file in beta that must survive.
+    env.storage
+        .storage
+        .put(
+            &db.key("design/logo.png"),
+            bytes::Bytes::from_static(b"png"),
+        )
+        .await
+        .expect("put logo");
     let body = common::documents::issuable(&app).await;
     let doc = common::documents::create_doc(&app, body).await;
     let (s, _) = common::documents::issue(&app, &common::documents::id(&doc)).await;
     assert_eq!(s, StatusCode::OK);
+    assert_eq!(pdf.design_cache().len(), 1, "the logo is cached");
     assert!(
         !env.storage
             .keys(&db.space.storage_prefix())
@@ -99,6 +109,10 @@ async fn space_delete_removes_rows_files_and_frees_the_slug() {
     )
     .await;
     assert_eq!(s, StatusCode::NOT_FOUND, "the host is gone");
+    assert!(
+        pdf.design_cache().is_empty(),
+        "its cached design is dropped"
+    );
     // The files go in a detached task after the commit.
     let mut gone = false;
     for _ in 0..500 {

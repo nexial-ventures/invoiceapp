@@ -242,6 +242,7 @@ pub async fn delete(
     e.into_result()?;
     let space = access.space();
     repo::delete(&state.db, space).await?;
+    state.pdf.design_cache().invalidate(&space.storage_prefix());
     // Detached from the request: a client that disconnects after the commit
     // must not leave the files behind.
     let storage = state.pdf.root_storage().clone();

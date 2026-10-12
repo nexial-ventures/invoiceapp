@@ -7,6 +7,7 @@ use invoice::app::{self, AppState};
 use invoice::ares::AresClient;
 use invoice::auth::google::Google;
 use invoice::auth::ratelimit::RateLimiter;
+use invoice::cleanup;
 use invoice::cnb::CnbClient;
 use invoice::config::{Config, DbConfig};
 use invoice::db;
@@ -161,7 +162,8 @@ async fn serve() -> Result<()> {
     .context("connect to database (INVOICE__DATABASE_URL)")?;
 
     let storage = Storage::new(&cfg.storage)?;
-    tokio::spawn(probe(storage.clone()));
+    tokio::spawn(storage.clone().probe());
+    tokio::spawn(cleanup::run(db.clone()));
     let state = AppState {
         db,
         ares: AresClient::new(&cfg.ares_url)?,
@@ -170,7 +172,8 @@ async fn serve() -> Result<()> {
             &cfg.mdcast_url,
             cfg.mdcast_token.as_ref().map(|t| t.expose().as_str()),
             storage,
-        )?,
+        )?
+        .with_design_cache_mb(cfg.design_cache_mb),
         email: cfg.smtp.as_ref().map(Mailer::new).transpose()?,
         public: cfg.public.clone(),
         registration: cfg.registration,
@@ -199,15 +202,6 @@ async fn migrate(action: MigrateAction) -> Result<()> {
         MigrateAction::Down { n } => Migrator::down(&db, Some(n)).await,
     }
     .context("run migrations")
-}
-
-/// Startup reachability check. Only logs: requests touching the storage
-/// answer 503 `storage_unavailable` while it is down.
-async fn probe(storage: Storage) {
-    match storage.head("reachability-probe").await {
-        Ok(_) => tracing::info!(kind = storage.kind(), "storage reachable"),
-        Err(e) => tracing::error!(kind = storage.kind(), error = %e, "storage unreachable"),
-    }
 }
 
 fn open_storage() -> Result<Storage> {

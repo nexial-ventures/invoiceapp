@@ -28,8 +28,8 @@ pub fn pool_options(url: &str, max_connections: u32) -> ConnectOptions {
 }
 
 /// Lift the idle-in-transaction timeout for this transaction only: one
-/// that deliberately waits on the storage or on a slow client between its
-/// statements (the design editor's lock, a streamed export snapshot).
+/// that deliberately waits on the storage between its statements (the
+/// design editor's lock).
 pub async fn allow_idle(txn: &DatabaseTransaction) -> Result<(), DbErr> {
     txn.execute_unprepared("SET LOCAL idle_in_transaction_session_timeout = 0")
         .await

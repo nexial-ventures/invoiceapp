@@ -350,7 +350,9 @@ Export
 - `PaymentMeans` is always written: `PaidAmount` = payable, due date (issue date if none), account split at `/` into
   `ID` / `BankCode`, `IBAN`, `BIC` (empty elements when unknown), VS, KS.
 - Bulk: ordered by issue date, number; entries are the per-document files; a name collision gets `-2`, `-3`, … before
-  the extension. The 1000 limit counts after excluding drafts. Entries are written into the ZIP as they are produced
-  (PDFs rendered lazily one after another). A document that cannot be exported is skipped and logged, and
+  the extension. The 1000 limit counts after excluding drafts. Up to 8 documents are exported at once (PDFs fetched
+  or rendered lazily), their entries written in list order; the ZIP is built in memory and sent whole. `.isdocx`
+  entries (and the PDF inside each) are stored uncompressed, the XML deflated.
+  A document that cannot be exported is skipped and logged, and
   `errors.txt` in the ZIP lists `{number}: export failed ({code})` per skipped document (`code` is the generic error
   code, e.g. `internal`); when nothing at all could be exported the first error is returned instead.

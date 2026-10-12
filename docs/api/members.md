@@ -122,7 +122,7 @@ expires_at; unique (space_id, email)).
   row that was not purged yet → 204.
 - Token: 32 random bytes base64url (43 chars), sha256 (hex) stored (`space_invites.token_hash`, unique);
   `expiresAt` = creation + exactly 7 days (RFC 3339). Expired rows are never served and are purged by
-  `GET /api/invites` (that space's rows only).
+  `GET /api/invites` (that space's rows only) and by the server's hourly expired-row purge (all spaces).
 - `POST` / `resend` answer `{ …item, emailSent, url? }`. With SMTP: `url` is **omitted** (the link exists only in
   the e-mail), `emailSent: true` = queued in a background task, a failure is logged at `error` (`false` only when
   the stored address cannot be used as a recipient — logged; resend after fixing it). Without SMTP: `emailSent:

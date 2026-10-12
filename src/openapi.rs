@@ -128,7 +128,7 @@ use utoipa::{Modify, OpenApi};
         crate::csvio::export::list_csv,
         crate::csvio::export::accountant,
         crate::isdoc::export::document_isdoc,
-        crate::isdoc::export::bulk,
+        crate::isdoc::export_bulk::bulk,
         crate::email::handlers::settings::status,
         crate::email::handlers::settings::test,
         crate::email::handlers::settings::list_templates,

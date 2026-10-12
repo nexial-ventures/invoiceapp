@@ -144,7 +144,7 @@ For a user with TOTP these also require `code` (TOTP or recovery) next to the pa
 - **Login**: the `mfa_required` refusal and the `{ "mfa": "required" }` answer both come after a correct password
   and the usual checks (disabled, verified + member on a space host); the login reservation is refunded then. A user
   **with** TOTP gets the code step on every host, also where the policy is off. The pending login purges expired
-  rows on creation. `POST /api/auth/login/mfa` is **one transaction that first locks the pending row** (`FOR
+  rows on creation (and the hourly expired-row purge does too). `POST /api/auth/login/mfa` is **one transaction that first locks the pending row** (`FOR
   UPDATE`), so attempts on one pending login run in turn: it re-checks the user (disabled, verified, still a member
   → 401 `invalid_credentials`), checks the code, then either counts the failure on the locked row and commits it
   (the 5th failure deletes the row; later requests → 401 `invalid_credentials`; 8 parallel wrong codes → exactly

@@ -116,7 +116,10 @@ Payment { id, date, amount: string /* >0, doc currency */, note: string|null, cr
 10 s timeout. Text format: line 1 `08.10.2026 #196` (publication date), line 2 header, then
 `země|měna|množství|kód|kurz` with comma decimals; `rate = kurz / množství`. ČNB returns the latest list published on or
 before the requested date. Cache: table `exchange_rates (currency, requested_date) → (published_date, rate)`; a cached row is
-reused without calling ČNB. Tests use a local mock server with fixture text — never the real ČNB.
+reused without calling ČNB. A row is written only for a final list: one published for exactly the requested date, or
+any list for a past date. A today-or-later request answered with an older list (before ČNB publishes, ~14:30) is not
+stored; that list is reused from memory for at most **60 s** (`src/cnb/recent.rs`), so after publication a stale rate
+is served for a minute at most. Tests use a local mock server with fixture text — never the real ČNB.
 
 ## Number-series counter guard (finishes the 1a review item)
 `PUT /api/settings/number-series/{docType}/counters/{year}` with `lastNumber` lower than the highest `numberSeq` of a
