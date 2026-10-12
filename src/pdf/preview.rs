@@ -5,6 +5,7 @@ use rust_decimal::Decimal;
 
 use super::format::Locale;
 use super::payload::Input;
+use crate::currency::LOCAL_CURRENCY;
 use crate::document::compute::{self, Params};
 use crate::document::line::{ItemData, LineData, RoundingMode, Status, VatMode};
 use crate::document::repo::issue::supplier;
@@ -127,7 +128,7 @@ impl Sample {
     ) -> Result<Option<bank_account::Model>, AppError> {
         Ok(bank_account::Entity::find()
             .filter(bank_account::Column::SpaceId.eq(company.space_id))
-            .filter(bank_account::Column::Currency.eq("CZK"))
+            .filter(bank_account::Column::Currency.eq(LOCAL_CURRENCY))
             .filter(bank_account::Column::IsDefault.eq(true))
             .one(db)
             .await?)
@@ -185,7 +186,7 @@ impl Sample {
             issue_date: self.issue_date,
             tax_point_date: Some(self.issue_date),
             due_date: self.due_date,
-            currency: "CZK",
+            currency: LOCAL_CURRENCY,
             rate: None,
             payment_method: "bank_transfer",
             variable_symbol: Some(&self.number),
@@ -208,6 +209,7 @@ impl Sample {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::document::line::PaymentMethod;
     use crate::pdf::payload;
 
     fn company() -> company::Model {
@@ -227,9 +229,9 @@ mod tests {
             registration: None,
             default_due_days: 14,
             default_locale: "cs".into(),
-            default_rounding_cash: "unit".into(),
-            default_rounding_other: "none".into(),
-            default_payment_method: "bank_transfer".into(),
+            default_rounding_cash: RoundingMode::Unit,
+            default_rounding_other: RoundingMode::None,
+            default_payment_method: PaymentMethod::BankTransfer,
             default_currency: "CZK".into(),
             default_header_note_cs: None,
             default_header_note_en: None,

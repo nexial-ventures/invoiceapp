@@ -1,6 +1,6 @@
 use super::*;
 use crate::document::compute::item_base;
-use crate::document::line::ItemData;
+use crate::document::line::{Direction, ItemData};
 use crate::isdoc::parse::parse;
 use crate::isdoc::plan::plan;
 
@@ -94,7 +94,7 @@ fn round_trip_through_the_parser() {
     let xml = render(&invoice());
     let parsed = parse(xml.as_bytes()).expect("parsed");
     let p = plan(parsed, Some("44444443")).expect("plan");
-    assert_eq!(p.direction, "issued");
+    assert_eq!(p.direction, Direction::Issued);
     assert_eq!(p.number, "20260007");
     assert_eq!(p.tax_point_date, Some(day("2026-09-30")));
     assert_eq!(p.due_date, Some(day("2026-10-15")));

@@ -2,8 +2,9 @@ use serde_json::json;
 use uuid::Uuid;
 
 use super::*;
-use crate::csvio::test_doc::{d, date, doc, recap, ts};
 use crate::csvio::write::{body, header};
+use crate::document::line::Direction;
+use crate::export::test_doc::{d, date, doc, recap, ts};
 
 fn pay(day: u32, amount: &str, created: i64) -> payment::Model {
     payment::Model {
@@ -70,11 +71,11 @@ fn issued_czk_invoice() {
 #[test]
 fn received_foreign_credit_note_is_negative() {
     let mut parent = doc();
-    parent.direction = "received".into();
+    parent.direction = Direction::Received;
     parent.supplier_number = Some("FV-1".into());
     let mut doc = doc();
-    doc.direction = "received".into();
-    doc.doc_type = "credit_note".into();
+    doc.direction = Direction::Received;
+    doc.doc_type = DocType::CreditNote;
     doc.number = Some("PD-1".into());
     doc.supplier_number = Some("DOB-7".into());
     doc.currency = "EUR".into();
@@ -114,7 +115,7 @@ fn received_foreign_credit_note_is_negative() {
 #[test]
 fn contactless_simplified_has_no_counterparty() {
     let mut doc = doc();
-    doc.doc_type = "simplified".into();
+    doc.doc_type = DocType::Simplified;
     doc.customer_snapshot = None;
     let c = row(&Source {
         doc: &doc,
@@ -130,30 +131,40 @@ fn contactless_simplified_has_no_counterparty() {
 #[test]
 fn paid_date_is_the_payment_completing_it() {
     let ps = [pay(9, "500", 2), pay(3, "700", 1), pay(9, "10", 3)];
-    let at = |paid, payable| paid_date("invoice", Status::Issued, d(paid), d(payable), &ps);
+    let at = |paid, payable| paid_date(DocType::Invoice, Status::Issued, d(paid), d(payable), &ps);
     assert_eq!(at("1210", "1200"), Some(date(4, 9)), "overpaid");
     assert_eq!(at("1200", "1200"), Some(date(4, 9)));
     assert_eq!(at("1200", "700"), Some(date(4, 3)), "first one suffices");
     assert_eq!(at("1200", "1300"), None, "partial");
     assert_eq!(
-        paid_date("invoice", Status::Issued, d("0"), d("0"), &[]),
+        paid_date(DocType::Invoice, Status::Issued, d("0"), d("0"), &[]),
         None,
         "settled without a payment"
     );
     assert_eq!(
-        paid_date("invoice", Status::Cancelled, d("1200"), d("1200"), &ps),
+        paid_date(
+            DocType::Invoice,
+            Status::Cancelled,
+            d("1200"),
+            d("1200"),
+            &ps
+        ),
         None
     );
     assert_eq!(
-        paid_date("advance_tax_doc", Status::Issued, d("0"), d("1200"), &[]),
+        paid_date(
+            DocType::AdvanceTaxDoc,
+            Status::Issued,
+            d("0"),
+            d("1200"),
+            &[]
+        ),
         None
     );
 }
 
 #[test]
 fn unknown_stored_values_fail() {
-    let mut bad = doc();
-    bad.direction = "sideways".into();
     let s = |d| Source {
         doc: d,
         recap: &[],
@@ -161,7 +172,6 @@ fn unknown_stored_values_fail() {
         parent: None,
         category: None,
     };
-    assert!(out_row(&s(&bad)).is_err());
     let mut bad = doc();
     bad.customer_snapshot = Some(json!("x"));
     assert!(out_row(&s(&bad)).is_err());

@@ -1,5 +1,5 @@
 use super::*;
-use crate::settings::doc_type::DocType;
+use crate::document::doc_type::DocType;
 
 pub const NONPAYER: &str = include_str!("../../tests/fixtures/isdoc/issued_nonpayer.isdoc");
 pub const VAT: &str = include_str!("../../tests/fixtures/isdoc/received_vat.isdoc");

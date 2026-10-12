@@ -2,8 +2,10 @@ use serde_json::json;
 
 use super::*;
 use crate::accounting::settings::AccountingSettings;
-use crate::csvio::test_doc::{d, date, doc, recap, snapshot};
+use crate::document::doc_type::DocType;
 use crate::document::entity::{document, vat_recap};
+use crate::document::line::{Direction, PaymentMethod, VatMode};
+use crate::export::test_doc::{d, date, doc, recap, snapshot};
 
 fn ctx(settings: AccountingSettings) -> Ctx {
     Ctx {
@@ -112,7 +114,7 @@ fn codes_from_settings() {
           "classificationVat": "UD", "numberSeries": "FV" }]}}))
     .expect("settings");
     let mut doc = doc();
-    doc.payment_method = "other".into();
+    doc.payment_method = PaymentMethod::Other;
     let x = render(&source(&doc, &[], None), &ctx(settings));
     assert!(
         x.contains(
@@ -130,7 +132,7 @@ fn codes_from_settings() {
 fn credit_note_negative_with_original() {
     let original = doc();
     let mut note = doc();
-    note.doc_type = "credit_note".into();
+    note.doc_type = DocType::CreditNote;
     note.number = Some("D-1".into());
     note.rounding = Decimal::ZERO;
     let recap = [recap(&note, "21", "100", "21")];
@@ -152,7 +154,7 @@ fn credit_note_negative_with_original() {
 #[test]
 fn received_eur_invoice() {
     let mut doc = doc();
-    doc.direction = "received".into();
+    doc.direction = Direction::Received;
     doc.supplier_number = Some("FV-42".into());
     doc.currency = "EUR".into();
     doc.exchange_rate = Some(d("24.335000"));
@@ -189,7 +191,7 @@ fn received_eur_invoice() {
 #[test]
 fn non_deductible_received() {
     let mut doc = doc();
-    doc.direction = "received".into();
+    doc.direction = Direction::Received;
     doc.vat_deductible = false;
     let settings = |nd: Option<&str>| -> AccountingSettings {
         serde_json::from_value(json!({ "pohoda": { "codes": [
@@ -229,7 +231,7 @@ fn non_deductible_received() {
 #[test]
 fn ddpp_goes_to_internal_documents() {
     let mut doc = doc();
-    doc.doc_type = "advance_credit_note".into();
+    doc.doc_type = DocType::AdvanceCreditNote;
     doc.number = Some("ODD-1".into());
     doc.customer_snapshot = None;
     let x = render(
@@ -260,7 +262,7 @@ fn ddpp_goes_to_internal_documents() {
 #[test]
 fn vat_free_modes_and_skips() {
     let mut doc = doc();
-    doc.vat_mode = "non_payer".into();
+    doc.vat_mode = VatMode::NonPayer;
     let x = render(
         &source(&doc, &[recap(&doc, "21", "500", "0")], None),
         &ctx(AccountingSettings::default()),
@@ -270,7 +272,7 @@ fn vat_free_modes_and_skips() {
         "{x}"
     );
 
-    doc.vat_mode = "standard".into();
+    doc.vat_mode = VatMode::Standard;
     let ten = [recap(&doc, "10", "100", "10")];
     let c = ctx(AccountingSettings::default());
     let err = item(&source(&doc, &ten, None), &c).expect_err("unmappable");

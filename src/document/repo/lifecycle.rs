@@ -4,11 +4,11 @@ use chrono::{DateTime, FixedOffset};
 use sea_orm::{ActiveModelTrait, DatabaseConnection, DatabaseTransaction, Set, TransactionTrait};
 use uuid::Uuid;
 
-use super::{credit, ddpp_correction, query, view};
+use super::{credit, ddpp_correction, query};
 use crate::document::entity::document;
+use crate::document::line::Direction;
 use crate::document::line::Status;
 use crate::error::AppError;
-use crate::settings::doc_type::ISSUED;
 use crate::space::SpaceId;
 
 const ISSUED_ONLY: &[Status] = &[Status::Issued];
@@ -43,7 +43,7 @@ async fn locked(
     allowed: fn(&document::Model) -> bool,
 ) -> Result<document::Model, AppError> {
     let doc = query::lock(txn, space, id).await?;
-    if !statuses.contains(&view::status(&doc)?) || doc.direction != ISSUED || !allowed(&doc) {
+    if !statuses.contains(&doc.status) || doc.direction != Direction::Issued || !allowed(&doc) {
         return Err(AppError::InvalidState);
     }
     Ok(doc)
@@ -92,7 +92,7 @@ pub async fn cancel(
                     _ => {}
                 }
                 apply(txn, doc, move |row| {
-                    row.status = Set(Status::Cancelled.as_str().into());
+                    row.status = Set(Status::Cancelled);
                     row.cancelled_at = Set(Some(chrono::Utc::now().into()));
                     row.cancel_reason = Set(reason);
                 })

@@ -5,9 +5,10 @@
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 
-use crate::csvio::export_row::Source;
+use crate::document::doc_type::DocType;
 use crate::document::entity::document;
-use crate::settings::doc_type::{DocType, ISSUED};
+use crate::document::line::Direction;
+use crate::export::source::Source;
 
 /// The standard Czech rates (základní, snížená).
 pub const HIGH: Decimal = Decimal::from_parts(21, 0, 0, false, 0);
@@ -48,8 +49,8 @@ pub fn cut(s: &str, max: usize) -> String {
 /// The number the file names a document by (issued: ours, received: the
 /// supplier's, else our internal one), for messages and descriptions.
 pub fn shown_number(doc: &document::Model) -> Option<&str> {
-    match doc.direction.as_str() {
-        ISSUED => doc.number.as_deref(),
+    match doc.direction {
+        Direction::Issued => doc.number.as_deref(),
         _ => doc.supplier_number.as_deref().or(doc.number.as_deref()),
     }
 }
@@ -139,7 +140,7 @@ pub fn amount(x: Decimal) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::csvio::test_doc::{d, date, doc};
+    use crate::export::test_doc::{d, date, doc};
 
     #[test]
     fn classes() {
@@ -190,7 +191,7 @@ mod tests {
         doc.tax_point_date = Some(date(3, 1));
         doc.received_date = None;
         assert_eq!(dates(&doc, false), (Some(date(3, 1)), Some(date(3, 1))));
-        doc.direction = "received".into();
+        doc.direction = Direction::Received;
         doc.supplier_number = None;
         assert_eq!(shown_number(&doc), Some("2026000001"), "internal number");
     }

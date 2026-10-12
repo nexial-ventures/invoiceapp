@@ -11,15 +11,43 @@ use super::doc::shown_number;
 use super::pohoda_summary::third_rate;
 use super::settings::{AccountingSettings, Program};
 use super::{money, pohoda};
-use crate::csvio::export_load::{CHUNK, Loaded, rollback};
-use crate::csvio::export_row::Source;
 use crate::error::AppError;
+use crate::export::load::{CHUNK, Loaded, rollback};
+use crate::export::source::Source;
 use crate::settings::repo::{company, vat_rates};
 use crate::space::SpaceId;
 use crate::time::today;
 
 /// Longest `detail` of an `unexportable` error, in characters.
 const MAX_DETAIL: usize = 2000;
+
+/// The file the accountant export writes (`format`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Format {
+    /// The CSV of the import format.
+    Csv,
+    Xml(Program),
+}
+
+impl Format {
+    /// `csv` (also when absent) | `pohoda` | `money`; anything else → `None`.
+    pub fn parse(s: Option<&str>) -> Option<Self> {
+        match s.map(str::trim) {
+            None | Some("csv") => Some(Format::Csv),
+            Some("pohoda") => Some(Format::Xml(Program::Pohoda)),
+            Some("money") => Some(Format::Xml(Program::Money)),
+            Some(_) => None,
+        }
+    }
+
+    pub fn content_type(self) -> &'static str {
+        match self {
+            Format::Csv => "text/csv; charset=utf-8",
+            Format::Xml(Program::Pohoda) => "application/xml; charset=windows-1250",
+            Format::Xml(Program::Money) => "application/xml; charset=utf-8",
+        }
+    }
+}
 
 /// What every item of one export shares.
 pub struct Ctx {
@@ -189,6 +217,21 @@ mod tests {
             AppError::ValidationDetail(f, d) => (f.get("documents"), d),
             other => panic!("expected validation detail, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn formats() {
+        assert_eq!(Format::parse(None), Some(Format::Csv));
+        assert_eq!(
+            Format::parse(Some(" money ")),
+            Some(Format::Xml(Program::Money))
+        );
+        assert_eq!(Format::parse(Some("xlsx")), None);
+        assert_eq!(
+            Format::Xml(Program::Pohoda).content_type(),
+            "application/xml; charset=windows-1250"
+        );
+        assert_eq!(Format::Csv.content_type(), "text/csv; charset=utf-8");
     }
 
     #[test]

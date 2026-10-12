@@ -1,5 +1,5 @@
 //! Stored documents → Stormware POHODA data exchange XML (`dataPack` 2.0,
-//! Windows-1250). Pure: the export pipeline ([`crate::csvio::export_load`])
+//! Windows-1250). Pure: the export pipeline ([`crate::export::load`])
 //! loads the [`Source`]s and streams what this writes.
 
 use anyhow::Context as _;
@@ -9,11 +9,12 @@ use super::doc::{cut, dates, fits, shown_number, text};
 use super::export::Ctx;
 use super::pohoda_summary::{self as summary, Foreign, Ns};
 use super::settings::CodeRow;
-use crate::csvio::export_row::{Kind, Source, czk_recap, party};
+use crate::currency::is_local;
+use crate::document::doc_type::DocType;
 use crate::document::line::{PaymentMethod, VatMode};
 use crate::document::snapshot::BankSnapshot;
+use crate::export::source::{Kind, Source, czk_recap, party};
 use crate::isdoc::xml::Xml;
-use crate::settings::doc_type::DocType;
 
 const NS_DAT: &str = "http://www.stormware.cz/schema/version_2/data.xsd";
 const NS_INV: &str = "http://www.stormware.cz/schema/version_2/invoice.xsd";
@@ -106,8 +107,7 @@ fn partner(x: &mut Xml, ns: Ns, s: &Source, issued: bool) -> anyhow::Result<()> 
 
 /// `paymentType` + (issued) `account` of an invoice-agenda document.
 fn payment(x: &mut Xml, s: &Source, issued: bool) -> anyhow::Result<()> {
-    let method = PaymentMethod::parse(&s.doc.payment_method).context("stored payment method")?;
-    let pt = match method {
+    let pt = match s.doc.payment_method {
         PaymentMethod::BankTransfer => Some("draft"),
         PaymentMethod::Cash => Some("cash"),
         PaymentMethod::Card => Some("creditcard"),
@@ -169,11 +169,11 @@ pub fn item(s: &Source, ctx: &Ctx) -> anyhow::Result<String> {
         doc_type,
         vat_mode,
         ..
-    } = Kind::of(doc)?;
+    } = Kind::of(doc);
     let (ns, invoice_type) = agenda(doc_type, issued)?;
     let vat_free = matches!(vat_mode, VatMode::Exempt | VatMode::NonPayer);
     let slots = summary::slots(&czk_recap(doc, s.recap)?, vat_free, ctx.third)?;
-    let codes: Option<&CodeRow> = ctx.settings.pohoda.row(&doc.direction, doc_type);
+    let codes: Option<&CodeRow> = ctx.settings.pohoda.row(doc.direction, doc_type);
     let code = |f: fn(&CodeRow) -> &Option<String>| codes.and_then(|c| f(c).as_ref());
     let (tax_date, accounting_date) = dates(doc, issued);
     let shown = shown_number(doc);
@@ -232,7 +232,7 @@ pub fn item(s: &Source, ctx: &Ctx) -> anyhow::Result<String> {
     }
     x.close();
 
-    let is_czk = doc.currency == "CZK";
+    let is_czk = is_local(&doc.currency);
     let sign = Decimal::from(doc_type.sign());
     x.open(
         &ns.name(match ns {

@@ -4,12 +4,12 @@
 use rust_decimal::Decimal;
 use serde::Serialize;
 
+use crate::document::doc_type::DocType;
 use crate::document::line::Status;
 use crate::document::state::NO_PAYMENTS_DOC_TYPE;
 use crate::pdf::format::{self, Locale};
 use crate::pdf::labels;
 use crate::pdf::payload::Input;
-use crate::settings::doc_type::DocType;
 use crate::settings::entity::company;
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -85,7 +85,7 @@ pub fn build(
     let sign = Decimal::from(DocType::parse_document(i.doc_type).map_or(1, |t| t.sign()));
     let money = |x: Decimal| format::money(x * sign, i.currency, locale);
     let remaining = (i.totals.payable - paid).max(Decimal::ZERO);
-    let settled = i.doc_type == NO_PAYMENTS_DOC_TYPE || remaining.is_zero();
+    let settled = i.doc_type == NO_PAYMENTS_DOC_TYPE.as_str() || remaining.is_zero();
     let cancelled = i.status == Status::Cancelled;
     let correction = DocType::parse_document(i.doc_type).is_some_and(|t| t.is_correction());
     let bank = i.bank;

@@ -2,7 +2,7 @@
 //! [api/money.md](../../docs/api/money.md)): Settings → Accounting (the
 //! codes per program × direction × document type) and the Pohoda and
 //! Money S3 XML writers, formats of the accountant export
-//! ([`crate::csvio::export`]).
+//! ([`crate::export`]).
 
 pub mod doc;
 pub mod entity;

@@ -12,9 +12,11 @@ use super::cell::{
 use super::columns::Columns;
 use super::format::{self as f, parse_bool};
 use super::read::Cell;
+use crate::currency::{LOCAL_CURRENCY, is_local};
+use crate::document::doc_type::DocType;
+use crate::document::line::Direction;
 use crate::document::line::{PaymentMethod, VatMode};
 use crate::import::model::{ContactRule, IssuedBank, Party, Plan};
-use crate::settings::doc_type::{DocType, ISSUED, RECEIVED};
 use crate::validation as v;
 
 /// The company the issued rows are ours from.
@@ -35,14 +37,6 @@ pub struct Mapped {
 
 fn err(code: &'static str, field: &str) -> RowError {
     RowError::new(code, field)
-}
-
-pub fn direction(s: &str) -> Option<&'static str> {
-    match s {
-        "issued" => Some(ISSUED),
-        "received" => Some(RECEIVED),
-        _ => None,
-    }
 }
 
 /// The counterparty as written; `None` only for an issued `simplified`
@@ -85,11 +79,11 @@ fn party(row: Row, doc_type: DocType, issued: bool, ctx: &Ctx) -> Check<Option<P
 /// The document currency and its rate (`None` for CZK).
 fn currency(row: Row) -> Check<(String, Option<Decimal>)> {
     let currency = match row.text(f::CURRENCY) {
-        None => "CZK".to_string(),
+        None => LOCAL_CURRENCY.to_string(),
         Some(c) => v::currency(&c).map_err(|_| err(INVALID_VALUE, f::CURRENCY))?,
     };
     let rate = amount_of(row.cell(f::EXCHANGE_RATE), f::EXCHANGE_RATE, 6)?;
-    if currency == "CZK" {
+    if is_local(&currency) {
         return match rate {
             Some(r) if r != Decimal::ONE => Err(err(INVALID_VALUE, f::EXCHANGE_RATE)),
             _ => Ok((currency, None)),
@@ -123,12 +117,12 @@ fn recap(row: Row) -> Check<Vec<(CzkRow, String, String)>> {
 
 pub fn map(row: Row, ctx: &Ctx) -> Check<Mapped> {
     let direction = row
-        .choice(f::DIRECTION, direction)?
+        .choice(f::DIRECTION, Direction::parse)?
         .ok_or_else(|| err(MISSING_FIELD, f::DIRECTION))?;
     let doc_type = row
         .choice(f::DOC_TYPE, DocType::parse_document)?
         .ok_or_else(|| err(MISSING_FIELD, f::DOC_TYPE))?;
-    let issued = direction == ISSUED;
+    let issued = direction == Direction::Issued;
     let number = row.req_text(
         if issued {
             f::NUMBER

@@ -79,15 +79,17 @@ impl LineData {
     }
 }
 
-/// Declares a string-backed enum with `as_str` / `parse` (wire = DB value).
+/// Declares a string-backed enum with `as_str` / `parse` (wire = DB value),
+/// usable directly as a `text` column (CHECK-constrained to the same values).
 macro_rules! str_enum {
     ($name:ident { $($variant:ident => $s:literal),+ $(,)? }) => {
         #[derive(
             Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, utoipa::ToSchema,
-            schemars::JsonSchema,
+            schemars::JsonSchema, sea_orm::EnumIter, sea_orm::DeriveActiveEnum,
         )]
         #[serde(rename_all = "snake_case")]
-        pub enum $name { $($variant),+ }
+        #[sea_orm(rs_type = "String", db_type = "Text")]
+        pub enum $name { $(#[sea_orm(string_value = $s)] $variant),+ }
 
         impl $name {
             pub const ALL: &'static [$name] = &[$($name::$variant),+];
@@ -99,17 +101,14 @@ macro_rules! str_enum {
             pub fn parse(s: &str) -> Option<$name> {
                 Self::ALL.iter().copied().find(|v| v.as_str() == s)
             }
-
-            /// A stored (CHECK-constrained) value; anything else is a
-            /// corrupt row of `owner` — an internal error, never a fallback.
-            pub fn parse_stored(s: &str, owner: impl std::fmt::Display) -> anyhow::Result<$name> {
-                Self::parse(s).ok_or_else(|| {
-                    anyhow::anyhow!("{owner} has unknown {} {s:?}", stringify!($name))
-                })
-            }
         }
     };
 }
+
+str_enum!(Direction {
+    Issued => "issued",
+    Received => "received",
+});
 
 str_enum!(VatMode {
     Standard => "standard",
@@ -183,16 +182,30 @@ mod tests {
         assert!(!VatMode::NonPayer.charges_vat());
     }
 
+    /// The column value is the wire value: stored rows and the CHECK
+    /// constraints keep the strings they always had.
     #[test]
-    fn corrupt_stored_values_are_errors() {
-        assert_eq!(
-            RoundingMode::parse_stored("half", "doc").expect("valid"),
-            RoundingMode::Half
-        );
-        let err = RoundingMode::parse_stored("whole", "document 7").expect_err("corrupt");
-        assert_eq!(
-            err.to_string(),
-            "document 7 has unknown RoundingMode \"whole\""
-        );
+    fn database_values_are_the_wire_values() {
+        use sea_orm::ActiveEnum;
+        fn check<T: ActiveEnum<Value = String> + serde::Serialize + PartialEq + std::fmt::Debug>(
+            all: &[T],
+        ) {
+            for v in all {
+                let db = v.to_value();
+                assert_eq!(
+                    serde_json::to_value(v).expect("serialize"),
+                    serde_json::json!(db)
+                );
+                assert_eq!(&T::try_from_value(&db).expect("parse"), v);
+            }
+        }
+        check(Direction::ALL);
+        check(VatMode::ALL);
+        check(Status::ALL);
+        check(PaymentMethod::ALL);
+        check(RoundingMode::ALL);
+        check(PaymentState::ALL);
+        assert_eq!(Direction::Received.to_value(), "received");
+        assert!(RoundingMode::try_from_value(&"whole".to_string()).is_err());
     }
 }

@@ -11,6 +11,7 @@ use uuid::Uuid;
 use super::query;
 use crate::document::custom_fields::{FieldDef, FieldType, Values};
 use crate::document::entity::document;
+use crate::document::line::Direction;
 use crate::document::meta::{Meta, MetaCtx};
 use crate::error::AppError;
 use crate::settings::entity::{category, custom_field};
@@ -20,12 +21,12 @@ use crate::space::SpaceId;
 pub async fn defs<C: ConnectionTrait>(
     db: &C,
     space: SpaceId,
-    direction: &str,
+    direction: Direction,
 ) -> Result<Vec<FieldDef>, AppError> {
     custom_field::Entity::find()
         .filter(custom_field::Column::SpaceId.eq(space))
         .filter(custom_field::Column::Active.eq(true))
-        .filter(custom_field::Column::AppliesTo.is_in([direction, "both"]))
+        .filter(custom_field::Column::AppliesTo.is_in([direction.as_str(), "both"]))
         .order_by_asc(custom_field::Column::Position)
         .order_by_asc(custom_field::Column::Key)
         .all(db)
@@ -52,7 +53,7 @@ pub fn stored_fields(doc: &document::Model) -> Values {
 pub async fn load<C: ConnectionTrait>(
     db: &C,
     space: SpaceId,
-    direction: &str,
+    direction: Direction,
     category_id: Option<Uuid>,
     doc: Option<&document::Model>,
 ) -> Result<MetaCtx, AppError> {

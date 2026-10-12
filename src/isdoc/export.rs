@@ -16,15 +16,16 @@ use super::export_xml::{self, Deposit, Source, Supplement};
 use crate::app::AppState;
 use crate::auth::Read;
 use crate::document::compute::RecapRow;
+use crate::document::doc_type::DocType;
 use crate::document::entity::document::{self, Column, Entity};
-use crate::document::line::{LineData, PaymentMethod, Status, VatMode};
+use crate::document::line::Direction;
+use crate::document::line::{LineData, Status};
 use crate::document::repo::query::{self, Full};
 use crate::document::snapshot::{BankSnapshot, PartySnapshot};
 use crate::error::{AppError, ErrorBody};
 use crate::extract::ApiPath;
 use crate::pdf::handlers::safe_filename;
 use crate::pdf::{PdfService, archive};
-use crate::settings::doc_type::{DocType, ISSUED, RECEIVED};
 use crate::space::SpaceId;
 
 /// One exported document file.
@@ -68,7 +69,7 @@ async fn deposits(db: &DatabaseConnection, lines: &[LineData]) -> Result<Vec<Dep
                 variable_symbol: d
                     .and_then(|d| d.variable_symbol.clone())
                     .unwrap_or_default(),
-                taxed: d.is_some_and(|d| d.doc_type == DocType::AdvanceTaxDoc.as_str()),
+                taxed: d.is_some_and(|d| d.doc_type == DocType::AdvanceTaxDoc),
                 rows: a.recap.clone(),
             }
         })
@@ -81,7 +82,7 @@ async fn source(
     supplement: Option<Supplement>,
 ) -> Result<Source, AppError> {
     let doc = &full.doc;
-    let doc_type = DocType::parse_document(&doc.doc_type).context("stored document type")?;
+    let doc_type = doc.doc_type;
     let supplier: PartySnapshot =
         snapshot(&doc.supplier_snapshot)?.context("issued document without supplier")?;
     let note = [
@@ -106,10 +107,10 @@ async fn source(
         due_date: doc.due_date,
         currency: doc.currency.clone(),
         rate: doc.exchange_rate,
-        vat_mode: VatMode::parse(&doc.vat_mode).unwrap_or(VatMode::Standard),
+        vat_mode: doc.vat_mode,
         customer: snapshot(&doc.customer_snapshot)?,
         bank: snapshot::<BankSnapshot>(&doc.bank_snapshot)?,
-        payment_method: PaymentMethod::parse(&doc.payment_method).unwrap_or(PaymentMethod::Other),
+        payment_method: doc.payment_method,
         variable_symbol: doc.variable_symbol.clone(),
         constant_symbol: doc.constant_symbol.clone(),
         note: (!note.is_empty()).then(|| note.join("\n")),
@@ -199,10 +200,10 @@ pub async fn export(
     id: Uuid,
 ) -> Result<Exported, AppError> {
     let full = query::load(db, pdf.space_id(), id).await?;
-    if full.doc.direction == RECEIVED {
+    if full.doc.direction == Direction::Received {
         return Err(AppError::NotFound);
     }
-    if full.doc.direction != ISSUED || full.doc.status == Status::Draft.as_str() {
+    if full.doc.direction != Direction::Issued || full.doc.status == Status::Draft {
         return Err(AppError::InvalidState);
     }
     let stem = stem(&full.doc);

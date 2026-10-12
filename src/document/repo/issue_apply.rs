@@ -8,15 +8,15 @@ use sea_orm::{ActiveModelTrait, DatabaseConnection, DatabaseTransaction, Set, Tr
 use uuid::Uuid;
 
 use super::issue::{Prepared, customer, json, supplier, variable_symbol};
-use super::{advance_sources, credit, ddpp_correction, lines, query, view, write};
+use super::{advance_sources, credit, ddpp_correction, lines, query, write};
 use crate::document::advance;
+use crate::document::doc_type::DocType;
 use crate::document::entity::document;
 use crate::document::line::Status;
 use crate::document::snapshot::BankSnapshot;
 use crate::error::{AppError, number_violation};
 use crate::pdf::payload::{self, Payload};
 use crate::pdf::{archive, source};
-use crate::settings::doc_type::DocType;
 use crate::settings::repo::number_series;
 use crate::space::SpaceId;
 
@@ -118,7 +118,7 @@ pub(super) async fn apply(
     p: &Prepared,
 ) -> Result<(), AppError> {
     let doc = query::lock(txn, space, id).await?;
-    if view::status(&doc)? != Status::Draft {
+    if doc.status != Status::Draft {
         return Err(AppError::InvalidState);
     }
     // Edited between validation and the lock: what we validated is stale.
@@ -160,7 +160,7 @@ pub(super) async fn apply(
         }
     };
     let mut row: document::ActiveModel = doc.clone().into();
-    row.status = Set(Status::Issued.as_str().into());
+    row.status = Set(Status::Issued);
     row.variable_symbol = Set(Some(
         doc.variable_symbol
             .clone()

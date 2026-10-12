@@ -13,6 +13,7 @@ use super::{mailer, reply_to};
 use crate::app::AppState;
 use crate::auth::{Read, Write};
 use crate::document::entity::document;
+use crate::document::line::Direction;
 use crate::document::line::Status;
 use crate::document::repo::{lifecycle, query};
 use crate::email::context::{self, Company};
@@ -27,7 +28,6 @@ use crate::isdoc::export;
 use crate::pdf::PdfService;
 use crate::pdf::format::Locale;
 use crate::pdf::{archive, source};
-use crate::settings::doc_type::ISSUED;
 use crate::settings::repo::company;
 use crate::space::SpaceId;
 
@@ -67,10 +67,10 @@ pub struct Prefill {
 /// Only an issued-direction, non-draft document is sent: received → 404,
 /// draft → 409.
 fn check_sendable(row: &document::Model) -> Result<(), AppError> {
-    if row.direction != ISSUED {
+    if row.direction != Direction::Issued {
         return Err(AppError::NotFound);
     }
-    if row.status == Status::Draft.as_str() {
+    if row.status == Status::Draft {
         return Err(AppError::InvalidState);
     }
     Ok(())
@@ -304,7 +304,7 @@ pub async fn history(
     ApiPath(id): ApiPath<Uuid>,
 ) -> Result<Json<Vec<EmailLogEntry>>, AppError> {
     let row = query::find(&state.db, access.space(), id).await?;
-    if row.direction != ISSUED {
+    if row.direction != Direction::Issued {
         return Err(AppError::NotFound);
     }
     Ok(Json(log::list(&state.db, id).await?))

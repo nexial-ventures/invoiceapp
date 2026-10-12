@@ -5,12 +5,14 @@ use rust_decimal::Decimal;
 
 use super::model::{Line, Money, Parsed};
 use super::parse::{Code, INVALID_AMOUNT};
+use crate::currency::is_local;
 use crate::document::compute::{RecapRow, Totals, item_base, round2};
+use crate::document::doc_type::DocType;
+use crate::document::line::Direction;
 use crate::document::line::{ItemData, LineData, PaymentMethod, VatMode};
 use crate::document::snapshot::BankSnapshot;
 pub use crate::import::model::Plan;
 use crate::import::model::{ContactRule, IssuedBank};
-use crate::settings::doc_type::{DocType, ISSUED, RECEIVED};
 
 pub const FOREIGN: Code = "foreign";
 pub const AMBIGUOUS: Code = "ambiguous";
@@ -21,19 +23,19 @@ fn ico_eq(a: Option<&str>, company: &str) -> bool {
     a.is_some_and(|a| !company.is_empty() && strip(a) == strip(company))
 }
 
-fn direction(p: &Parsed, company_ico: Option<&str>) -> Result<&'static str, Code> {
+fn direction(p: &Parsed, company_ico: Option<&str>) -> Result<Direction, Code> {
     let company = company_ico.unwrap_or_default();
     let supplier = ico_eq(p.supplier.ico.as_deref(), company);
     let customer = ico_eq(p.customer.as_ref().and_then(|c| c.ico.as_deref()), company);
     match (supplier, customer) {
         (true, true) => Err(AMBIGUOUS),
-        (true, false) => Ok(ISSUED),
-        (false, true) => Ok(RECEIVED),
+        (true, false) => Ok(Direction::Issued),
+        (false, true) => Ok(Direction::Received),
         (false, false) => Err(FOREIGN),
     }
 }
 
-fn vat_mode(p: &Parsed, direction: &str) -> VatMode {
+fn vat_mode(p: &Parsed, direction: Direction) -> VatMode {
     let note_rc = p
         .note
         .as_deref()
@@ -49,7 +51,7 @@ fn vat_mode(p: &Parsed, direction: &str) -> VatMode {
         .iter()
         .all(|r| r.rate.is_zero() && r.vat_applicable == Some(false))
     {
-        return if direction == ISSUED {
+        return if direction == Direction::Issued {
             VatMode::NonPayer
         } else {
             VatMode::Exempt
@@ -196,7 +198,7 @@ pub fn plan(p: Parsed, company_ico: Option<&str>) -> Result<Plan, Code> {
     } else {
         Decimal::ONE
     };
-    let foreign = p.currency != "CZK";
+    let foreign = !is_local(&p.currency);
     let vat_mode = vat_mode(&p, direction);
     let mut lines = p
         .lines
@@ -231,7 +233,7 @@ pub fn plan(p: Parsed, company_ico: Option<&str>) -> Result<Plan, Code> {
         _ => Some(p.tax_point_date.unwrap_or(p.issue_date)),
     };
     let due_date = match (direction, p.doc_type, pay.due_date) {
-        (RECEIVED, DocType::AdvanceTaxDoc, d) => d,
+        (Direction::Received, DocType::AdvanceTaxDoc, d) => d,
         (_, _, d) => Some(d.unwrap_or(p.issue_date)),
     };
     Ok(Plan {

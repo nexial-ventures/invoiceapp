@@ -9,16 +9,18 @@ use super::fields::doc_type;
 pub use super::fields::{digits, exchange_rate, parse_vat_mode};
 use super::imported;
 use super::line_input::{LineInput, Texts, validate_lines};
+use crate::currency::{LOCAL_CURRENCY, is_local};
 use crate::document::advance::AdvanceCtx;
 use crate::document::compute::Evaluated;
 use crate::document::custom_fields::Values;
 use crate::document::defaults;
+use crate::document::doc_type::DocType;
+use crate::document::line::Direction;
 use crate::document::line::{PaymentMethod, RoundingMode, VatMode};
 use crate::document::meta;
 use crate::document::model::{Context, DocumentData, evaluate};
 use crate::document::rounding;
 use crate::error::{AppError, FieldErrors};
-use crate::settings::doc_type::{DocType, ISSUED};
 use crate::validation::{self as v, Check};
 
 /// Create (`POST`, omitted fields get defaults) and update (`PUT`, replaces
@@ -114,7 +116,7 @@ impl DocumentInput {
         let meta = meta::validate(
             self.category_id,
             self.custom_fields.as_ref(),
-            ISSUED,
+            Direction::Issued,
             &ctx.meta,
             &mut e,
         );
@@ -150,11 +152,11 @@ impl DocumentInput {
                 or_default(None, ctx, || defaults::currency(c, &ctx.company)),
             ),
         }
-        .unwrap_or_else(|| "CZK".into());
+        .unwrap_or_else(|| LOCAL_CURRENCY.into());
         let rate = e
             .check("exchangeRate", exchange_rate(self.exchange_rate.as_deref()))
             .flatten()
-            .filter(|_| currency != "CZK");
+            .filter(|_| !is_local(&currency));
         // A native correction is bound to its original; an imported one is not.
         let correction = existing.filter(|_| doc_type.is_correction() && !imported);
         let rate = correction.map_or(rate, |x| x.exchange_rate);
@@ -196,15 +198,13 @@ impl DocumentInput {
                 "paymentMethod",
                 PaymentMethod::parse(s.trim()).ok_or("invalid"),
             ),
-            None if ctx.apply_defaults => Some(defaults::payment_method(&ctx.company)?),
+            None if ctx.apply_defaults => Some(ctx.company.default_payment_method),
             None => e.check("paymentMethod", Err("required")),
         };
         // PUT: an omitted mode is `none` (as the 1b `roundTotal: false`), not a default.
         let rounding_mode = match (self.rounding_mode.as_deref(), payment_method) {
             (Some(s), _) => e.check("roundingMode", rounding::parse(s)),
-            (None, Some(m)) if ctx.apply_defaults => {
-                Some(defaults::rounding_mode(m, &ctx.company)?)
-            }
+            (None, Some(m)) if ctx.apply_defaults => Some(defaults::rounding_mode(m, &ctx.company)),
             (None, _) => Some(RoundingMode::None),
         }
         .unwrap_or(RoundingMode::None);

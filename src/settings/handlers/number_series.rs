@@ -5,9 +5,9 @@ use utoipa::ToSchema;
 
 use crate::app::AppState;
 use crate::auth::{Manage, Read};
+use crate::document::doc_type::DocType;
 use crate::error::{AppError, ErrorBody};
 use crate::extract::{ApiJson, ApiPath};
-use crate::settings::doc_type::DocType;
 use crate::settings::pattern::Pattern;
 use crate::settings::repo;
 use crate::settings::repo::number_series::Series;

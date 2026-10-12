@@ -155,7 +155,7 @@ where
 /// A document as `GET /api/documents/{id}` returns it, plus `pdfUrl`.
 async fn document_value(state: &AppState, space: SpaceId, id: Uuid) -> Result<Value, AppError> {
     let doc = fetch(state, space, id).await?;
-    let url = pdf_url(doc.id, &doc.direction, doc.imported, doc.original.is_some());
+    let url = pdf_url(doc.id, doc.direction, doc.imported, doc.original.is_some());
     Ok(with(to_value(&doc)?, "pdfUrl", url))
 }
 

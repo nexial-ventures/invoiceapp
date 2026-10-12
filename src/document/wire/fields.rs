@@ -2,10 +2,10 @@
 
 use rust_decimal::Decimal;
 
+use crate::document::doc_type::DocType;
 use crate::document::line::{MAX_RATE, VatMode};
 use crate::document::model::Existing;
 use crate::num_parse::decimal;
-use crate::settings::doc_type::DocType;
 use crate::validation::{self as v, Check};
 
 /// Digits only, at most `max` (variable / constant symbol).

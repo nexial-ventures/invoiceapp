@@ -9,15 +9,15 @@ use super::format::{
     AFTER_RATES, BEFORE_RATES, base_column, format_amount, format_bool, format_date, format_rate,
     guard_text, vat_column,
 };
-use crate::document::line::VatMode;
+use crate::document::doc_type::DocType;
+use crate::document::line::{Direction, VatMode};
 use crate::import::model::Party;
-use crate::settings::doc_type::DocType;
 
 /// One document, amounts as stored (positive; [`OutRow::cells`] negates a
 /// credit note's), the recap in CZK.
 #[derive(Debug, Clone, PartialEq)]
 pub struct OutRow {
-    pub direction: &'static str,
+    pub direction: Direction,
     pub doc_type: DocType,
     pub number: Option<String>,
     pub supplier_number: Option<String>,
@@ -78,7 +78,7 @@ impl OutRow {
         let pf = |g: fn(&Party) -> String| guard_text(&opt(party, g));
         let text = |x: &Option<String>| guard_text(x.as_deref().unwrap_or_default());
         let mut c = vec![
-            self.direction.to_string(),
+            self.direction.as_str().to_string(),
             self.doc_type.as_str().to_string(),
             text(&self.number),
             text(&self.supplier_number),
@@ -172,7 +172,7 @@ fn party(name: &str, ico: &str, city: &str) -> Party {
 pub fn sample_rows() -> Vec<OutRow> {
     let d = |s: &str| s.parse::<Decimal>().unwrap_or_default();
     let invoice = OutRow {
-        direction: "issued",
+        direction: Direction::Issued,
         doc_type: DocType::Invoice,
         number: Some("2026000001".into()),
         supplier_number: None,
@@ -196,7 +196,7 @@ pub fn sample_rows() -> Vec<OutRow> {
         note: Some("Vzorový řádek".into()),
     };
     let received = OutRow {
-        direction: "received",
+        direction: Direction::Received,
         doc_type: DocType::Invoice,
         number: None,
         supplier_number: Some("FV-2026-0042".into()),

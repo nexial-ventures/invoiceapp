@@ -14,7 +14,9 @@ use super::category::{self, CategoryRef};
 use super::lookup;
 use super::model::{ContactRule, IssuedBank, Party, Plan};
 use crate::contact::entity::contact;
+use crate::document::doc_type::DocType;
 use crate::document::entity::payment;
+use crate::document::line::Direction;
 use crate::document::line::{RoundingMode, Status};
 use crate::document::repo::issue::Rate;
 use crate::document::repo::{self as document_repo, NewDocument, lines, original, payments};
@@ -22,7 +24,6 @@ use crate::document::snapshot::BankSnapshot;
 use crate::error::{AppError, number_violation};
 use crate::pdf::PdfService;
 use crate::pdf::editor::ensure_usage;
-use crate::settings::doc_type::{DocType, ISSUED, RECEIVED};
 use crate::settings::entity::bank_account;
 use crate::settings::repo::number_series;
 use crate::space::{SpaceId, limits};
@@ -151,7 +152,7 @@ async fn insert(
         return Err(AppError::Duplicate);
     }
     let now = chrono::Utc::now();
-    let issued = plan.direction == ISSUED;
+    let issued = plan.direction == Direction::Issued;
     let contact_id = match plan.counterparty() {
         Some(p) => Some(contact_for(txn, space, p, plan.contact_rule).await?),
         None => None,
@@ -171,17 +172,21 @@ async fn insert(
     let (number, seq) = if issued {
         (plan.number.clone(), None)
     } else {
-        let (n, seq) =
-            number_series::allocate_number(txn, space, plan.doc_type.series(RECEIVED), year)
-                .await?;
+        let (n, seq) = number_series::allocate_number(
+            txn,
+            space,
+            plan.doc_type.series(Direction::Received),
+            year,
+        )
+        .await?;
         (n, Some(seq))
     };
     let row = NewDocument {
         id,
         space_id: space.uuid(),
-        direction: plan.direction.into(),
-        doc_type: plan.doc_type.as_str().into(),
-        status: Status::Issued.as_str().into(),
+        direction: plan.direction,
+        doc_type: plan.doc_type,
+        status: Status::Issued,
         number: Some(number),
         number_year: Some(year),
         number_seq: seq,
@@ -195,17 +200,15 @@ async fn insert(
         exchange_rate_date: rate.date,
         exchange_rate_source: rate.source.map(str::to_string),
         locale: plan.locale.clone(),
-        vat_mode: plan.vat_mode.as_str().into(),
+        vat_mode: plan.vat_mode,
         bank_account_id,
-        payment_method: plan.payment_method.as_str().into(),
+        payment_method: plan.payment_method,
         variable_symbol: plan.variable_symbol.clone(),
         constant_symbol: plan.constant_symbol.clone(),
         header_note: plan.note.clone().filter(|_| issued),
         internal_note: plan.note.clone().filter(|_| !issued),
         // The rounding amount is kept as given; the mode is derived from it.
-        rounding_mode: RoundingMode::derive(plan.totals.total, plan.totals.rounding)
-            .as_str()
-            .into(),
+        rounding_mode: RoundingMode::derive(plan.totals.total, plan.totals.rounding),
         supplier_snapshot: Some(json(&plan.supplier.snapshot(plan.vat_payer))?),
         customer_snapshot: match (&plan.customer, issued) {
             (Some(c), true) => Some(json(&c.snapshot(None))?),
@@ -273,7 +276,7 @@ async fn insert(
 
 /// The number year of the stored document (also the year of its original's key).
 fn year(plan: &Plan) -> i32 {
-    if plan.direction == ISSUED {
+    if plan.direction == Direction::Issued {
         plan.issue_date.year()
     } else {
         plan.received_date().year()

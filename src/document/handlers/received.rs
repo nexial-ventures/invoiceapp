@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::app::AppState;
 use crate::document::compute::{Overflow, RecapRow};
 use crate::document::entity::{document, vat_recap};
+use crate::document::line::Direction;
 use crate::document::model::{ReceivedCtx, ReceivedData};
 use crate::document::received;
 use crate::document::repo::issue::{self as issue_repo, Rate, customer};
@@ -15,7 +16,6 @@ use crate::document::repo::received::{self as repo, Record};
 use crate::document::wire::received_input::ReceivedInput;
 use crate::error::AppError;
 use crate::extract::from_value;
-use crate::settings::doc_type::RECEIVED;
 use crate::settings::repo::company;
 use crate::space::SpaceId;
 use crate::time::today;
@@ -47,7 +47,7 @@ async fn context(
         existing,
         contact,
         related,
-        meta: meta::load(db, space, RECEIVED, input.category_id, stored).await?,
+        meta: meta::load(db, space, Direction::Received, input.category_id, stored).await?,
     })
 }
 
@@ -137,7 +137,7 @@ pub async fn update(
     if input
         .direction
         .as_deref()
-        .is_some_and(|d| d.trim() != RECEIVED)
+        .is_some_and(|d| d.trim() != Direction::Received.as_str())
     {
         return Err(AppError::field("direction", "invalid"));
     }

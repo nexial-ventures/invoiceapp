@@ -11,10 +11,10 @@ use super::issue::Rate;
 use super::{NewDocument, insert, lines, query, write};
 use crate::document::compute::Totals;
 use crate::document::entity::document::{self, ActiveModel, Entity};
+use crate::document::line::Direction;
 use crate::document::line::{PaymentMethod, RoundingMode, Status};
 use crate::document::model::ReceivedData;
 use crate::error::{AppError, number_violation};
-use crate::settings::doc_type::RECEIVED;
 use crate::settings::repo::number_series;
 use crate::space::SpaceId;
 
@@ -28,8 +28,8 @@ pub struct Record {
 }
 
 /// Informational: the entered rounding amount is kept as given.
-fn rounding_mode(t: &Totals) -> String {
-    RoundingMode::derive(t.total, t.rounding).as_str().into()
+fn rounding_mode(t: &Totals) -> RoundingMode {
+    RoundingMode::derive(t.total, t.rounding)
 }
 
 fn apply(row: &mut ActiveModel, r: Record) -> Totals {
@@ -44,7 +44,7 @@ fn apply(row: &mut ActiveModel, r: Record) -> Totals {
     row.exchange_rate = Set(r.rate.rate);
     row.exchange_rate_date = Set(r.rate.date);
     row.exchange_rate_source = Set(r.rate.source.map(str::to_string));
-    row.vat_mode = Set(d.vat_mode.as_str().to_string());
+    row.vat_mode = Set(d.vat_mode);
     row.vat_deductible = Set(d.vat_deductible);
     row.variable_symbol = Set(d.variable_symbol);
     row.constant_symbol = Set(d.constant_symbol);
@@ -83,15 +83,16 @@ async fn create_in(
     let year = r.data.received_date.year();
     let doc_type = r.data.doc_type;
     let (number, seq) =
-        number_series::allocate_number(txn, space, doc_type.series(RECEIVED), year).await?;
+        number_series::allocate_number(txn, space, doc_type.series(Direction::Received), year)
+            .await?;
     let now = chrono::Utc::now().into();
     let (d, totals) = (r.data, r.totals);
     let row = NewDocument {
         id,
         space_id: space.uuid(),
-        direction: RECEIVED.into(),
-        doc_type: doc_type.as_str().into(),
-        status: Status::Issued.as_str().into(),
+        direction: Direction::Received,
+        doc_type,
+        status: Status::Issued,
         number: Some(number),
         number_year: Some(year),
         number_seq: Some(seq),
@@ -105,9 +106,9 @@ async fn create_in(
         exchange_rate_date: r.rate.date,
         exchange_rate_source: r.rate.source.map(str::to_string),
         locale,
-        vat_mode: d.vat_mode.as_str().to_string(),
+        vat_mode: d.vat_mode,
         bank_account_id: None,
-        payment_method: PaymentMethod::BankTransfer.as_str().into(),
+        payment_method: PaymentMethod::BankTransfer,
         variable_symbol: d.variable_symbol,
         constant_symbol: d.constant_symbol,
         order_ref: None,
@@ -149,7 +150,7 @@ async fn locked(
     id: Uuid,
 ) -> Result<document::Model, AppError> {
     let doc = query::lock(txn, space, id).await?;
-    if doc.direction != RECEIVED {
+    if doc.direction != Direction::Received {
         return Err(AppError::InvalidState);
     }
     Ok(doc)

@@ -23,6 +23,20 @@ fn section_row(s: &Value, section: &str, direction: &str, doc_type: &str) -> Val
 }
 
 #[tokio::test]
+async fn responses_carry_the_code_limits() {
+    let db = TestDb::new().await;
+    let app = router(db.conn.clone());
+    let limits = json!({ "pohoda": { "code": 19, "numberSeries": 19 },
+                         "money": { "code": 10, "numberSeries": 5 } });
+    let (status, s) = call(&app, Method::GET, URI, None).await;
+    assert_eq!(status, StatusCode::OK, "{s}");
+    assert_eq!(s["limits"], limits);
+    let (status, saved) = call(&app, Method::PUT, URI, Some(json!({ "money": {} }))).await;
+    assert_eq!(status, StatusCode::OK, "{saved}");
+    assert_eq!(saved["limits"], limits);
+}
+
+#[tokio::test]
 async fn get_put_and_validation() {
     let db = TestDb::new().await;
     let app = router(db.conn.clone());

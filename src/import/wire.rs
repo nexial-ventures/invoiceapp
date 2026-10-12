@@ -77,7 +77,7 @@ impl PreviewEntry {
             },
             error: None,
             warnings,
-            direction: Some(plan.direction),
+            direction: Some(plan.direction.as_str()),
             doc_type: Some(plan.doc_type.as_str()),
             number: Some(plan.number.clone()),
             counterparty: plan.counterparty().map(|p| Counterparty {

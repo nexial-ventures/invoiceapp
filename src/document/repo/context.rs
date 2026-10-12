@@ -4,17 +4,14 @@ use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use uuid::Uuid;
 
-use anyhow::Context as _;
-
 use super::{advance_sources, ddpp_correction, meta};
 use crate::contact::entity::contact;
 use crate::document::defaults;
 use crate::document::entity::document;
-use crate::document::line::VatMode;
+use crate::document::line::Direction;
 use crate::document::model::{Context, DocumentData, Existing};
 use crate::document::wire::input::DocumentInput;
 use crate::error::AppError;
-use crate::settings::doc_type::{DocType, ISSUED};
 use crate::settings::entity::{bank_account, vat_rate};
 use crate::settings::repo::company;
 use crate::space::SpaceId;
@@ -23,13 +20,11 @@ use crate::space::SpaceId;
 pub fn existing(doc: &document::Model) -> Result<Existing, AppError> {
     Ok(Existing {
         id: doc.id,
-        doc_type: DocType::parse(&doc.doc_type)
-            .with_context(|| format!("document {} has unknown type", doc.id))?,
+        doc_type: doc.doc_type,
         imported: doc.imported,
         related_document_id: doc.related_document_id,
         contact_id: doc.contact_id,
-        vat_mode: VatMode::parse(&doc.vat_mode)
-            .with_context(|| format!("document {} has unknown vat mode", doc.id))?,
+        vat_mode: doc.vat_mode,
         currency: doc.currency.clone(),
         locale: doc.locale.clone(),
         exchange_rate: doc.exchange_rate,
@@ -67,7 +62,7 @@ pub async fn load(
         default_vat_rate: default_vat_rate(db, space).await?,
         advances: advance_sources::load(db, space, &input.advance_ids()).await?,
         related,
-        meta: meta::load(db, space, ISSUED, input.category_id, doc).await?,
+        meta: meta::load(db, space, Direction::Issued, input.category_id, doc).await?,
         exact: ddpp_correction::basis_for(db, existing.as_ref()).await?,
         existing,
     })

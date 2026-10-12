@@ -10,10 +10,10 @@ use uuid::Uuid;
 
 use super::query;
 use crate::document::entity::document;
+use crate::document::line::Direction;
 use crate::error::AppError;
 use crate::pdf::PdfService;
 use crate::pdf::editor::ensure_usage;
-use crate::settings::doc_type::RECEIVED;
 use crate::space::{SpaceId, limits};
 use crate::storage;
 
@@ -28,7 +28,7 @@ pub fn relative_path(year: i32, id: Uuid, sha256: &str, nonce: &str) -> String {
 /// Received documents and imported issued ones (any status); a native
 /// issued document's PDF is its rendered archive.
 fn allowed(doc: &document::Model) -> Result<(), AppError> {
-    if doc.direction == RECEIVED || doc.imported {
+    if doc.direction == Direction::Received || doc.imported {
         Ok(())
     } else {
         Err(AppError::InvalidState)

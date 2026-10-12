@@ -6,8 +6,8 @@
 use sea_orm::{ConnectionTrait, DatabaseTransaction, Statement};
 use uuid::Uuid;
 
+use crate::document::doc_type::DocType;
 use crate::error::AppError;
-use crate::settings::doc_type::DocType;
 use crate::space::SpaceId;
 
 /// The default pattern of each number series.

@@ -9,15 +9,16 @@ use rust_decimal::Decimal;
 use uuid::Uuid;
 
 use crate::contact::entity::contact;
+use crate::currency::is_local;
 use crate::document::advance::{self, AdvanceCtx, AdvanceSource};
 use crate::document::compute::{self, Evaluated, Params};
 use crate::document::correction::ExactBasis;
+use crate::document::doc_type::DocType;
 use crate::document::entity::document;
 use crate::document::line::{LineData, PaymentMethod, RoundingMode, VatMode};
 use crate::document::meta::{Meta, MetaCtx};
 use crate::document::received::EnteredRow;
 use crate::error::{AppError, FieldErrors};
-use crate::settings::doc_type::DocType;
 use crate::settings::entity::company;
 
 /// The draft being updated, as far as validation cares.
@@ -92,7 +93,7 @@ impl DocumentData {
     pub fn params(&self) -> Params {
         Params {
             vat_mode: self.vat_mode,
-            is_czk: self.currency == "CZK",
+            is_czk: is_local(&self.currency),
             exchange_rate: self.exchange_rate,
             rounding: self.rounding_mode,
         }

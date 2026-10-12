@@ -147,12 +147,12 @@ pub async fn metadata(
     let ctx = meta_repo::load(
         &state.db,
         space,
-        &doc.direction,
+        doc.direction,
         input.category_id,
         Some(&doc),
     )
     .await?;
-    let (meta, note) = input.validate(&doc.direction, &ctx)?;
+    let (meta, note) = input.validate(doc.direction, &ctx)?;
     meta_repo::set(&state.db, space, id, meta, note).await?;
     Ok(Json(fetch(&state, space, id).await?))
 }

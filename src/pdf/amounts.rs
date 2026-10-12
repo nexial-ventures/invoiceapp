@@ -9,6 +9,7 @@ use rust_decimal::Decimal;
 use super::format::{self, Locale};
 use super::labels::{self, Labels};
 use super::payload::{Input, PdfLine, Recap, RecapRow, TotalRow};
+use crate::currency::{LOCAL_CURRENCY, is_local};
 use crate::document::line::VatMode;
 use crate::document::wire::dto::Line;
 
@@ -69,7 +70,7 @@ impl Fmt<'_> {
     }
 
     fn czk(&self, x: Decimal) -> String {
-        format::money(x * self.sign, "CZK", self.locale)
+        format::money(x * self.sign, LOCAL_CURRENCY, self.locale)
     }
 }
 
@@ -166,7 +167,7 @@ fn vat_recap_czk(i: &Input, f: &Fmt, l: &Labels) -> anyhow::Result<Option<Recap>
     let Some(rate) = i.rate else {
         return Ok(None);
     };
-    if i.currency == "CZK" || i.vat_mode != VatMode::Standard {
+    if is_local(i.currency) || i.vat_mode != VatMode::Standard {
         return Ok(None);
     }
     let mut rows = Vec::new();
@@ -257,7 +258,9 @@ pub fn build(i: &Input, l: &Labels, show_vat: bool) -> anyhow::Result<Amounts> {
     let f = Fmt {
         locale: i.locale,
         currency: i.currency,
-        sign: Decimal::from(crate::document::wire::dto::sign(i.doc_type)),
+        sign: Decimal::from(
+            crate::document::doc_type::DocType::parse_document(i.doc_type).map_or(1, |t| t.sign()),
+        ),
     };
     let has_discount = i
         .lines

@@ -9,7 +9,10 @@ use uuid::Uuid;
 use super::fields::exchange_rate;
 pub use super::line_out::{Line, lines_out};
 use crate::document::custom_fields::Values;
-use crate::document::line::{MAX_AMOUNT, PaymentState, RoundingMode, Status};
+use crate::document::doc_type::DocType;
+use crate::document::line::{
+    Direction, MAX_AMOUNT, PaymentMethod, PaymentState, RoundingMode, Status, VatMode,
+};
 use crate::document::model::NewPayment;
 use crate::document::snapshot::{BankSnapshot, PartySnapshot, Totals};
 use crate::error::{AppError, FieldErrors};
@@ -20,8 +23,10 @@ use crate::validation as v;
 #[serde(rename_all = "camelCase")]
 pub struct Document {
     pub id: Uuid,
-    pub doc_type: String,
-    pub direction: String,
+    #[schema(value_type = String)]
+    pub doc_type: DocType,
+    #[schema(value_type = String)]
+    pub direction: Direction,
     pub number: Option<String>,
     pub status: Status,
     pub payment_state: Option<PaymentState>,
@@ -37,9 +42,11 @@ pub struct Document {
     /// `cnb` | `manual`.
     pub exchange_rate_source: Option<String>,
     pub locale: String,
-    pub vat_mode: String,
+    #[schema(value_type = String)]
+    pub vat_mode: VatMode,
     pub bank_account_id: Option<Uuid>,
-    pub payment_method: String,
+    #[schema(value_type = String)]
+    pub payment_method: PaymentMethod,
     pub variable_symbol: Option<String>,
     pub constant_symbol: Option<String>,
     pub order_ref: Option<String>,
@@ -128,7 +135,8 @@ pub struct PdfArchive {
 #[serde(rename_all = "camelCase")]
 pub struct RelatedDocument {
     pub id: Uuid,
-    pub doc_type: String,
+    #[schema(value_type = String)]
+    pub doc_type: DocType,
     pub number: Option<String>,
     pub status: Status,
     pub payable: Decimal,
@@ -136,17 +144,14 @@ pub struct RelatedDocument {
     pub currency: String,
 }
 
-/// `-1` for credit notes and DDPP corrections (stored positive).
-pub fn sign(doc_type: &str) -> i8 {
-    crate::settings::doc_type::DocType::parse_document(doc_type).map_or(1, |t| t.sign())
-}
-
 #[derive(Debug, Clone, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentSummary {
     pub id: Uuid,
-    pub doc_type: String,
-    pub direction: String,
+    #[schema(value_type = String)]
+    pub doc_type: DocType,
+    #[schema(value_type = String)]
+    pub direction: Direction,
     pub number: Option<String>,
     pub status: Status,
     pub payment_state: Option<PaymentState>,

@@ -7,6 +7,7 @@ use sea_orm::{ConnectionTrait, EntityTrait, Set};
 
 use super::client::CnbClient;
 use super::entity;
+use crate::currency::is_local;
 use crate::error::AppError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,7 +35,7 @@ pub async fn rate<C: ConnectionTrait>(
     date: NaiveDate,
     today: NaiveDate,
 ) -> Result<Rate, AppError> {
-    if currency == "CZK" {
+    if is_local(currency) {
         return Ok(Rate {
             currency: currency.to_string(),
             date,

@@ -14,15 +14,18 @@ fn plan_of(xml: &str) -> Result<Plan, Code> {
 
 #[test]
 fn direction_by_company_ico() {
-    assert_eq!(plan_of(NONPAYER).expect("plan").direction, ISSUED);
+    assert_eq!(
+        plan_of(NONPAYER).expect("plan").direction,
+        Direction::Issued
+    );
     let r = plan_of(VAT).expect("plan");
-    assert_eq!(r.direction, RECEIVED);
+    assert_eq!(r.direction, Direction::Received);
     assert_eq!(
         r.counterparty().and_then(|p| p.ico.as_deref()),
         Some("87654326")
     );
     let spaced = plan(parse(VAT.as_bytes()).expect("parsed"), Some(" 4444 4443 "));
-    assert_eq!(spaced.expect("plan").direction, RECEIVED);
+    assert_eq!(spaced.expect("plan").direction, Direction::Received);
     assert_eq!(
         plan(parse(VAT.as_bytes()).expect("parsed"), Some("11111111")),
         Err(FOREIGN)

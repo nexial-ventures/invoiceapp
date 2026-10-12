@@ -1,6 +1,7 @@
 //! Module layering, checked on the source text (docs/architecture.md):
 //! `document::handlers` is used only by the router (`document/mod.rs`) and
-//! `openapi.rs`, and the shared wire shapes stay free of database access.
+//! `openapi.rs`, the shared wire shapes stay free of database access, and
+//! the CSV and accounting exports share `export/` instead of each other.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -217,4 +218,31 @@ fn wire_check_ignores_comments_and_fixtures() {
     );
     assert!(!wire_offenders(file("src/document/wire/a.rs", "use crate::x::entity::y;")).is_empty());
     assert!(!wire_offenders(file("src/document/wire/a.rs", "use sea_orm::Set;")).is_empty());
+}
+
+/// Files under `dir` that name `module`.
+fn uses_of(dir: &str, module: &str) -> Vec<String> {
+    sources(&[dir])
+        .into_iter()
+        .filter(|(_, src)| has_path(&code(src), module))
+        .map(|(f, _)| f)
+        .collect()
+}
+
+#[test]
+fn csv_and_accounting_exports_do_not_use_each_other() {
+    let csv = uses_of("src/csvio", "crate::accounting");
+    assert!(csv.is_empty(), "move the shared part to export/: {csv:?}");
+    let accounting = uses_of("src/accounting", "crate::csvio");
+    assert!(
+        accounting.is_empty(),
+        "move the shared part to export/: {accounting:?}"
+    );
+    for shared in ["crate::csvio", "crate::accounting"] {
+        let neutral: Vec<_> = uses_of("src/export", shared)
+            .into_iter()
+            .filter(|f| f.ends_with("/load.rs") || f.ends_with("/source.rs"))
+            .collect();
+        assert!(neutral.is_empty(), "{neutral:?}");
+    }
 }

@@ -3,8 +3,8 @@
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 
+use crate::document::doc_type::DocType;
 pub use crate::import::model::Party;
-use crate::settings::doc_type::DocType;
 
 /// ISDOC 6 namespace (also the version check: 5.x uses another one).
 pub const NS: &str = "http://isdoc.cz/namespace/2013";

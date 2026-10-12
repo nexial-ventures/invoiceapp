@@ -1,13 +1,15 @@
 use sea_orm::entity::prelude::*;
 
-/// Number pattern per document type (`doc_type` is a `DocType` wire value).
+use crate::document::doc_type::DocType;
+
+/// Number pattern per series (`doc_type`).
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
 #[sea_orm(table_name = "number_series")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
     pub space_id: Uuid,
-    pub doc_type: String,
+    pub doc_type: DocType,
     pub pattern: String,
 }
 

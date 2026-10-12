@@ -15,15 +15,16 @@ use super::{InvoiceMcp, document_value, in_space, params};
 use crate::app::AppState;
 use crate::contact::handlers::dto::{Contact, ContactInput};
 use crate::contact::repo::contacts as contact_repo;
+use crate::document::doc_type::DocType;
 use crate::document::entity::document;
+use crate::document::line::Direction;
 use crate::document::line::Status;
-use crate::document::repo::{issue, query, view};
+use crate::document::repo::{issue, query};
 use crate::document::service::{self, create_draft, mark_sent_at, update_draft};
 use crate::document::state::document_payment_state;
 use crate::document::wire::dto::PaymentInput;
 use crate::document::wire::input::DocumentInput;
 use crate::error::AppError;
-use crate::settings::doc_type::{DocType, ISSUED};
 use crate::space::{Role, SpaceId};
 use crate::time::today;
 use axum::http::request::Parts;
@@ -173,20 +174,19 @@ impl InvoiceMcp {
 /// Drafts MCP may edit and issue: native issued-direction invoices, proformas
 /// and simplified documents that stand alone (credit / debit notes, DDPP
 /// corrections, settlement invoices and imported documents are UI-only).
-fn in_scope(direction: &str, doc_type: &str, imported: bool, related: bool) -> bool {
+fn in_scope(direction: Direction, doc_type: DocType, imported: bool, related: bool) -> bool {
     let simple = matches!(
-        DocType::parse_document(doc_type),
-        Some(DocType::Invoice | DocType::Proforma | DocType::Simplified)
+        doc_type,
+        DocType::Invoice | DocType::Proforma | DocType::Simplified
     );
-    direction == ISSUED && simple && !imported && !related
+    direction == Direction::Issued && simple && !imported && !related
 }
 
 /// The document `id`; a draft outside the MCP scope → `invalid_state`.
 async fn scoped(state: &AppState, space: SpaceId, id: Uuid) -> Result<document::Model, AppError> {
     let doc = query::find(&state.db, space, id).await?;
     let related = doc.related_document_id.is_some();
-    if doc.status == Status::Draft.as_str()
-        && !in_scope(&doc.direction, &doc.doc_type, doc.imported, related)
+    if doc.status == Status::Draft && !in_scope(doc.direction, doc.doc_type, doc.imported, related)
     {
         return Err(AppError::InvalidState);
     }
@@ -243,9 +243,9 @@ async fn issue_document(
 /// The derived `paymentState` from the document row alone.
 async fn payment_state(state: &AppState, space: SpaceId, id: Uuid) -> Result<Value, AppError> {
     let doc = query::find(&state.db, space, id).await?;
-    let status = view::status(&doc)?;
+    let status = doc.status;
     to_value(&document_payment_state(
-        &doc.doc_type,
+        doc.doc_type,
         status,
         doc.paid,
         doc.payable,
@@ -283,23 +283,30 @@ async fn mark_sent(state: &AppState, space: SpaceId, args: JsonObject) -> Result
 #[cfg(test)]
 mod tests {
     use super::in_scope;
+    use crate::document::doc_type::DocType;
+    use crate::document::line::Direction::{Issued, Received};
 
     #[test]
     fn mcp_scope_of_drafts() {
-        for t in ["invoice", "proforma", "simplified"] {
-            assert!(in_scope("issued", t, false, false), "{t}");
+        for t in [DocType::Invoice, DocType::Proforma, DocType::Simplified] {
+            assert!(in_scope(Issued, t, false, false), "{t:?}");
         }
         for t in [
-            "credit_note",
-            "debit_note",
-            "advance_credit_note",
-            "advance_tax_doc",
-            "x",
+            DocType::CreditNote,
+            DocType::DebitNote,
+            DocType::AdvanceCreditNote,
+            DocType::AdvanceTaxDoc,
         ] {
-            assert!(!in_scope("issued", t, false, false), "{t}");
+            assert!(!in_scope(Issued, t, false, false), "{t:?}");
         }
-        assert!(!in_scope("issued", "invoice", true, false), "imported");
-        assert!(!in_scope("issued", "invoice", false, true), "settlement");
-        assert!(!in_scope("received", "invoice", false, false), "received");
+        assert!(!in_scope(Issued, DocType::Invoice, true, false), "imported");
+        assert!(
+            !in_scope(Issued, DocType::Invoice, false, true),
+            "settlement"
+        );
+        assert!(
+            !in_scope(Received, DocType::Invoice, false, false),
+            "received"
+        );
     }
 }

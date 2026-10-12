@@ -11,24 +11,26 @@ use sea_orm::{
 };
 use uuid::Uuid;
 
-use super::{context, ddpp_correction, query, view, write};
+use super::{context, ddpp_correction, query, write};
+use crate::currency::is_local;
 use crate::document::compute::{self, Params, Totals};
 use crate::document::correction::sum_bases;
 use crate::document::credit::{copy_lines, exceeds_original};
+use crate::document::doc_type::DocType;
 use crate::document::entity::{document, vat_recap};
-use crate::document::line::{LineData, PaymentMethod, RoundingMode, Status, VatMode};
+use crate::document::line::Direction;
+use crate::document::line::{LineData, RoundingMode, Status, VatMode};
 use crate::document::model::DocumentData;
 use crate::error::AppError;
-use crate::settings::doc_type::{DocType, ISSUED};
 use crate::space::SpaceId;
 
 /// An issued (not draft, not cancelled) invoice or simplified document of
 /// ours, imported ones included: what credit and debit notes correct.
 pub fn correctable(doc: &document::Model) -> Result<bool, AppError> {
     Ok(
-        (doc.doc_type == DocType::Invoice.as_str() || doc.doc_type == DocType::Simplified.as_str())
-            && doc.direction == ISSUED
-            && view::status(doc)? == Status::Issued,
+        (doc.doc_type == DocType::Invoice || doc.doc_type == DocType::Simplified)
+            && doc.direction == Direction::Issued
+            && doc.status == Status::Issued,
     )
 }
 
@@ -55,8 +57,7 @@ pub async fn draft_from(
     correction_reason: Option<String>,
     today: NaiveDate,
 ) -> Result<DocumentData, AppError> {
-    let vat_mode = VatMode::parse(&orig.vat_mode)
-        .with_context(|| format!("document {} has unknown vat mode", orig.id))?;
+    let vat_mode = orig.vat_mode;
     Ok(DocumentData {
         doc_type,
         related_document_id: Some(orig.id),
@@ -66,20 +67,19 @@ pub async fn draft_from(
         tax_point_date: Some(today),
         due_date: context::due_date(db, SpaceId::from_row(orig.space_id), orig.contact_id, today)
             .await?,
-        exchange_rate: orig.exchange_rate.filter(|_| orig.currency != "CZK"),
+        exchange_rate: orig.exchange_rate.filter(|_| !is_local(&orig.currency)),
         currency: orig.currency.clone(),
         locale: orig.locale.clone(),
         vat_mode,
         bank_account_id: orig.bank_account_id,
-        payment_method: PaymentMethod::parse(&orig.payment_method)
-            .unwrap_or(PaymentMethod::BankTransfer),
+        payment_method: orig.payment_method,
         variable_symbol: None,
         constant_symbol: None,
         order_ref: None,
         header_note: None,
         footer_note: None,
         internal_note: None,
-        rounding_mode: view::rounding_mode(orig)?,
+        rounding_mode: orig.rounding_mode,
         lines,
         imported: false,
         number: None,
@@ -168,8 +168,8 @@ async fn issued_notes<C: ConnectionTrait>(
 ) -> Result<Vec<(Decimal, Decimal)>, AppError> {
     let ids: Vec<Uuid> = document::Entity::find()
         .filter(document::Column::RelatedDocumentId.eq(original))
-        .filter(document::Column::DocType.eq(doc_type.as_str()))
-        .filter(document::Column::Status.eq(Status::Issued.as_str()))
+        .filter(document::Column::DocType.eq(doc_type))
+        .filter(document::Column::Status.eq(Status::Issued))
         .filter(document::Column::Id.ne(except))
         .all(db)
         .await?

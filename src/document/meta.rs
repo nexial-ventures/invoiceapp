@@ -7,9 +7,11 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::document::custom_fields::{self, FieldDef, Values};
+use crate::document::doc_type::DocType;
 use crate::document::entity::document;
+use crate::document::line::Direction;
+use crate::document::line::Status;
 use crate::error::FieldErrors;
-use crate::settings::doc_type::{DocType, RECEIVED};
 use crate::settings::entity::category;
 use crate::validation as v;
 
@@ -43,8 +45,8 @@ pub struct Meta {
 }
 
 /// Category kind a direction accepts.
-pub fn category_kind(direction: &str) -> &'static str {
-    if direction == RECEIVED {
+pub fn category_kind(direction: Direction) -> &'static str {
+    if direction == Direction::Received {
         "expense"
     } else {
         "income"
@@ -56,7 +58,7 @@ pub fn category_kind(direction: &str) -> &'static str {
 pub fn validate(
     category_id: Option<Uuid>,
     fields: Option<&Values>,
-    direction: &str,
+    direction: Direction,
     ctx: &MetaCtx,
     e: &mut FieldErrors,
 ) -> Meta {
@@ -81,7 +83,7 @@ pub fn validate(
 impl MetadataInput {
     pub fn validate(
         self,
-        direction: &str,
+        direction: Direction,
         ctx: &MetaCtx,
     ) -> Result<(Meta, Option<String>), crate::error::AppError> {
         let mut e = FieldErrors::new();
@@ -121,7 +123,7 @@ pub fn related_types(doc_type: DocType) -> &'static [DocType] {
 pub fn check_related(
     requested: Option<Uuid>,
     doc_type: DocType,
-    direction: &str,
+    direction: Direction,
     self_id: Option<Uuid>,
     target: Option<&document::Model>,
     e: &mut FieldErrors,
@@ -131,10 +133,8 @@ pub fn check_related(
         t.id == id
             && Some(id) != self_id
             && t.direction == direction
-            && t.status != "draft"
-            && related_types(doc_type)
-                .iter()
-                .any(|r| r.as_str() == t.doc_type)
+            && t.status != Status::Draft
+            && related_types(doc_type).contains(&t.doc_type)
     });
     if ok {
         Some(id)
@@ -163,7 +163,7 @@ mod tests {
         }
     }
 
-    fn run(id: Option<Uuid>, dir: &str, ctx: &MetaCtx) -> (Meta, FieldErrors) {
+    fn run(id: Option<Uuid>, dir: Direction, ctx: &MetaCtx) -> (Meta, FieldErrors) {
         let mut e = FieldErrors::new();
         (validate(id, None, dir, ctx, &mut e), e)
     }
@@ -175,19 +175,23 @@ mod tests {
             category: Some(c),
             ..Default::default()
         };
-        let (m, e) = run(id, "received", &ctx(cat("expense", true)));
+        let (m, e) = run(id, Direction::Received, &ctx(cat("expense", true)));
         assert!(e.is_empty());
         assert_eq!(m.category_id, id);
-        let (_, e) = run(id, "issued", &ctx(cat("expense", true)));
+        let (_, e) = run(id, Direction::Issued, &ctx(cat("expense", true)));
         assert_eq!(e.get("categoryId"), Some("invalid"));
-        let (_, e) = run(id, "issued", &ctx(cat("income", false)));
+        let (_, e) = run(id, Direction::Issued, &ctx(cat("income", false)));
         assert_eq!(e.get("categoryId"), Some("inactive"));
         let mut kept = ctx(cat("income", false));
         kept.stored_category = id;
-        assert!(run(id, "issued", &kept).1.is_empty());
-        let (_, e) = run(id, "issued", &MetaCtx::default());
+        assert!(run(id, Direction::Issued, &kept).1.is_empty());
+        let (_, e) = run(id, Direction::Issued, &MetaCtx::default());
         assert_eq!(e.get("categoryId"), Some("invalid"));
-        assert!(run(None, "issued", &MetaCtx::default()).1.is_empty());
+        assert!(
+            run(None, Direction::Issued, &MetaCtx::default())
+                .1
+                .is_empty()
+        );
     }
 
     #[test]
@@ -201,7 +205,7 @@ mod tests {
             }],
             ..Default::default()
         };
-        let (_, e) = run(None, "issued", &ctx);
+        let (_, e) = run(None, Direction::Issued, &ctx);
         assert_eq!(e.get("customFields.project"), Some("required"));
     }
 

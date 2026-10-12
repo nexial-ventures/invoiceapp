@@ -8,10 +8,11 @@ use uuid::Uuid;
 
 use super::model::{NS, doc_type_code};
 use super::xml::Xml;
+use crate::currency::{LOCAL_CURRENCY, is_local};
 use crate::document::compute::{RecapRow, round2};
+use crate::document::doc_type::DocType;
 use crate::document::line::{AdvanceRow, LineData, PaymentMethod, VatMode};
 use crate::document::snapshot::{BankSnapshot, PartySnapshot};
-use crate::settings::doc_type::DocType;
 
 /// A deducted advance: a DDPP (`taxed`) or, non-payer form, a proforma.
 #[derive(Debug, Clone)]
@@ -197,7 +198,7 @@ impl W<'_> {
 }
 
 pub fn render(s: &Source) -> String {
-    let foreign = s.currency != "CZK";
+    let foreign = !is_local(&s.currency);
     let fx = if foreign {
         s.rate.unwrap_or(Decimal::ONE)
     } else {
@@ -224,7 +225,7 @@ pub fn render(s: &Source) -> String {
     )
     .leaf("ElectronicPossibilityAgreementReference", "")
     .opt("Note", s.note.as_deref())
-    .leaf("LocalCurrencyCode", "CZK");
+    .leaf("LocalCurrencyCode", LOCAL_CURRENCY);
     if foreign {
         w.x.leaf("ForeignCurrencyCode", &s.currency);
     }

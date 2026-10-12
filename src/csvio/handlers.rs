@@ -14,6 +14,7 @@ use super::analyze::{self, Entry, Ready};
 use super::write;
 use crate::app::AppState;
 use crate::auth::{Read, Write};
+use crate::document::line::Direction;
 use crate::document::repo::issue::Rate;
 use crate::error::{AppError, ErrorBody};
 use crate::import::category::CategoryRef;
@@ -77,7 +78,7 @@ fn entry(e: &Entry) -> CsvPreviewEntry {
         },
         Err((err, raw)) => CsvPreviewEntry {
             entry: PreviewEntry {
-                direction: raw.direction,
+                direction: raw.direction.map(Direction::as_str),
                 doc_type: raw.doc_type,
                 number: raw.number.clone(),
                 counterparty: raw.counterparty.as_ref().map(|(name, ico)| Counterparty {

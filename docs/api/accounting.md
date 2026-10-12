@@ -27,8 +27,15 @@ AccountingSettings {
   },
   money: { ico, codes: [ … ] }   // 3c, see money.md
 }
+
+AccountingResponse = AccountingSettings + {
+  limits: { pohoda: { code: 19, numberSeries: 19 }, money: { code: 10, numberSeries: 5 } }
+}
 ```
-- `GET` → the full object, every direction × type row present (missing rows → all null).
+- `GET` → `AccountingResponse`: the full object, every direction × type row present (missing rows → all null), plus
+  `limits` — the longest code (`accounting`, `classificationVat`, `classificationVatNonDeductible`) and number series
+  per program, in characters after trimming, as `PUT` enforces them. `PUT` answers the same shape; `limits` in a `PUT`
+  body is ignored.
 - `PUT` → replaces each section present in the body, keeps an absent one (3c, [money.md](money.md#settings--accounting)); each code ≤ 19 chars for Pohoda (see Clarifications), ≤ 10 for Money (series ≤ 5, see money.md), trimmed, `""` → null; unknown direction / docType or a duplicate row → 422
   (`pohoda.codes.N.docType: invalid` / `duplicate`). Stored as one JSON settings row (migration).
 

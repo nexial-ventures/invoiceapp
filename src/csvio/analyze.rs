@@ -11,12 +11,13 @@ use super::columns::Columns;
 use super::format as f;
 use super::read::{self, FileError};
 use super::row::{self, Ctx, Mapped};
+use crate::document::doc_type::DocType;
+use crate::document::line::Direction;
 use crate::document::meta::category_kind;
 use crate::error::AppError;
 use crate::import::category;
 use crate::import::check::{self, Checked};
 use crate::import::model::{Code, Party, Plan};
-use crate::settings::doc_type::{DocType, RECEIVED};
 use crate::settings::repo::company;
 use crate::space::SpaceId;
 
@@ -26,7 +27,7 @@ pub const CATEGORY_INACTIVE: Code = "category_inactive";
 /// What an error row still shows in the preview.
 #[derive(Debug, Clone, Default)]
 pub struct Raw {
-    pub direction: Option<&'static str>,
+    pub direction: Option<Direction>,
     pub doc_type: Option<&'static str>,
     pub number: Option<String>,
     /// Name and IČO.
@@ -55,8 +56,8 @@ type Parsed = (u32, Result<Mapped, (RowError, Raw)>);
 fn raw(row: Row) -> Raw {
     let direction = row
         .text(f::DIRECTION)
-        .and_then(|d| row::direction(&d.to_lowercase()));
-    let number = if direction == Some(RECEIVED) {
+        .and_then(|d| Direction::parse(&d.to_lowercase()));
+    let number = if direction == Some(Direction::Received) {
         row.text(f::SUPPLIER_NUMBER)
     } else {
         row.text(f::NUMBER)

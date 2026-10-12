@@ -9,7 +9,9 @@ use sea_orm::{ActiveModelTrait, DatabaseTransaction, DbErr, Set};
 use uuid::Uuid;
 
 use crate::document::compute::Totals;
+use crate::document::doc_type::DocType;
 use crate::document::entity::document::ActiveModel;
+use crate::document::line::{Direction, PaymentMethod, RoundingMode, Status, VatMode};
 
 /// A new document row. Columns a new row never has yet (payments, sending,
 /// cancellation, the rendered PDF archive) are not part of it.
@@ -17,9 +19,9 @@ use crate::document::entity::document::ActiveModel;
 pub struct NewDocument {
     pub id: Uuid,
     pub space_id: Uuid,
-    pub direction: String,
-    pub doc_type: String,
-    pub status: String,
+    pub direction: Direction,
+    pub doc_type: DocType,
+    pub status: Status,
     pub number: Option<String>,
     pub number_year: Option<i32>,
     pub number_seq: Option<i32>,
@@ -33,16 +35,16 @@ pub struct NewDocument {
     pub exchange_rate_date: Option<NaiveDate>,
     pub exchange_rate_source: Option<String>,
     pub locale: String,
-    pub vat_mode: String,
+    pub vat_mode: VatMode,
     pub bank_account_id: Option<Uuid>,
-    pub payment_method: String,
+    pub payment_method: PaymentMethod,
     pub variable_symbol: Option<String>,
     pub constant_symbol: Option<String>,
     pub order_ref: Option<String>,
     pub header_note: Option<String>,
     pub footer_note: Option<String>,
     pub internal_note: Option<String>,
-    pub rounding_mode: String,
+    pub rounding_mode: RoundingMode,
     pub supplier_snapshot: Option<serde_json::Value>,
     pub customer_snapshot: Option<serde_json::Value>,
     pub bank_snapshot: Option<serde_json::Value>,

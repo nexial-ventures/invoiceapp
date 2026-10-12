@@ -14,22 +14,23 @@ use uuid::Uuid;
 
 use super::credit::draft_from;
 use super::ddpp::ensure_not_deducted;
-use super::{query, view, write};
+use super::{query, write};
 use crate::document::compute::{self, Params, Totals};
 use crate::document::correction::{ExactBasis, net_recap};
 use crate::document::credit::exceeds_original;
+use crate::document::doc_type::DocType;
 use crate::document::entity::{document, vat_recap};
+use crate::document::line::Direction;
 use crate::document::line::{AdvanceRow, Status};
 use crate::document::model::Existing;
 use crate::error::AppError;
-use crate::settings::doc_type::{DocType, ISSUED};
 use crate::space::SpaceId;
 
 /// An issued (not cancelled) DDPP of ours, imported ones included.
 pub fn correctable(doc: &document::Model) -> Result<bool, AppError> {
-    Ok(doc.doc_type == DocType::AdvanceTaxDoc.as_str()
-        && doc.direction == ISSUED
-        && view::status(doc)? == Status::Issued)
+    Ok(doc.doc_type == DocType::AdvanceTaxDoc
+        && doc.direction == Direction::Issued
+        && doc.status == Status::Issued)
 }
 
 /// Lock the DDPP, require it correctable and not deducted by a non-cancelled
@@ -65,9 +66,9 @@ pub async fn credited<C: ConnectionTrait>(
 ) -> Result<HashMap<Uuid, Vec<AdvanceRow>>, AppError> {
     let mut q = document::Entity::find()
         .filter(document::Column::RelatedDocumentId.is_in(ddpps.to_vec()))
-        .filter(document::Column::DocType.eq(DocType::AdvanceCreditNote.as_str()))
-        .filter(document::Column::Direction.eq(ISSUED))
-        .filter(document::Column::Status.eq(Status::Issued.as_str()));
+        .filter(document::Column::DocType.eq(DocType::AdvanceCreditNote))
+        .filter(document::Column::Direction.eq(Direction::Issued))
+        .filter(document::Column::Status.eq(Status::Issued));
     if let Some(id) = except {
         q = q.filter(document::Column::Id.ne(id));
     }
@@ -238,9 +239,9 @@ pub async fn check_linked(
 pub async fn ensure_uncorrected<C: ConnectionTrait>(db: &C, ddpp: Uuid) -> Result<(), AppError> {
     let live = document::Entity::find()
         .filter(document::Column::RelatedDocumentId.eq(ddpp))
-        .filter(document::Column::DocType.eq(DocType::AdvanceCreditNote.as_str()))
-        .filter(document::Column::Direction.eq(ISSUED))
-        .filter(document::Column::Status.ne(Status::Cancelled.as_str()))
+        .filter(document::Column::DocType.eq(DocType::AdvanceCreditNote))
+        .filter(document::Column::Direction.eq(Direction::Issued))
+        .filter(document::Column::Status.ne(Status::Cancelled))
         .one(db)
         .await?;
     match live {

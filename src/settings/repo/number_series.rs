@@ -8,8 +8,8 @@ use sea_orm::{
     EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set, Statement, TransactionTrait,
 };
 
+use crate::document::doc_type::DocType;
 use crate::error::AppError;
-use crate::settings::doc_type::DocType;
 use crate::settings::entity::{number_series, number_series_counter as counter};
 use crate::settings::pattern::Pattern;
 use crate::space::SpaceId;
@@ -37,7 +37,7 @@ pub async fn list<C: ConnectionTrait>(db: &C, space: SpaceId) -> Result<Vec<Seri
         .map(|doc_type| {
             let row = series
                 .iter()
-                .find(|s| s.doc_type == doc_type.as_str())
+                .find(|s| s.doc_type == doc_type)
                 .with_context(|| format!("number series {} missing", doc_type.as_str()))?;
             let counters = counters
                 .iter()
@@ -81,7 +81,7 @@ pub async fn set_pattern(
 ) -> Result<Series, AppError> {
     let taken = number_series::Entity::find()
         .filter(number_series::Column::SpaceId.eq(space))
-        .filter(number_series::Column::DocType.ne(doc_type.as_str()))
+        .filter(number_series::Column::DocType.ne(doc_type))
         .filter(number_series::Column::Pattern.eq(pattern.as_str()))
         .one(db)
         .await?;
@@ -185,7 +185,7 @@ async fn load<C: ConnectionTrait>(
 ) -> Result<number_series::Model, AppError> {
     let row = number_series::Entity::find()
         .filter(number_series::Column::SpaceId.eq(space))
-        .filter(number_series::Column::DocType.eq(doc_type.as_str()))
+        .filter(number_series::Column::DocType.eq(doc_type))
         .one(db)
         .await?
         .with_context(|| format!("number series {} missing", doc_type.as_str()))?;

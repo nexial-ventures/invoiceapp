@@ -2,7 +2,6 @@
 //! namespace). Pure: the export pipeline ([`super::export`]) loads the
 //! [`Source`]s and assembles what this writes.
 
-use anyhow::Context as _;
 use chrono::NaiveDate;
 use rust_decimal::{Decimal, RoundingStrategy};
 
@@ -10,10 +9,11 @@ use super::doc::{cut, dates, fits, rates, shown_number, text};
 use super::export::Ctx;
 use super::money_summary as summary;
 use super::settings::CodeRow;
-use crate::csvio::export_row::{Kind, Source, czk_recap, snapshot};
+use crate::currency::is_local;
+use crate::document::doc_type::DocType;
 use crate::document::line::{PaymentMethod, VatMode};
+use crate::export::source::{Kind, Source, czk_recap, snapshot};
 use crate::isdoc::xml::Xml;
-use crate::settings::doc_type::DocType;
 
 /// Longest `Doklad`; a longer number is left out and Money numbers the
 /// document from the series (`Rada`).
@@ -143,15 +143,13 @@ fn partner(x: &mut Xml, stored: &Option<serde_json::Value>) -> anyhow::Result<()
 }
 
 /// `Uhrada` (free text ≤ 20) of a stored payment method; `other` → none.
-fn payment(method: &str) -> anyhow::Result<Option<&'static str>> {
-    Ok(
-        match PaymentMethod::parse(method).context("stored payment method")? {
-            PaymentMethod::BankTransfer => Some("převodem"),
-            PaymentMethod::Cash => Some("hotově"),
-            PaymentMethod::Card => Some("kartou"),
-            PaymentMethod::Other => None,
-        },
-    )
+fn payment(method: PaymentMethod) -> Option<&'static str> {
+    match method {
+        PaymentMethod::BankTransfer => Some("převodem"),
+        PaymentMethod::Cash => Some("hotově"),
+        PaymentMethod::Card => Some("kartou"),
+        PaymentMethod::Other => None,
+    }
 }
 
 /// `Kurs` (`castkaType`: 4 decimals at most): the stored rate, else the
@@ -181,12 +179,12 @@ pub fn item(s: &Source, ctx: &Ctx) -> anyhow::Result<(List, String)> {
         doc_type,
         vat_mode,
         ..
-    } = Kind::of(doc)?;
+    } = Kind::of(doc);
     let list = List::of(doc_type, issued)?;
     let vat_free = matches!(vat_mode, VatMode::Exempt | VatMode::NonPayer);
     let home_recap = czk_recap(doc, s.recap)?;
     let home = rates(&home_recap, vat_free);
-    let codes: Option<&CodeRow> = ctx.settings.money.row(&doc.direction, doc_type);
+    let codes: Option<&CodeRow> = ctx.settings.money.row(doc.direction, doc_type);
     let code = |f: fn(&CodeRow) -> &Option<String>| codes.and_then(|c| f(c).as_ref());
     // A received document without the deduction never takes the
     // deductible code; without its own code KodDPH is left out.
@@ -229,11 +227,11 @@ pub fn item(s: &Source, ctx: &Ctx) -> anyhow::Result<(List, String)> {
     if doc_type.sign() < 0 {
         x.leaf("Dobropis", "true");
     }
-    x.opt("Uhrada", payment(&doc.payment_method)?)
+    x.opt("Uhrada", payment(doc.payment_method))
         .opt("PredKontac", code(|c| &c.accounting))
         .leaf("SazbaDPH1", "12")
         .leaf("SazbaDPH2", "21");
-    if doc.currency == "CZK" {
+    if is_local(&doc.currency) {
         summary::write(&mut x, &home, doc.rounding, sign)?;
     } else {
         let foreign: Vec<_> = s
