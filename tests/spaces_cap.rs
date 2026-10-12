@@ -100,3 +100,34 @@ async fn parallel_creations_cannot_pass_the_cap() {
     );
     assert_eq!(count(&db.conn, &owned).await, 3);
 }
+
+#[tokio::test]
+async fn a_space_with_a_newly_reserved_slug_still_resolves() {
+    let db = TestDb::new().await;
+    let app = common::router_open(db.conn.clone());
+    // Created before `demo` was reserved.
+    seed_space(&db.conn, "demo", "demo@example.com", None).await;
+    let (s, j) = on(
+        &app,
+        Method::GET,
+        "demo.localhost:3000",
+        "/api/context",
+        As::Nobody,
+        None,
+    )
+    .await;
+    assert_eq!(
+        (s, &j["space"]["slug"]),
+        (StatusCode::OK, &json!("demo")),
+        "{j}"
+    );
+    // A new space cannot take such a name.
+    let cookie = login(&app, BASE_HOST, OWNER_EMAIL, OWNER_PASSWORD)
+        .await
+        .expect("login");
+    let (s, j) = create(&app, &cookie, "test").await;
+    assert_eq!(
+        (s, &j["fields"]["slug"]),
+        (StatusCode::UNPROCESSABLE_ENTITY, &json!("reserved"))
+    );
+}

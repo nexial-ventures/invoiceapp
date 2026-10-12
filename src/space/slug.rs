@@ -66,12 +66,7 @@ pub fn validate(raw: &str) -> Result<String, &'static str> {
     if s.is_empty() {
         return Err("required");
     }
-    let shape_ok = (3..=30).contains(&s.len())
-        && s.bytes()
-            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
-        && !s.starts_with('-')
-        && !s.ends_with('-');
-    if !shape_ok {
+    if !shape_ok(s) {
         return Err("invalid");
     }
     if RESERVED.contains(&s) {
@@ -80,10 +75,19 @@ pub fn validate(raw: &str) -> Result<String, &'static str> {
     Ok(s.to_string())
 }
 
+fn shape_ok(s: &str) -> bool {
+    (3..=30).contains(&s.len())
+        && s.bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+        && !s.starts_with('-')
+        && !s.ends_with('-')
+}
+
 /// Could `label` (one DNS label of a request host) be a space slug? Used by
-/// the host classification before any DB lookup.
+/// the host classification before any DB lookup. Shape only: a name
+/// reserved after a space took it must keep resolving.
 pub fn plausible(label: &str) -> bool {
-    validate(label).is_ok()
+    shape_ok(label)
 }
 
 #[cfg(test)]
@@ -114,6 +118,10 @@ mod tests {
         assert_eq!(validate("ns"), Err("invalid"), "too short before reserved");
         assert_eq!(validate("login-firma").as_deref(), Ok("login-firma"));
         assert!(plausible("firma"));
-        assert!(!plausible("api"));
+        assert!(
+            plausible("api"),
+            "reserved names are refused only at creation"
+        );
+        assert!(!plausible("ab") && !plausible("-ab") && !plausible("Firma"));
     }
 }

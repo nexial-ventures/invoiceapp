@@ -43,5 +43,9 @@
   "draftEmpty": "Koncept je prázdný – není co aktivovat.",
   "designBusy": "Probíhá jiná změna designu. Zkuste to za chvíli znovu.",
   "draftChanged": "Koncept se během aktivace změnil. Zkontrolujte ho a aktivujte znovu.",
-  "versionIncomplete": "Soubory této verze v úložišti chybí – verzi nelze obnovit."
+  "versionIncomplete": "Soubory této verze v úložišti chybí – verzi nelze obnovit.",
+  "emailRateLimited": "Limit e-mailů (za hodinu nebo za den, pro tento space nebo pro vás) je vyčerpán. Zkuste to později.",
+  "emailRateLimitedWait": "Limit e-mailů (za hodinu nebo za den, pro tento space nebo pro vás) je vyčerpán. Zkuste to za {wait}.",
+  "waitMinutes": "{n} min",
+  "waitHours": "{n} h"
 }

@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import FormField from "@/components/form/FormField.vue";
 import { useFormSubmit } from "@/composables/useFormSubmit";
 import { emailRule } from "@/features/auth/validation";
+import { useEmailErrorText } from "@/features/email/useEmailErrorText";
 import { formatDate } from "@/features/documents/format";
 import type { Role } from "@/features/spaces/types";
 import { collectErrors } from "@/lib/formErrors";
@@ -21,8 +22,9 @@ const store = useMembersStore();
 const toast = useToastStore();
 const roles = computed(() => grantableRoles(session.role));
 const form = reactive<{ email: string; role: Role }>({ email: "", role: "member" });
-const { fieldErrors, error, submitting, submit } = useFormSubmit();
-const action = useMemberAction();
+const emailErrorText = useEmailErrorText();
+const { fieldErrors, error, submitting, submit } = useFormSubmit(emailErrorText);
+const action = useMemberAction(emailErrorText);
 /** The last invitation sent or resent: its link is shown once, never stored. */
 const sent = ref<SentInvite | null>(null);
 

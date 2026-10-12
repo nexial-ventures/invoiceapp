@@ -116,10 +116,11 @@ expires_at; unique (space_id, email)).
   that passes validation counts in a per-user bucket (20 / h, the caller) and a per-space bucket (50 / h), reserved
   together (a refused request counts in neither) — whether SMTP is configured or not; used up → 429
   `rate_limited` + `Retry-After`. An invitation that will be mailed (SMTP configured, e-mail not disabled) also
-  counts as one e-mail in the space's and the inviter's **e-mail limits** (defaults 20 / h and 100 / day each, kept
-  in the database, [spaces.md](spaces.md#limits)), checked after the buckets above (a refusal there gives their
-  reservation back), before the invitation is written: 429 `rate_limited` + `Retry-After`, nothing created or
-  replaced.
+  counts as one e-mail in the space's and the inviter's (in this space) **e-mail limits** (defaults 20 / h and 100 /
+  day each, kept in the database, [spaces.md](spaces.md#limits)), checked after the buckets above (a refusal there
+  gives their reservation back), before the invitation is written: 429 `rate_limited` + `Retry-After`, nothing
+  created or replaced. When the write then refuses (403 for an owner invitation an admin may not touch, 404 for an
+  unknown / expired resend, a failed write) the reservations in the buckets and the e-mail limits are given back.
 - Replacing keeps the invitation `id` and sets a new role, inviter, token, `createdAt` and `expiresAt`. `resend`
   takes an optional body `{ locale? }`, keeps the role and `createdAt`, sets a new token, `expiresAt` and the
   inviter (= who resends, named in the e-mail); an expired invitation → 404 (invite again). `DELETE` of an expired
@@ -132,7 +133,8 @@ expires_at; unique (space_id, email)).
   the stored address cannot be used as a recipient — logged; resend after fixing it). Without SMTP: `emailSent:
   false`, nothing is attempted, `url` = `{space url}/invite?token=…`. With SMTP but `INVOICE__EMAIL_DISABLED=true`
   ([email.md](email.md)) the invitation is created, the e-mail skipped and logged at `warn`, `emailSent: false` and
-  **no `url`** (the link must still only reach the invitee's mailbox) — resend once e-mail is enabled again. Subject `{inviter} vás zve do {space}` / `{inviter} invites you to {space}` (inviter = the sender's
+  **no `url`** (the link must still only reach the invitee's mailbox), `emailDisabled: true` (the UI says sending is
+  disabled) — resend once e-mail is enabled again. `emailDisabled` is `false` otherwise. Subject `{inviter} vás zve do {space}` / `{inviter} invites you to {space}` (inviter = the sender's
   display name, space = its name; control characters → spaces), the text names the role (cs: vlastník, správce,
   člen, účetní; en: the role id) and the 7-day validity.
 - **Accept**: both routes exist only on a space host (base host → 404); a token of another space is unknown (404 /

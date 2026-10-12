@@ -168,6 +168,32 @@ describe("SendEmailDialog", () => {
     expect(w.emitted("attempted")).toHaveLength(1);
   });
 
+  it("names the e-mail limit and when it frees up", async () => {
+    mockFetchRoutes({
+      "GET /api/settings/email": emailSettings(),
+      "GET /api/documents/d1/email": prefill(),
+      "POST /api/documents/d1/email": new Response(JSON.stringify({ code: "rate_limited" }), {
+        status: 429,
+        headers: { "Content-Type": "application/json", "Retry-After": "1500" },
+      }),
+    });
+    const w = await mountDialog();
+    await w.find('[data-test="email-send"]').trigger("click");
+    await flushPromises();
+    expect(w.find('[data-test="email-error"]').text()).toContain("The e-mail limit (per hour or per day");
+    expect(w.find('[data-test="email-error"]').text()).toContain("Try again in 25 min.");
+  });
+
+  it("cannot send while e-mail is disabled", async () => {
+    mockFetchRoutes({
+      "GET /api/settings/email": emailSettings({ disabled: true }),
+      "GET /api/documents/d1/email": prefill({ disabled: true }),
+    });
+    const w = await mountDialog();
+    expect(w.find('[data-test="email-disabled"]').text()).toContain("temporarily disabled");
+    expect(w.find('[data-test="email-send"]').attributes("disabled")).toBeDefined();
+  });
+
   it.each([
     ["smtp_not_configured", 503, "E-mail sending is not configured"],
     ["email_disabled", 503, "Sending e-mails is temporarily disabled"],

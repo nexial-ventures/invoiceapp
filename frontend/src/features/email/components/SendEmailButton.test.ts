@@ -35,6 +35,18 @@ describe("e-mail on the document detail", () => {
     expect(w.find('[data-test="send-email-hint"]').text()).toBe("E-mail sending is not configured on the server.");
   });
 
+  it("is disabled with a hint while e-mail is disabled", async () => {
+    mockFetchRoutes({
+      "GET /api/documents/d1": issued,
+      "GET /api/documents/d1/payments": [],
+      "GET /api/documents/d1/emails": [],
+      "GET /api/settings/email": emailSettings({ disabled: true }),
+    });
+    const { w } = await mountDetail();
+    expect(w.find('[data-test="send-email"]').attributes("disabled")).toBeDefined();
+    expect(w.find('[data-test="send-email-hint"]').text()).toBe("Sending e-mails is disabled on this instance.");
+  });
+
   it("sends, then reloads the document (sentAt) and the history", async () => {
     let sentAt: string | null = null;
     const history = [logEntry({ id: "old", ok: false, error: "timeout" })];

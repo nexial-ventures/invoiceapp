@@ -1,13 +1,13 @@
 //! Outbound e-mail limits (spaces.md "Limits"): per space and per sending
-//! user, over a rolling hour and day, counted in `email_sends`; document
+//! user within the space, over a rolling hour and day, counted in `email_sends`; document
 //! e-mails, the settings test e-mail and invitations all count.
 
 mod common;
 
-use common::auth::{As, member, user};
+use common::auth::{As, member, seed_space, user};
 use common::documents::{create_issued, id};
-use common::email_limits::{age_sends, assert_limited, post, seed_sends, sends};
-use common::members::count;
+use common::email_limits::{age_sends, assert_limited, post, post_on, seed_sends, sends};
+use common::members::{B_HOST, count, join, token};
 use common::smtp::{EmailEnv, issuable_with_emails, send_body};
 use common::{TEST_TOKEN, TestDb};
 use invoice::space::Role;
@@ -88,21 +88,51 @@ async fn space_day_window() {
 }
 
 #[tokio::test]
-async fn user_limits_count_over_all_spaces() {
+async fn user_limits_count_per_space() {
     let db = TestDb::new().await;
     let env = EmailEnv::new().await;
     let (app, uri) = setup(&db, &env).await;
-    // The owner sent 20 half an hour ago from a space deleted since.
-    seed_sends(&db.conn, None, db.user_id, 20, "30 minutes").await;
+    // Only the user limits can bite here.
+    sql(
+        &db,
+        "UPDATE space_limits SET email_space_per_hour = 1000, email_space_per_day = 1000",
+    )
+    .await;
+    // The owner sent 20 from this space half an hour ago (and 50 from a
+    // space deleted since, which count nowhere).
+    seed_sends(
+        &db.conn,
+        Some(db.space.uuid()),
+        db.user_id,
+        20,
+        "30 minutes",
+    )
+    .await;
+    seed_sends(&db.conn, None, db.user_id, 50, "10 minutes").await;
     assert_limited(post(&app, OWNER, &uri, send_body(json!({}))).await, 30 * 60);
     // Another member of the same space is not limited by the owner's count.
     let jana = member(&db.conn, db.space, "jana@example.com", Role::Member).await;
     let (s, _, j) = post(&app, As::Bearer(&jana), &uri, send_body(json!({}))).await;
     assert_eq!(s, StatusCode::OK, "{j}");
 
-    // The day: 100 of the owner's within 24 h, none in the last hour.
+    // The owner's budget in another space is separate.
+    let (beta, _) = seed_space(&db.conn, "beta", "beta@example.com", None).await;
+    join(&db.conn, beta, db.user_id, Role::Owner).await;
+    let in_beta = token(&db.conn, beta, db.user_id, Role::Owner).await;
+    let test = json!({ "to": "me@example.com" });
+    let (s, _, j) = post_on(
+        &app,
+        B_HOST,
+        As::Bearer(&in_beta),
+        "/api/settings/email/test",
+        test,
+    )
+    .await;
+    assert_eq!(s, StatusCode::NO_CONTENT, "{j}");
+
+    // The day: 100 of the owner's in this space within 24 h, none in the last hour.
     age_sends(&db.conn, "2 hours").await;
-    seed_sends(&db.conn, None, db.user_id, 80, "3 hours").await;
+    seed_sends(&db.conn, Some(db.space.uuid()), db.user_id, 80, "3 hours").await;
     // The oldest of them leaves the day window in 21 h.
     assert_limited(
         post(&app, OWNER, &uri, send_body(json!({}))).await,
@@ -112,6 +142,35 @@ async fn user_limits_count_over_all_spaces() {
     assert_eq!(
         post(&app, OWNER, &uri, send_body(json!({}))).await.0,
         StatusCode::OK
+    );
+}
+
+#[tokio::test]
+async fn refused_invitations_give_the_reservation_back() {
+    let db = TestDb::new().await;
+    let env = EmailEnv::new().await;
+    let app = env.router(db.conn.clone());
+    let unknown = format!("/api/invites/{}/resend", uuid::Uuid::new_v4());
+    let (s, _, _) = post(&app, OWNER, &unknown, json!({})).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    assert_eq!(sends(&db.conn, None).await, 0);
+
+    // An admin may neither replace nor resend the owner's owner invitation.
+    let owner_invite = json!({ "email": "x@example.com", "role": "owner" });
+    let (s, _, j) = post(&app, OWNER, "/api/invites", owner_invite).await;
+    assert_eq!(s, StatusCode::CREATED, "{j}");
+    assert_eq!(sends(&db.conn, None).await, 1);
+    let admin = member(&db.conn, db.space, "admin@example.com", Role::Admin).await;
+    let replace = json!({ "email": "x@example.com", "role": "member" });
+    let (s, _, _) = post(&app, As::Bearer(&admin), "/api/invites", replace).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let resend = format!("/api/invites/{}/resend", j["id"].as_str().expect("id"));
+    let (s, _, _) = post(&app, As::Bearer(&admin), &resend, json!({})).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    assert_eq!(
+        sends(&db.conn, None).await,
+        1,
+        "the refused ones are not counted"
     );
 }
 

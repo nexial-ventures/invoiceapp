@@ -37,7 +37,7 @@ pub struct Limits {
 }
 
 /// E-mails per rolling hour / day: of the space, and of the sending user
-/// (counted over all their spaces, bounded by this space's values).
+/// within the space (their sends from other spaces do not count).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EmailLimits {
     pub space_per_hour: u32,

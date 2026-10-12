@@ -28,7 +28,8 @@
     "sentByEmail": "Odkaz byl odeslán e-mailem na {email}.",
     "emailFailed": "E-mail se nepodařilo odeslat – zkuste pozvánku poslat znovu.",
     "sentHint": "Odkaz platí 7 dní a lze ho použít jen jednou. Pokud nedorazí, pozvánku pošlete znovu.",
-    "hint": "Odkaz platí 7 dní a lze ho použít jen jednou. Znovu ho nezobrazíme; při ztrátě pozvánku pošlete znovu."
+    "hint": "Odkaz platí 7 dní a lze ho použít jen jednou. Znovu ho nezobrazíme; při ztrátě pozvánku pošlete znovu.",
+    "emailDisabled": "Pozvánka je uložená, ale e-mail nebyl odeslán: odesílání e-mailů je na této instanci vypnuté. Odešlete ji později znovu."
   },
   "pending": {
     "title": "Čekající pozvánky",

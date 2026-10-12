@@ -21,7 +21,7 @@ async fn status_and_test_message() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(
         s,
-        json!({ "configured": false, "from": null, "replyTo": null })
+        json!({ "configured": false, "disabled": false, "from": null, "replyTo": null })
     );
     let (status, e) = call(&off, Method::POST, "/api/settings/email/test", None).await;
     assert_eq!(
@@ -54,7 +54,7 @@ async fn status_and_test_message() {
     let (_, s) = call(&app, Method::GET, "/api/settings/email", None).await;
     assert_eq!(
         s,
-        json!({ "configured": true, "from": FROM, "replyTo": COMPANY_EMAIL })
+        json!({ "configured": true, "disabled": false, "from": FROM, "replyTo": COMPANY_EMAIL })
     );
 
     let (status, _) = call(&app, Method::POST, "/api/settings/email/test", None).await;

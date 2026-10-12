@@ -35,6 +35,17 @@ async fn space_emails_are_refused() {
     let code = json!({ "code": "email_disabled" });
 
     let app = disabled(&db, &env, true);
+    // The UI learns it from the status and the prefill.
+    let (_, status) = common::call(&app, Method::GET, "/api/settings/email", None).await;
+    assert_eq!(
+        (&status["configured"], &status["disabled"]),
+        (&json!(true), &json!(true))
+    );
+    let (_, pre) = common::call(&app, Method::GET, &uri, None).await;
+    assert_eq!(pre["disabled"], true, "{pre}");
+    let (_, pre) = common::call(&on_app, Method::GET, &uri, None).await;
+    assert_eq!(pre["disabled"], false, "{pre}");
+
     let (s, _, j) = post(&app, OWNER, &uri, send_body(json!({}))).await;
     assert_eq!((s, &j), (StatusCode::SERVICE_UNAVAILABLE, &code));
     let (s, _, j) = post(&app, OWNER, "/api/settings/email/test", json!({})).await;
@@ -63,7 +74,10 @@ async fn account_emails_are_skipped() {
     let invite = json!({ "email": "new@example.com", "role": "member" });
     let (s, _, j) = post(&app, OWNER, "/api/invites", invite).await;
     assert_eq!(s, StatusCode::CREATED, "{j}");
-    assert_eq!(j["emailSent"], false);
+    assert_eq!(
+        (&j["emailSent"], &j["emailDisabled"]),
+        (&json!(false), &json!(true))
+    );
     assert!(j.get("url").is_none(), "{j}");
     assert_eq!(
         count(&db.conn, "SELECT count(*) FROM space_invites").await,

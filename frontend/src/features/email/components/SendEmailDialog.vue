@@ -5,13 +5,13 @@ import { ApiError } from "@/api/client";
 import type { DocLocale, FieldErrors } from "@/api/types";
 import ErrorDetail from "@/components/ErrorDetail.vue";
 import FormField from "@/components/form/FormField.vue";
-import { useErrorText } from "@/composables/useAction";
 import { LOCALES } from "@/i18n";
 import { collectErrors, errorDetailOf, fieldErrorsOf, textRule } from "@/lib/formErrors";
 import { useToastStore } from "@/stores/toast";
 import { emailApi } from "../api";
 import { recipientErrors, withAddress } from "../recipients";
 import { useEmailSettingsStore } from "../store";
+import { useEmailErrorText } from "../useEmailErrorText";
 import { localizeTemplateDetail } from "../templateDetail";
 import type { EmailPrefill, RecipientField, SendEmailInput } from "../types";
 import RecipientInput from "./RecipientInput.vue";
@@ -21,7 +21,7 @@ const props = defineProps<{ documentId: string }>();
 const emit = defineEmits<{ close: []; sent: []; attempted: [] }>();
 
 const { t } = useI18n();
-const errorText = useErrorText();
+const errorText = useEmailErrorText();
 const toast = useToastStore();
 const settings = useEmailSettingsStore();
 
@@ -123,7 +123,8 @@ for (const f of fields) {
 }
 
 const configured = computed(() => prefill.value?.configured ?? false);
-const canSend = computed(() => configured.value && !sending.value && !loading.value);
+const disabled = computed(() => prefill.value?.disabled ?? false);
+const canSend = computed(() => configured.value && !disabled.value && !sending.value && !loading.value);
 
 async function send(): Promise<void> {
   if (!canSend.value) return;
@@ -174,7 +175,8 @@ onMounted(() => panel.value?.focus());
         </label>
       </div>
 
-      <p v-if="prefill && !configured" class="alert-error" data-test="email-not-configured">{{ t("email.send.notConfigured") }}</p>
+      <p v-if="prefill && disabled" class="alert-error" data-test="email-disabled">{{ t("email.send.disabled") }}</p>
+      <p v-else-if="prefill && !configured" class="alert-error" data-test="email-not-configured">{{ t("email.send.notConfigured") }}</p>
       <p v-if="loading && !prefill" class="text-sm text-gray-500">{{ t("common.loading") }}</p>
 
       <form v-if="prefill" class="space-y-3" novalidate @submit.prevent="send">

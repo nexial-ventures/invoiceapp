@@ -1,14 +1,14 @@
 //! Outbound e-mail limits (`docs/api/spaces.md`, "Limits"): every e-mail
 //! sent on behalf of a space (document e-mails, the settings test e-mail,
 //! invitations) is counted in `email_sends` per space and per sending user
-//! over a rolling hour and day; the bounds are the space's hidden
-//! `space_limits` row. Account e-mails (verify, reset) are per-address
-//! limited elsewhere and not counted here.
+//! within that space, over a rolling hour and day; the bounds are the
+//! space's hidden `space_limits` row. Account e-mails (verify, reset) are
+//! per-address limited elsewhere and not counted here.
 //!
-//! [`reserve`] checks and records in one transaction under the space's and
-//! the user's lock (always taken in that order), so parallel sends cannot
-//! both pass on the last free slot. A reservation is not given back when the
-//! SMTP exchange fails: the attempt reached the server.
+//! [`reserve`] checks and records in one transaction under the space's lock
+//! (the user's count is a subset of the space's rows), so parallel sends
+//! cannot both pass on the last free slot. A reservation is not given back
+//! when the SMTP exchange fails: the attempt reached the server.
 
 use chrono::{DateTime, TimeDelta, Utc};
 use sea_orm::{ConnectionTrait, DatabaseConnection, EntityTrait, Set, Statement, TransactionTrait};
@@ -47,10 +47,11 @@ enum Scope {
 }
 
 impl Scope {
-    fn column(self) -> &'static str {
+    /// Rows of the window, `$1` = the space, `$2` = the user.
+    fn filter(self) -> &'static str {
         match self {
-            Self::Space => "space_id",
-            Self::User => "user_id",
+            Self::Space => "space_id = $1",
+            Self::User => "space_id = $1 AND user_id = $2",
         }
     }
 }
@@ -125,7 +126,7 @@ async fn counts(
                     count(*) FILTER (WHERE space_id = $1) AS space_day, \
                     count(*) FILTER (WHERE user_id = $2 AND created_at > $3) AS user_hour, \
                     count(*) FILTER (WHERE user_id = $2) AS user_day \
-             FROM email_sends WHERE (space_id = $1 OR user_id = $2) AND created_at > $4",
+             FROM email_sends WHERE space_id = $1 AND created_at > $4",
             [
                 space.into(),
                 user.into(),
@@ -154,20 +155,21 @@ async fn retry_after(
     w: &Window,
     now: DateTime<Utc>,
 ) -> Result<u64, AppError> {
-    let id = match w.scope {
-        Scope::Space => space.uuid(),
-        Scope::User => user,
-    };
     let offset = i64::try_from(w.used - u64::from(w.limit)).unwrap_or(i64::MAX);
     let row = txn
         .query_one(Statement::from_sql_and_values(
             txn.get_database_backend(),
             format!(
-                "SELECT created_at FROM email_sends WHERE {} = $1 AND created_at > $2 \
-                 ORDER BY created_at OFFSET $3 LIMIT 1",
-                w.scope.column()
+                "SELECT created_at FROM email_sends WHERE {} AND created_at > $3 \
+                 ORDER BY created_at OFFSET $4 LIMIT 1",
+                w.scope.filter()
             ),
-            [id.into(), (now - w.length).into(), offset.into()],
+            [
+                space.into(),
+                user.into(),
+                (now - w.length).into(),
+                offset.into(),
+            ],
         ))
         .await?;
     let freeing = match row {
@@ -177,18 +179,18 @@ async fn retry_after(
     Ok(retry_secs(freeing, w.length, now))
 }
 
-/// Count one e-mail of `user` on behalf of `space`, or refuse it with
-/// 429 `rate_limited` + `Retry-After` (nothing recorded) when the space or
-/// the user has used up an hour or a day.
+/// Count one e-mail of `user` on behalf of `space` (the id of its row, for
+/// [`release`]), or refuse it with 429 `rate_limited` + `Retry-After`
+/// (nothing recorded) when the space, or the user in it, has used up an
+/// hour or a day.
 pub async fn reserve(
     db: &DatabaseConnection,
     space: SpaceId,
     user: Uuid,
     kind: Kind,
-) -> Result<(), AppError> {
+) -> Result<i64, AppError> {
     let txn = db.begin().await?;
     advisory_xact_lock(&txn, format!("email-space:{space}")).await?;
-    advisory_xact_lock(&txn, format!("email-user:{user}")).await?;
     let now = Utc::now();
     let ws = windows(
         limits(&txn, space).await?.email,
@@ -201,16 +203,24 @@ pub async fn reserve(
     if wait > 0 {
         return Err(AppError::RateLimited(wait));
     }
-    email_send::Entity::insert(email_send::ActiveModel {
+    let id = email_send::Entity::insert(email_send::ActiveModel {
         space_id: Set(Some(space.uuid())),
         user_id: Set(user),
         kind: Set(kind.as_str().to_string()),
         created_at: Set(now.into()),
         ..Default::default()
     })
-    .exec_without_returning(&txn)
-    .await?;
+    .exec(&txn)
+    .await?
+    .last_insert_id;
     txn.commit().await?;
+    Ok(id)
+}
+
+/// Give back a [`reserve`]d send that was not attempted after all (the
+/// request was refused after the reservation).
+pub async fn release(db: &DatabaseConnection, id: i64) -> Result<(), AppError> {
+    email_send::Entity::delete_by_id(id).exec(db).await?;
     Ok(())
 }
 

@@ -11,6 +11,8 @@ export class ApiError extends Error {
     public readonly code: string,
     public readonly fields: FieldErrors = {},
     public readonly detail: string | null = null,
+    /** `Retry-After` of a 429, in seconds. */
+    public readonly retryAfter: number | null = null,
   ) {
     super(`API error ${status}: ${code}`);
     this.name = "ApiError";
@@ -87,7 +89,8 @@ async function send(path: string, options: RequestOptions, accept: string): Prom
     const { code, fields, detail } = await errorBody(res);
     if (res.status === 401 && !quiet401) handlers.unauthorized();
     if (res.status === 403 && code === "email_unverified") handlers.emailUnverified();
-    throw new ApiError(res.status, code, fields, detail ?? null);
+    const retry = Number(res.headers.get("Retry-After") ?? "");
+    throw new ApiError(res.status, code, fields, detail ?? null, Number.isFinite(retry) && retry > 0 ? retry : null);
   }
   return res;
 }

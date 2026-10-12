@@ -55,7 +55,18 @@ pub async fn post(
     uri: &str,
     body: Value,
 ) -> (StatusCode, Option<u64>, Value) {
-    let req = request(Method::POST, TEST_HOST, uri, who, Some(body.clone()))
+    post_on(app, TEST_HOST, who, uri, body).await
+}
+
+/// [`post`] on `host`.
+pub async fn post_on(
+    app: &Router,
+    host: &str,
+    who: As<'_>,
+    uri: &str,
+    body: Value,
+) -> (StatusCode, Option<u64>, Value) {
+    let req = request(Method::POST, host, uri, who, Some(body.clone()))
         .body(Body::from(body.to_string()))
         .expect("build request");
     let (status, headers, json) = exchange(app, req).await;

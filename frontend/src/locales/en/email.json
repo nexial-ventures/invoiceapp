@@ -20,7 +20,9 @@
     "sending": "Sending…",
     "sent": "E-mail sent to {to}.",
     "templateFix": "Fix the template in {link}.",
-    "templateFixLink": "Settings → E-mail"
+    "templateFixLink": "Settings → E-mail",
+    "disabledHint": "Sending e-mails is disabled on this instance.",
+    "disabled": "Sending e-mails is temporarily disabled on this instance by its operator. The e-mail cannot be sent."
   },
   "history": {
     "title": "E-mail history",
@@ -45,7 +47,8 @@
     "testTo": "Test e-mail recipient",
     "testToHint": "Leave empty to send it to the company e-mail.",
     "testSend": "Send test e-mail",
-    "testSent": "Test e-mail sent."
+    "testSent": "Test e-mail sent.",
+    "disabled": "Sending e-mails is temporarily disabled on this instance by its operator (INVOICE__EMAIL_DISABLED)."
   },
   "templates": {
     "title": "E-mail templates",

@@ -43,5 +43,9 @@
   "draftEmpty": "The draft is empty – there is nothing to activate.",
   "designBusy": "Another design change is in progress. Try again in a moment.",
   "draftChanged": "The draft changed during activation. Check it and activate again.",
-  "versionIncomplete": "The files of this version are missing from the storage – it cannot be restored."
+  "versionIncomplete": "The files of this version are missing from the storage – it cannot be restored.",
+  "emailRateLimited": "The e-mail limit (per hour or per day, for this space or for you) is used up. Try again later.",
+  "emailRateLimitedWait": "The e-mail limit (per hour or per day, for this space or for you) is used up. Try again in {wait}.",
+  "waitMinutes": "{n} min",
+  "waitHours": "{n} h"
 }

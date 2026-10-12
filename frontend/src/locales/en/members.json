@@ -28,7 +28,8 @@
     "sentByEmail": "The link was sent by e-mail to {email}.",
     "emailFailed": "The e-mail could not be sent – try resending the invitation.",
     "sentHint": "The link is valid for 7 days and works once. If it does not arrive, resend the invitation.",
-    "hint": "The link is valid for 7 days and works once. It is not shown again; if it gets lost, resend the invitation."
+    "hint": "The link is valid for 7 days and works once. It is not shown again; if it gets lost, resend the invitation.",
+    "emailDisabled": "The invitation was saved, but no e-mail was sent: sending e-mails is disabled on this instance. Resend it later."
   },
   "pending": {
     "title": "Pending invitations",

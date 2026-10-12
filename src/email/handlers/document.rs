@@ -53,6 +53,8 @@ pub struct Attachments {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct Prefill {
     pub configured: bool,
+    /// `INVOICE__EMAIL_DISABLED`: sending → 503 `email_disabled`.
+    pub disabled: bool,
     pub locale: String,
     pub to: Vec<String>,
     pub cc: Vec<String>,
@@ -138,6 +140,7 @@ pub async fn prefill(
     let stem = export::stem(&row);
     Ok(Json(Prefill {
         configured: state.email.is_some(),
+        disabled: state.email_disabled,
         locale: locale.as_str().into(),
         to: to.into_iter().collect(),
         cc: vec![],

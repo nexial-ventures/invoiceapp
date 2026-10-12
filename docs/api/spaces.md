@@ -31,7 +31,8 @@ page would pick: `www`, `api`, `app`, `admin`, `mail`, `smtp`, `static`, `assets
 `security`, `verify`, `verification`, `password`, `reset`, `billing`, `pay`, `payment`, `payments`, `paypal`, `bank`,
 `banking`, `google`, `microsoft`, `apple`, `root`, `system`, `email`, `webmail`, `imap`, `ns` (already too short),
 `dns`, `invoice`, `invoices`, `faktura`, `faktury`, `test`, `demo`. Only exact names are reserved (`login-firma` is
-fine); existing spaces with a newly reserved slug keep working.
+fine). Reserved names are refused only when a space is created: the host classification checks the slug shape
+only, so an existing space whose slug was reserved later keeps resolving.
 
 Base context (session of a verified user, [auth.md](auth.md)):
 - `GET /api/spaces` → `[ { slug, name, role, url } ]` — the user's memberships, by name.
@@ -88,16 +89,17 @@ e-mails (verify, "already registered", reset) are per-address limited instead ([
 count.
 - Each send is a row in `email_sends` (`id bigserial`, `space_id` → spaces `ON DELETE SET NULL`, `user_id` →
   users `ON DELETE CASCADE`, `kind` `document | test | invite`, `created_at`), purged by the hourly cleanup after 2
-  days. It survives restarts; `space_id` survives the space's deletion as `NULL`, so deleting and recreating a
-  space does not reset the user's count.
+  days. It survives restarts; a deleted space's rows keep `space_id = NULL` (they count nowhere any more).
 - A send passes when, over the rolling last hour and the last 24 h, the **space** has sent fewer than
-  `email_space_per_hour` / `email_space_per_day` and the **sending user** — over all their spaces — fewer than
-  `email_user_per_hour` / `email_user_per_day` (the values of the space sent from). Otherwise **429
+  `email_space_per_hour` / `email_space_per_day` and the **sending user in that space** fewer than
+  `email_user_per_hour` / `email_user_per_day` — the user's sends from their other spaces do not count (each space
+  is a separate budget; one member cannot use up the whole space alone only when the operator sets the user limits
+  below the space limits). Otherwise **429
   `{"code":"rate_limited"}`** with `Retry-After` = whole seconds until the send whose expiry frees a slot leaves
   the full window (the longest wait of the full windows; a limit of 0 → the whole window). A refused request is
   not counted.
-- Checked and recorded in one transaction under the space's and the user's advisory locks, so parallel sends cannot
-  both take the last slot. The check runs right before the SMTP exchange (after validation and attachment
+- Checked and recorded in one transaction under the space's advisory lock (the user's count is part of the
+  space's rows), so parallel sends cannot both take the last slot. The check runs right before the SMTP exchange (after validation and attachment
   preparation); a send the SMTP server then refuses (502 `smtp_failed`) still counts.
 - The kill switch `INVOICE__EMAIL_DISABLED=true` refuses them all with 503 `email_disabled` ([email.md](email.md)).
 
@@ -107,6 +109,10 @@ count; a created space handed over (the creator no longer an owner) or deleted f
 `POST /api/spaces` 403 `{"code":"space_limit"}`. Checked under a per-user advisory lock in the creating transaction
 (parallel requests cannot both pass). Spaces created before the column existed are attributed to their earliest
 owner.
+- **Accepted limitation** (product owner's decision): the cap is per account. Someone who registers further accounts
+  (each needs its own verified e-mail address) gets 3 more spaces each, and with them more e-mail budget (each space
+  and each user-in-space has its own). The bounds are per account and per space, not per person; the operator's
+  remedies are the kill switch, disabling the accounts, or `INVOICE__REGISTRATION=false`.
 
 **Storage quota.** The usage counts every stored object of the space: originals of received / imported documents
 (`documents.original_size`), the issued-PDF archive (`documents.pdf_size`) and the PDF design files — live, draft and
@@ -224,14 +230,16 @@ For MCP and scripts. A token belongs to **one user in one space** and works only
 - Roles: the matrix above per route group (incl. MCP tools); token role ceiling.
 - Space create (slug rules, seeds present), delete (mismatch, wrong password, token → 403, data and storage gone).
 - Limits: the space cap (owned vs invited, handover / delete frees a slot, parallel creations —
-  `tests/spaces_cap.rs`); e-mail limits per space and per user over the hour and the day windows (timestamps moved
-  back in SQL), operator overrides, test and invitation e-mails, the recipients cap (`tests/email_limits.rs`); the
-  kill switch (`tests/email_disabled.rs`).
+  `tests/spaces_cap.rs`); e-mail limits per space and per user in the space (a second space is a separate budget) over the hour and the
+  day windows (timestamps moved
+  back in SQL), operator overrides, test and invitation e-mails (a refused invitation is not counted), the recipients cap (`tests/email_limits.rs`); the
+  kill switch (`tests/email_disabled.rs`); a space whose slug became reserved later still resolves
+  (`tests/spaces_cap.rs`).
 - Every existing integration test runs inside a fresh space through a token or session (`tests/common`).
 
 ## Clarifications (as implemented)
 - **Host** = the URI authority (HTTP/2) or the `Host` header; lowercased, port and a trailing dot ignored. A name that
-  is not `{label}.{base host}` with a label that could be a slug (slug rules, not reserved) is unknown without a DB
+  is not `{label}.{base host}` with a label that could be a slug (slug shape; reserved names are still looked up) is unknown without a DB
   lookup; an IPv6 literal is unknown. Unknown host → plain 404 `{"code":"not_found"}` for every `/api` route incl.
   `/api/context` (the SPA derives the base URL itself). The SPA is served on every host.
 - Space-host-only routes on the base host → 404 **before** authentication (also without credentials);

@@ -48,6 +48,6 @@ export const useMembersStore = defineStore("members", () => {
   return { members, invites, loaded, ownersCount, load, setRole, remove, invite, resend, revoke };
 });
 
-function toRow({ url: _url, emailSent: _sent, ...row }: SentInvite): Invite {
+function toRow({ url: _url, emailSent: _sent, emailDisabled: _disabled, ...row }: SentInvite): Invite {
   return row;
 }

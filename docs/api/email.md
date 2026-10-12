@@ -61,7 +61,8 @@ contact: { name, email } | none   // none for a contactless simplified document
 ## Routes
 
 ### Settings
-- `GET /api/settings/email` → `{ configured: bool, from: string | null, replyTo: string | null }`
+- `GET /api/settings/email` → `{ configured: bool, disabled: bool, from: string | null, replyTo: string | null }`
+  (`disabled` = `INVOICE__EMAIL_DISABLED`; the tab then shows the notice and blocks the test e-mail)
   (`replyTo` = company e-mail).
 - `POST /api/settings/email/test` `{ to?: string }` (default: company e-mail; neither → 422 `to: required`) → 204;
   sends a short fixed test message (no template), not in the document log but counted by the e-mail limits.
@@ -79,7 +80,7 @@ contact: { name, email } | none   // none for a contactless simplified document
 ### Sending
 - `GET /api/documents/{id}/email?locale=cs|en` → the dialog prefill:
   ```
-  { configured: bool, locale, to: [string], cc: [], bcc: [string], subject, body,
+  { configured: bool, disabled: bool, locale, to: [string], cc: [], bcc: [string], subject, body,
     attachments: { pdf: { available: bool, filename }, isdoc: { available: true, filename } } }
   ```
   `locale` defaults to the document's locale; `to` = the contact's e-mail when set (else `[]`); `bcc` = the company
@@ -126,7 +127,9 @@ EmailLogEntry { id, createdAt: datetime, to: [string], cc: [string], bcc: [strin
   prefill; edits are replaced after a confirm if the subject/body were changed), To / Cc / Bcc as chip inputs,
   "Bcc to me" checkbox (adds/removes the company e-mail), subject, body (textarea), attachment checkboxes (PDF
   disabled when unavailable), Send. Disabled with a hint when not configured. Errors shown inline (`smtp_failed`
-  with its detail; `email_disabled`, `rate_limited` by their messages). Success → toast, detail reloads (`sentAt`, history).
+  with its detail; `email_disabled`). While `disabled`, the button is disabled with a hint and the dialog shows the
+  reason instead of sending. A 429 here (and on the test e-mail and invitations) reads as the hourly / daily e-mail
+  limit, with the wait from `Retry-After` (minutes below an hour, else hours). Success → toast, detail reloads (`sentAt`, history).
 - Detail: "E-mail history" section (date, recipients, subject, result; expanding shows body + attachments + error).
 - Settings → E-mail tab: configuration status (from, reply-to, configured yes/no), test e-mail form, template editor
   per locale (subject input + body textarea, variable reference list, Preview → rendered subject/body, Save, Restore

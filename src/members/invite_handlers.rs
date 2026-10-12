@@ -69,6 +69,9 @@ pub struct SentInvite {
     /// disabled (`INVOICE__EMAIL_DISABLED`, skipped and logged, no `url`:
     /// resend once it is enabled again).
     pub email_sent: bool,
+    /// The e-mail was skipped because sending is disabled
+    /// (`INVOICE__EMAIL_DISABLED`); resend once it is enabled again.
+    pub email_disabled: bool,
 }
 
 #[utoipa::path(
@@ -108,19 +111,33 @@ pub struct ResendInput {
 /// Every invitation (create, resend) counts per inviting user and per
 /// space, so the instance SMTP cannot be used as a relay; one that will be
 /// mailed also counts in the space's and the user's e-mail limits
-/// (`email::limits`). A refused request counts in none of them.
-async fn invite_limits(state: &AppState, s: Scope) -> Result<(), AppError> {
+/// (`email::limits`; `Some(row)`). A refused request counts in none of them.
+async fn invite_limits(state: &AppState, s: Scope) -> Result<Option<i64>, AppError> {
     let (user, space) = (s.user_id.to_string(), s.space.to_string());
     let buckets = [(INVITE_USER, user.as_str()), (INVITE_SPACE, space.as_str())];
     state.limiter.reserve(&buckets)?;
-    if state.email.is_some() && !state.email_disabled {
-        let counted = email_limits::reserve(&state.db, s.space, s.user_id, Kind::Invite).await;
-        if counted.is_err() {
-            state.limiter.refund(&buckets);
-        }
-        counted?;
+    if state.email.is_none() || state.email_disabled {
+        return Ok(None);
     }
-    Ok(())
+    let counted = email_limits::reserve(&state.db, s.space, s.user_id, Kind::Invite).await;
+    if counted.is_err() {
+        state.limiter.refund(&buckets);
+    }
+    counted.map(Some)
+}
+
+/// The invitation was refused after [`invite_limits`] (forbidden, unknown,
+/// a failed write): nothing is mailed, so nothing stays counted.
+async fn give_back(state: &AppState, s: Scope, reserved: Option<i64>) {
+    let (user, space) = (s.user_id.to_string(), s.space.to_string());
+    state
+        .limiter
+        .refund(&[(INVITE_USER, user.as_str()), (INVITE_SPACE, space.as_str())]);
+    if let Some(id) = reserved
+        && let Err(e) = email_limits::release(&state.db, id).await
+    {
+        tracing::warn!(error = %e, "invitation e-mail reservation not given back");
+    }
 }
 
 /// Nothing was written: 403 when the invitation is live (an owner
@@ -154,6 +171,7 @@ fn sent(
             invite: row.into(),
             url: Some(url),
             email_sent: false,
+            email_disabled: false,
         });
     }
     let email_sent = mail::send(
@@ -171,6 +189,7 @@ fn sent(
         invite: row.into(),
         url: None,
         email_sent,
+        email_disabled: state.email_disabled,
     })
 }
 
@@ -221,11 +240,16 @@ pub async fn create(
 ) -> Result<(StatusCode, Json<SentInvite>), AppError> {
     let s = access.scope;
     let (email, role) = validate(&state, s, &input).await?;
-    invite_limits(&state, s).await?;
+    let reserved = invite_limits(&state, s).await?;
     let owner_ok = rules::may_touch_owner_invite(s.role);
-    let (row, token) = invites::upsert(&state.db, s.space, &email, role, s.user_id, owner_ok)
-        .await?
-        .ok_or(AppError::Forbidden)?;
+    let (row, token) =
+        match invites::upsert(&state.db, s.space, &email, role, s.user_id, owner_ok).await {
+            Ok(Some(written)) => written,
+            refused => {
+                give_back(&state, s, reserved).await;
+                return Err(refused.err().unwrap_or(AppError::Forbidden));
+            }
+        };
     let body = sent(&state, &authed, row, &token, input.locale.as_deref())?;
     Ok((StatusCode::CREATED, Json(body)))
 }
@@ -254,11 +278,17 @@ pub async fn resend(
 ) -> Result<Json<SentInvite>, AppError> {
     let s = access.scope;
     let input: ResendInput = optional_json(&body)?;
-    invite_limits(&state, s).await?;
+    let reserved = invite_limits(&state, s).await?;
     let owner_ok = rules::may_touch_owner_invite(s.role);
-    let Some((row, token)) = invites::renew(&state.db, s.space, id, s.user_id, owner_ok).await?
-    else {
-        return Err(refused(&state, s, id).await);
+    let (row, token) = match invites::renew(&state.db, s.space, id, s.user_id, owner_ok).await {
+        Ok(Some(written)) => written,
+        not_renewed => {
+            give_back(&state, s, reserved).await;
+            return Err(match not_renewed {
+                Err(e) => e,
+                Ok(_) => refused(&state, s, id).await,
+            });
+        }
     };
     Ok(Json(sent(
         &state,

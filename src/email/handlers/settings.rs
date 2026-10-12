@@ -23,7 +23,10 @@ use crate::space::SpaceId;
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct EmailStatus {
+    /// SMTP is configured (`INVOICE__SMTP__HOST`).
     pub configured: bool,
+    /// `INVOICE__EMAIL_DISABLED`: sending is switched off by the operator.
+    pub disabled: bool,
     /// `INVOICE__SMTP__FROM` as configured.
     pub from: Option<String>,
     /// The company e-mail (`Reply-To`).
@@ -90,6 +93,7 @@ pub async fn status(
     let company = company::get(&state.db, access.space()).await?;
     Ok(Json(EmailStatus {
         configured: state.email.is_some(),
+        disabled: state.email_disabled,
         from: state.email.as_ref().map(|m| m.from().to_string()),
         reply_to: company.email.filter(|e| !e.trim().is_empty()),
     }))

@@ -3,6 +3,8 @@ import type { DocLocale } from "@/api/types";
 /** `GET /api/settings/email` — SMTP comes from env only; `replyTo` is the company e-mail. */
 export interface EmailSettings {
   configured: boolean;
+  /** The operator's kill switch (`INVOICE__EMAIL_DISABLED`): nothing can be sent. */
+  disabled: boolean;
   from: string | null;
   replyTo: string | null;
 }
@@ -33,6 +35,7 @@ export interface AttachmentInfo {
 /** `GET /api/documents/{id}/email` — the send dialog prefill. */
 export interface EmailPrefill {
   configured: boolean;
+  disabled: boolean;
   locale: DocLocale;
   to: string[];
   cc: string[];

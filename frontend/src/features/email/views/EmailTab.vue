@@ -11,11 +11,13 @@ import { emailApi } from "../api";
 import EmailTemplateEditor from "../components/EmailTemplateEditor.vue";
 import TemplateVariables from "../components/TemplateVariables.vue";
 import { useEmailSettingsStore } from "../store";
+import { useEmailErrorText } from "../useEmailErrorText";
 
 const { t } = useI18n();
 const store = useEmailSettingsStore();
 const toast = useToastStore();
-const { error: loadError, run, errorText } = useAction();
+const { error: loadError, run } = useAction();
+const errorText = useEmailErrorText();
 
 onMounted(() => void run(() => Promise.all([store.load(), store.loadTemplates()]).then(() => undefined)));
 
@@ -63,6 +65,7 @@ async function sendTest(): Promise<void> {
         <dt class="text-gray-600 dark:text-gray-400">{{ t("email.settings.replyTo") }}</dt>
         <dd class="break-all" data-test="email-reply-to">{{ store.settings.replyTo ?? t("email.settings.replyToMissing") }}</dd>
       </dl>
+      <p v-if="store.settings.disabled" class="alert-error" data-test="email-disabled">{{ t("email.settings.disabled") }}</p>
       <p v-if="!store.settings.configured" class="text-sm text-gray-600 dark:text-gray-400" data-test="email-config-help">{{ t("email.settings.configHelp") }}</p>
 
       <form class="flex flex-wrap items-end gap-2" novalidate @submit.prevent="sendTest">
@@ -79,7 +82,7 @@ async function sendTest(): Promise<void> {
             />
           </FormField>
         </div>
-        <button type="submit" class="btn" :disabled="testing || !store.settings.configured" data-test="email-test-send">
+        <button type="submit" class="btn" :disabled="testing || !store.settings.configured || store.settings.disabled" data-test="email-test-send">
           {{ testing ? t("email.send.sending") : t("email.settings.testSend") }}
         </button>
       </form>

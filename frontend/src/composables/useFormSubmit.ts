@@ -8,9 +8,9 @@ import { useErrorText } from "./useAction";
  * Submit state for a form: client-side checks first, then the request; a 422
  * from the server replaces the field errors (server is the source of truth).
  */
-export function useFormSubmit() {
+/** `errorText` overrides how a non-field error reads (e.g. the e-mail limit message). */
+export function useFormSubmit(errorText: (err: unknown) => string = useErrorText()) {
   const { t } = useI18n();
-  const errorText = useErrorText();
   const fieldErrors = ref<FieldErrors>({});
   const error = ref<string | null>(null);
   const submitting = ref(false);

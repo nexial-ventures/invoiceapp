@@ -298,7 +298,13 @@ mod tests {
             HostKind::Slug("firma".into())
         );
         assert_eq!(u.classify("a.firma.invoiceapp.cz"), HostKind::Unknown);
-        assert_eq!(u.classify("www.invoiceapp.cz"), HostKind::Unknown);
+        // Slug shape only: a reserved name is looked up (and found only for a
+        // space created before the name was reserved).
+        assert_eq!(
+            u.classify("www.invoiceapp.cz"),
+            HostKind::Slug("www".into())
+        );
+        assert_eq!(u.classify("ab.invoiceapp.cz"), HostKind::Unknown);
         assert_eq!(u.classify("evilinvoiceapp.cz"), HostKind::Unknown);
         assert_eq!(u.classify("example.com"), HostKind::Unknown);
         assert_eq!(u.classify("[::1]:3000"), HostKind::Unknown);

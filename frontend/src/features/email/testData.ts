@@ -2,6 +2,7 @@ import type { EmailLogEntry, EmailPrefill, EmailSettings, EmailTemplate } from "
 
 export const emailSettings = (overrides: Partial<EmailSettings> = {}): EmailSettings => ({
   configured: true,
+  disabled: false,
   from: "Firma <faktury@firma.cz>",
   replyTo: "me@firma.cz",
   ...overrides,
@@ -9,6 +10,7 @@ export const emailSettings = (overrides: Partial<EmailSettings> = {}): EmailSett
 
 export const prefill = (overrides: Partial<EmailPrefill> = {}): EmailPrefill => ({
   configured: true,
+  disabled: false,
   locale: "cs",
   to: ["buyer@acme.cz"],
   cc: [],
