@@ -1,20 +1,17 @@
-import type { DocLocale } from "@/api/types";
-import type { DocType } from "@/features/settings/types";
+import type { Direction, DocLocale, DocType, PaymentMethod, RoundingMode } from "@/api/types";
+import { allOf, type Narrow, type Schemas, type Wire } from "@/api/wire";
 
-/** Wire types for `/api/documents` (Phases 1b–1f). Decimals are strings, dates `YYYY-MM-DD`. */
+/**
+ * Wire types for `/api/documents` (Phases 1b–1f). Decimals are strings, dates `YYYY-MM-DD`.
+ * Responses alias the generated schema (`@/api/wire`); request bodies are hand-written.
+ */
 
-export type Direction = "issued" | "received";
-export const DOC_STATUSES = ["draft", "issued", "cancelled"] as const;
-export type DocStatus = (typeof DOC_STATUSES)[number];
-export const PAYMENT_STATES = ["unpaid", "partial", "paid", "overpaid"] as const;
-export type PaymentState = (typeof PAYMENT_STATES)[number];
+export type DocStatus = Schemas["Status"];
+export const DOC_STATUSES = allOf<DocStatus>()(["draft", "issued", "cancelled"]);
+export type PaymentState = Schemas["PaymentState"];
+export const PAYMENT_STATES = allOf<PaymentState>()(["unpaid", "partial", "paid", "overpaid"]);
 export const VAT_MODES = ["standard", "reverse_charge", "exempt", "non_payer"] as const;
 export type VatMode = (typeof VAT_MODES)[number];
-export const PAYMENT_METHODS = ["bank_transfer", "cash", "card", "other"] as const;
-export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
-/** `half` → nearest 0.50, `unit` → whole units of the document currency (half away from zero). */
-export const ROUNDING_MODES = ["none", "half", "unit"] as const;
-export type RoundingMode = (typeof ROUNDING_MODES)[number];
 
 export interface ItemLine {
   kind: "item";
@@ -44,11 +41,7 @@ export interface AdvanceLine {
 export type DocumentLine = ItemLine | TextLine | SubtotalLine | AdvanceLine;
 
 /** Deducted amounts of an advance line per VAT rate (negative). */
-export interface AdvanceRecapRow {
-  vatRate: string;
-  base: string;
-  vat: string;
-}
+export type AdvanceRecapRow = Wire<"AdvanceRecap">;
 
 /** Server-generated display fields of an advance line. */
 export interface AdvanceDisplay {
@@ -58,11 +51,7 @@ export interface AdvanceDisplay {
 }
 
 /** Response lines carry their position and, for item/subtotal/advance, the computed base. */
-export type ComputedLine =
-  | (ItemLine & { position: number; base: string })
-  | (TextLine & { position: number })
-  | (SubtotalLine & { position: number; base: string; vatRate?: string | null })
-  | (AdvanceLine & AdvanceDisplay & { position: number });
+export type ComputedLine = Wire<"Line">;
 
 /**
  * The seven ISDOC document types, in list-tab order; received documents use the same values
@@ -164,149 +153,51 @@ export interface ReceivedDocumentInput {
 }
 
 /** The uploaded original PDF of a received / imported document. */
-export interface OriginalPdf {
-  sha256: string;
-  size: number;
-  uploadedAt: string;
-}
+export type OriginalPdf = Wire<"OriginalPdf">;
+export type Totals = Wire<"Totals">;
+export type PartySnapshot = Wire<"PartySnapshot">;
+export type BankSnapshot = Wire<"BankSnapshot">;
 
-export interface RecapRow {
-  vatRate: string;
-  base: string;
-  vat: string;
-  baseCzk: string | null;
-  vatCzk: string | null;
-}
+/**
+ * `relatedDocumentId`: credit / debit note → invoice or simplified, DDPP correction → DDPP,
+ * invoice → the proforma it settles, DDPP → proforma; `parent` is that document, `relatedDocuments`
+ * those pointing here. `pdf`: the archive (drafts, received, imported: null); `original`: the
+ * uploaded PDF of a received / imported document. Received-only fields are null on issued ones.
+ */
+export type Document = Narrow<
+  Wire<"Document">,
+  {
+    docType: DocType;
+    direction: Direction;
+    locale: DocLocale;
+    vatMode: VatMode;
+    paymentMethod: PaymentMethod;
+    /** `original`: a correction's rate copied from its original document. */
+    exchangeRateSource: "cnb" | "manual" | "original" | null;
+    /** Issued DDPP only: why a correction cannot be created now; null = allowed (and on every other document). */
+    correctionBlock: CorrectionBlock | null;
+    /** -1 for credit notes and DDPP corrections: amounts are stored positive, shown negated. */
+    sign: Sign;
+    customFields: CustomFieldValues;
+    parent: RelatedDocument | null;
+    relatedDocuments: RelatedDocument[];
+  }
+>;
 
-export interface Totals {
-  recap: RecapRow[];
-  base: string;
-  vat: string;
-  total: string;
-  rounding: string;
-  payable: string;
-  totalCzk: string | null;
-}
-
-export interface PartySnapshot {
-  name: string;
-  ico: string | null;
-  dic: string | null;
-  street: string;
-  city: string;
-  zip: string;
-  country: string;
-  registration: string | null;
-  vatPayer: boolean | null;
-}
-
-export interface BankSnapshot {
-  accountNumber: string | null;
-  iban: string | null;
-  bic: string | null;
-}
-
-export interface Document extends Omit<DocumentInput, "lines" | "dueDate" | "number" | "relatedDocumentId"> {
-  id: string;
-  number: string | null;
-  /** null for a received DDPP. */
-  dueDate: string | null;
-  status: DocStatus;
-  paymentState: PaymentState | null;
-  overdue: boolean;
-  sentAt: string | null;
-  cancelledAt: string | null;
-  cancelReason: string | null;
-  exchangeRateDate: string | null;
-  /** `original`: a correction's rate copied from its original document. */
-  exchangeRateSource: "cnb" | "manual" | "original" | null;
-  supplier: PartySnapshot | null;
-  customer: PartySnapshot | null;
-  bankSnapshot: BankSnapshot | null;
-  lines: ComputedLine[];
-  totals: Totals;
-  paid: string;
-  /** credit / debit note → invoice or simplified, DDPP correction → DDPP, invoice → the proforma it settles, DDPP → proforma. */
-  relatedDocumentId: string | null;
-  /** DDPP only: the proforma payment it documents. */
-  paymentId: string | null;
-  /** The document `relatedDocumentId` points at (invoice of a credit note, proforma of a DDPP / final invoice). */
-  parent: RelatedDocument | null;
-  /** Documents whose `relatedDocumentId` is this one. */
-  relatedDocuments: RelatedDocument[];
-  /** Proforma only: a non-cancelled invoice settles it. */
-  settled: boolean | null;
-  /** Issued DDPP only: why a correction cannot be created now; null = allowed (and on every other document). */
-  correctionBlock: CorrectionBlock | null;
-  /** -1 for credit notes and DDPP corrections: amounts are stored positive, shown negated. */
-  sign: Sign;
-  /** The archived PDF (written at issue; a DDPP's possibly on first download). Drafts, received, imported: null. */
-  pdf: PdfArchive | null;
-  /** Received / imported only: the uploaded original. */
-  original: OriginalPdf | null;
-  // Received documents only (absent / null on issued ones).
-  supplierNumber?: string | null;
-  receivedDate?: string | null;
-  vatRecap?: VatRecapEntry[] | null;
-  rounding?: string | null;
-  total?: string | null;
-  payable?: string | null;
-  vatDeductible?: boolean | null;
-  supplierAccount?: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface PdfArchive {
-  sha256: string;
-  renderedAt: string;
-}
+export type PdfArchive = Wire<"PdfArchive">;
 
 export type Sign = 1 | -1;
 
 export const CORRECTION_BLOCKS = ["advance_settled", "advance_in_use", "fully_corrected"] as const;
 export type CorrectionBlock = (typeof CORRECTION_BLOCKS)[number];
 
-export interface RelatedDocument {
-  id: string;
-  docType: DocType;
-  number: string | null;
-  status: DocStatus;
-  payable: string;
-  /** Linked received documents may differ in currency (a CZK DDPP of a EUR proforma); absent = this document's. */
-  currency?: string;
-}
+/** Linked received documents may differ in currency (a CZK DDPP of a EUR proforma). */
+export type RelatedDocument = Narrow<Wire<"RelatedDocument">, { docType: DocType }>;
 
-export interface DocumentSummary {
-  id: string;
-  docType: DocType;
-  direction: Direction;
-  number: string | null;
-  status: DocStatus;
-  paymentState: PaymentState | null;
-  overdue: boolean;
-  contactId: string | null;
-  /** The counterparty: customer of an issued, supplier of a received document. */
-  customerName: string | null;
-  issueDate: string;
-  dueDate: string | null;
-  currency: string;
-  payable: string;
-  paid: string;
-  sentAt: string | null;
-  sign: Sign;
-  relatedDocumentId: string | null;
-  supplierNumber?: string | null;
-  categoryId?: string | null;
-  /** Rendered archive or uploaded original present. */
-  hasPdf?: boolean;
-  imported?: boolean;
-}
+/** `customerName`: the counterparty (customer of an issued, supplier of a received document); `hasPdf`: archive or original present. */
+export type DocumentSummary = Narrow<Wire<"DocumentSummary">, { docType: DocType; direction: Direction; sign: Sign }>;
 
-export interface DocumentPage {
-  items: DocumentSummary[];
-  total: number;
-}
+export type DocumentPage = Narrow<Wire<"DocumentList">, { items: DocumentSummary[] }>;
 
 export interface DocumentListQuery {
   direction?: Direction;
@@ -339,20 +230,10 @@ export interface ComputeRequest {
   locale: DocLocale;
   documentId?: string;
 }
-export interface ComputeResult {
-  lines: ComputedLine[];
-  totals: Totals;
-}
+export type ComputeResult = Wire<"Computed">;
 
-export interface Payment {
-  id: string;
-  date: string;
-  amount: string;
-  note: string | null;
-  /** The DDPP this payment created (proforma of a VAT payer). */
-  advanceDocumentId: string | null;
-  createdAt: string;
-}
+/** `advanceDocumentId`: the DDPP this payment created (proforma of a VAT payer). */
+export type Payment = Wire<"Payment">;
 export interface PaymentInput {
   date: string;
   amount: string;
@@ -362,8 +243,4 @@ export interface PaymentInput {
 }
 
 /** `GET /api/exchange-rates/{currency}?date=` — `date` is the ČNB publication date used. */
-export interface ExchangeRate {
-  currency: string;
-  date: string;
-  rate: string;
-}
+export type ExchangeRate = Wire<"ExchangeRate">;

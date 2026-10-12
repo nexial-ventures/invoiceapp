@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { formatMoney, formatNumber, isNegative, negate, signed } from "../format";
+import { isNegative, negate, parseCents, signed } from "@/lib/money";
+import { formatMoney, formatNumber } from "@/lib/format";
 import type { Sign, Totals } from "../types";
 
 const props = defineProps<{
@@ -67,7 +68,7 @@ const showCzk = computed(() => foreign.value && props.totals?.recap.some((r) => 
         <dd class="text-right tabular-nums">{{ money(totals.vat) }}</dd>
         <dt>{{ t("documents.totals.total") }}</dt>
         <dd class="text-right tabular-nums">{{ money(totals.total) }}</dd>
-        <template v-if="Number(totals.rounding) !== 0">
+        <template v-if="parseCents(totals.rounding) !== 0n">
           <dt>{{ t("documents.totals.rounding") }}</dt>
           <dd class="text-right tabular-nums">{{ money(totals.rounding) }}</dd>
         </template>

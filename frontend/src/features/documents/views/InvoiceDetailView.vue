@@ -39,9 +39,9 @@ const liveSupplier = ref<PartySnapshot | null>(null);
 const liveCustomer = ref<PartySnapshot | null>(null);
 
 async function loadLiveParties(contactId: string | null) {
-  if (!company.company) await company.load();
+  await company.ensure();
   liveSupplier.value = company.company;
-  liveCustomer.value = contactId ? { ...(await contactsApi.get(contactId)), registration: null, vatPayer: null } : null;
+  liveCustomer.value = contactId ? { ...(await contactsApi.get(contactId)), registration: null, vatPayer: null, web: null } : null;
 }
 
 watch(

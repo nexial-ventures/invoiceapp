@@ -6,7 +6,7 @@ import { usePdf } from "@/composables/usePdf";
 import { formatBytes } from "@/lib/bytes";
 import { fieldErrorsOf, isApiError } from "@/lib/formErrors";
 import { documentsApi } from "../api";
-import { formatDate } from "../format";
+import { formatDate } from "@/lib/format";
 import { checkOriginalFile } from "../original";
 import { useDocumentStore } from "../store";
 import type { Document } from "../types";

@@ -26,6 +26,10 @@ const summary = (overrides: Partial<DocumentSummary>): DocumentSummary => ({
   sentAt: null,
   sign: 1,
   relatedDocumentId: null,
+  supplierNumber: null,
+  categoryId: null,
+  hasPdf: true,
+  imported: false,
   ...overrides,
 });
 

@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
+import { DOC_TYPES, ISSUED_SERIES, RECEIVED_SERIES } from "@/api/types";
 import { i18n } from "@/i18n";
 import { mockFetch } from "@/test-utils";
-import { DOC_TYPES, ISSUED_SERIES, RECEIVED_SERIES, type NumberSeries } from "../types";
+import type { NumberSeries } from "../types";
 import NumberSeriesTab from "./NumberSeriesTab.vue";
 
 const series = (docType: NumberSeries["docType"]): NumberSeries => ({ docType, pattern: `${docType}{YYYY}{NNNN}`, counters: [], nextNumberPreview: "" });

@@ -1,22 +1,6 @@
 import { request, requestBlob } from "@/api/client";
-import type { DocLocale } from "@/api/types";
-import type {
-  AccountingSettings,
-  BankAccount,
-  BankAccountInput,
-  Category,
-  CategoryInput,
-  Company,
-  CustomField,
-  CustomFieldInput,
-  DesignFileSource,
-  DesignInfo,
-  DesignVersion,
-  DocType,
-  NumberSeries,
-  VatRate,
-  VatRateInput,
-} from "./types";
+import type { DocLocale, DocType } from "@/api/types";
+import type { AccountingSettings, BankAccount, BankAccountInput, Category, CategoryInput, Company, CustomField, CustomFieldInput, DesignFileSource, DesignInfo, DesignVersion, NumberSeries, VatRate, VatRateInput } from "./types";
 
 const BASE = "/api/settings";
 

@@ -1,4 +1,5 @@
-import type { Direction, DocumentType } from "@/features/documents/types";
+import type { Direction } from "@/api/types";
+import type { DocumentType } from "@/features/documents/types";
 
 /**
  * Wire types shared by the preview → confirm imports (ISDOC: docs/api/isdoc.md, CSV / XLSX: docs/api/csv.md).

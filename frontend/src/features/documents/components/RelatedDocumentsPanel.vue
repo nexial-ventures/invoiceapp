@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
+import { signed } from "@/lib/money";
+import type { Direction } from "@/api/types";
 import { docSign } from "../docTypes";
-import { formatMoney, signed } from "../format";
+import { formatMoney } from "@/lib/format";
 import { detailLocation } from "../routes";
-import type { Direction, RelatedDocument } from "../types";
+import type { RelatedDocument } from "../types";
 import StatusBadges from "./StatusBadges.vue";
 
 /** `parent`: what this document refers to; `children`: documents referring to it. */

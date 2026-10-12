@@ -4,7 +4,7 @@ import { useI18n } from "vue-i18n";
 import { useAction } from "@/composables/useAction";
 import { catalogGroupsApi, catalogItemsApi } from "@/features/catalog/api";
 import type { CatalogGroup, CatalogItem } from "@/features/catalog/types";
-import { formatMoney } from "../format";
+import { formatMoney } from "@/lib/format";
 
 const SEARCH_DEBOUNCE_MS = 300;
 

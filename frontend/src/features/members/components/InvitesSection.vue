@@ -5,7 +5,7 @@ import FormField from "@/components/form/FormField.vue";
 import { useFormSubmit } from "@/composables/useFormSubmit";
 import { emailRule } from "@/features/auth/validation";
 import { useEmailErrorText } from "@/features/email/useEmailErrorText";
-import { formatDate } from "@/features/documents/format";
+import { formatDate } from "@/lib/format";
 import type { Role } from "@/features/spaces/types";
 import { collectErrors } from "@/lib/formErrors";
 import { useSessionStore } from "@/stores/session";

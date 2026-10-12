@@ -20,7 +20,7 @@ const { fieldErrors, error, submitting, submit } = useFormSubmit();
 const draft = ref(toItemDraft(props.item, ""));
 
 onMounted(async () => {
-  if (!vatRates.loaded) await vatRates.load().catch(() => undefined);
+  await vatRates.ensure().catch(() => {});
   if (!draft.value.vatRate) draft.value.vatRate = defaultVatRate(vatRates.items, "standard");
 });
 

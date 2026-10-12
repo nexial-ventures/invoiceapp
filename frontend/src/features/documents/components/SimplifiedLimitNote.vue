@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { SIMPLIFIED_LIMIT_CZK, simplifiedOverLimit } from "../docTypes";
-import { formatMoney } from "../format";
+import { formatMoney } from "@/lib/format";
 import type { Totals } from "../types";
 
 /** Warning only: the server never refuses a simplified document above the limit. */

@@ -1,20 +1,8 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
+import type { Direction } from "@/api/types";
 import { documentsApi, type DocumentFilterQuery } from "./api";
-import {
-  DOCUMENT_TYPES,
-  type Direction,
-  type DocStatus,
-  type Document,
-  type DocumentType,
-  type DocumentInput,
-  type DocumentSummary,
-  type MetadataInput,
-  type Payment,
-  type PaymentInput,
-  type PaymentState,
-  type ReceivedDocumentInput,
-} from "./types";
+import { DOCUMENT_TYPES, type DocStatus, type Document, type DocumentType, type DocumentInput, type DocumentSummary, type MetadataInput, type Payment, type PaymentInput, type PaymentState, type ReceivedDocumentInput } from "./types";
 
 export const PAGE_SIZE = 50;
 

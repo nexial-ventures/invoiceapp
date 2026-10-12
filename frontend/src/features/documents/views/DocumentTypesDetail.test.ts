@@ -8,7 +8,7 @@ import { mountDetail } from "./testMount";
 
 const proforma = (overrides: Partial<Document> = {}) =>
   document({ id: "pf1", docType: "proforma", status: "issued", number: "ZF20260001", taxPointDate: null, paymentState: "unpaid", settled: false, ...overrides });
-const ddppRef: RelatedDocument = { id: "dd1", docType: "advance_tax_doc", number: "DP20260001", status: "issued", payable: "500.00" };
+const ddppRef: RelatedDocument = { id: "dd1", docType: "advance_tax_doc", number: "DP20260001", status: "issued", payable: "500.00", currency: "CZK" };
 const payment = (overrides: Partial<Payment> = {}): Payment => ({ id: "p1", date: "2026-10-08", amount: "500.00", note: null, advanceDocumentId: null, createdAt: "", ...overrides });
 
 describe("detail per document type", () => {
@@ -88,7 +88,7 @@ describe("detail per document type", () => {
 
   it("advance_in_use links the draft final invoice that deducts the payment", async () => {
     vi.stubGlobal("confirm", () => true);
-    const draftInvoice: RelatedDocument = { id: "inv9", docType: "invoice", number: null, status: "draft", payable: "0.00" };
+    const draftInvoice: RelatedDocument = { id: "inv9", docType: "invoice", number: null, status: "draft", payable: "0.00", currency: "CZK" };
     mockFetchRoutes({
       "GET /api/documents/pf1": proforma({ relatedDocuments: [ddppRef, draftInvoice], paymentState: "partial", paid: "500.00" }),
       "GET /api/documents/pf1/payments": [payment({ advanceDocumentId: "dd1" })],
@@ -149,7 +149,7 @@ describe("detail per document type", () => {
         docType: "credit_note",
         sign: -1,
         relatedDocumentId: "d1",
-        parent: { id: "d1", docType: "invoice", number: "20260001", status: "issued", payable: "1210.00" },
+        parent: { id: "d1", docType: "invoice", number: "20260001", status: "issued", payable: "1210.00", currency: "CZK" },
         correctionReason: "wrong price",
       }),
       "GET /api/settings/company": {},
@@ -177,7 +177,7 @@ describe("detail per document type", () => {
       status: "issued",
       number: "DP20260001",
       relatedDocumentId: "pf1",
-      parent: { id: "pf1", docType: "proforma", number: "ZF20260001", status: "issued", payable: "1210.00" },
+      parent: { id: "pf1", docType: "proforma", number: "ZF20260001", status: "issued", payable: "1210.00", currency: "CZK" },
       paymentId: "p1",
     });
     const fetch = mockFetchRoutes({

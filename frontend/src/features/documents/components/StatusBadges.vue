@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
-import type { Direction, DocStatus, PaymentState } from "../types";
+import type { Direction } from "@/api/types";
+import type { DocStatus, PaymentState } from "../types";
 
 defineProps<{
   status: DocStatus;

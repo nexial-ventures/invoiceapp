@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
+import type { Direction } from "@/api/types";
 import { listLocation } from "../routes";
 import { LIST_DOC_TYPES, type ListDocType } from "../store";
-import type { Direction } from "../types";
 
 /** Doc-type tabs of a document list (`?type=`); `labelPrefix` + type gives each tab's label. */
 defineProps<{ current: ListDocType; direction: Direction; labelPrefix: string }>();

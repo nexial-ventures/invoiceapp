@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from "vue";
 import { useI18n } from "vue-i18n";
-import { formatDate } from "@/features/documents/format";
+import { formatDate } from "@/lib/format";
 import type { Role } from "@/features/spaces/types";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";

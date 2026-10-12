@@ -11,7 +11,7 @@ import MetadataFields from "@/features/metadata/components/MetadataFields.vue";
 import type { Category } from "@/features/settings/types";
 import { docSign, isCorrection } from "../docTypes";
 import { applyContact, defaultVatRate, toComputeRequest, toInput, validateDocument, type DocumentDraft, type DraftContext } from "../form";
-import { formatMoney } from "../format";
+import { formatMoney } from "@/lib/format";
 import { enforceVatMode, splitLineErrors } from "../lines";
 import { useDocumentStore } from "../store";
 import type { Document, RelatedDocument } from "../types";

@@ -7,7 +7,7 @@ import { useAction } from "@/composables/useAction";
 import { usePdf } from "@/composables/usePdf";
 import { formatBytes } from "@/lib/bytes";
 import { useToastStore } from "@/stores/toast";
-import { formatDate } from "@/features/documents/format";
+import { formatDate } from "@/lib/format";
 import { pdfApi } from "../../api";
 import { authorName } from "../../designAuthor";
 import { useDesignStore } from "../../stores";

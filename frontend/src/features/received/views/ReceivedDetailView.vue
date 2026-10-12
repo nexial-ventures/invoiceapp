@@ -24,7 +24,7 @@ const router = useRouter();
 const store = useDocumentStore();
 const company = useCompanyStore();
 // Only fills the customer card; the detail works without it.
-if (!company.company) company.load().catch(() => {});
+company.ensure().catch(() => {});
 const { error, run } = useAction();
 const { error: actionError, run: runAction } = useAction();
 

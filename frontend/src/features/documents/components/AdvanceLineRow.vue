@@ -3,7 +3,7 @@ import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import type { FieldErrors } from "@/api/types";
 import { reasonKey } from "@/lib/formErrors";
-import { formatMoney, formatNumber } from "../format";
+import { formatMoney, formatNumber } from "@/lib/format";
 import type { AdvanceLineDraft } from "../lines";
 import type { VatMode } from "../types";
 

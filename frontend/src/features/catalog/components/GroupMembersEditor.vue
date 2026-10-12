@@ -3,7 +3,7 @@ import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import type { FieldErrors } from "@/api/types";
 import { reasonKey } from "@/lib/formErrors";
-import { formatMoney } from "@/features/documents/format";
+import { formatMoney } from "@/lib/format";
 import type { MemberDraft } from "../form";
 import type { CatalogItem } from "../types";
 

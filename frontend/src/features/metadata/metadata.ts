@@ -1,6 +1,6 @@
-import type { FieldErrors } from "@/api/types";
+import type { FieldErrors, Direction } from "@/api/types";
 import { nullIfEmpty, textRule } from "@/lib/formErrors";
-import type { CustomFieldValues, Direction, MetadataInput } from "@/features/documents/types";
+import type { CustomFieldValues, MetadataInput } from "@/features/documents/types";
 import type { Category, CategoryKind, CustomField } from "@/features/settings/types";
 
 /**

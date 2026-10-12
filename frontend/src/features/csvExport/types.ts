@@ -1,4 +1,4 @@
-import type { Direction } from "@/features/documents/types";
+import type { Direction } from "@/api/types";
 
 /** `direction` of `GET /api/export/accountant`. */
 export type AccountantDirection = Direction | "both";

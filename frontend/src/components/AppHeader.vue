@@ -28,7 +28,7 @@ function isActive(to: string): boolean {
 }
 
 function onLocaleChange(event: Event) {
-  setLocale((event.target as HTMLSelectElement).value as Locale);
+  void setLocale((event.target as HTMLSelectElement).value as Locale);
 }
 </script>
 

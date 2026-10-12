@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { ApiError } from "@/api/client";
-import { formatDate, formatNumber } from "../format";
+import { formatDate, formatNumber } from "@/lib/format";
 import type { ExchangeRate } from "../types";
 
 /** State of `useIndicativeRate` as a one-line note; `messageKey` words the found rate (when it gets fixed). */

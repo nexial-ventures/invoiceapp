@@ -2,7 +2,7 @@
 import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useAction } from "@/composables/useAction";
-import { formatNumber } from "@/features/documents/format";
+import { formatNumber } from "@/lib/format";
 import CatalogGroupForm from "../components/CatalogGroupForm.vue";
 import CatalogSearch from "../components/CatalogSearch.vue";
 import { useCatalogGroupsStore } from "../store";

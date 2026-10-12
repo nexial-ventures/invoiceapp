@@ -4,7 +4,7 @@ import { useI18n } from "vue-i18n";
 import ErrorDetail from "@/components/ErrorDetail.vue";
 import { usePdf } from "@/composables/usePdf";
 import { documentsApi } from "../api";
-import { formatDate } from "../format";
+import { formatDate } from "@/lib/format";
 import { useDocumentStore } from "../store";
 import type { Document } from "../types";
 

@@ -4,14 +4,14 @@ import { createWebHistory } from "vue-router";
 import App from "./App.vue";
 import { loadContext } from "./boot";
 import { createAppRouter } from "./router";
-import { i18n } from "./i18n";
+import { i18n, loadInitialLocale } from "./i18n";
 import { setAuthHandlers } from "./api/client";
 import { useSessionStore } from "./stores/session";
 import "./style.css";
 
 async function main() {
   const pinia = createPinia();
-  const boot = await loadContext();
+  const [boot] = await Promise.all([loadContext(), loadInitialLocale()]);
   const session = useSessionStore(pinia);
   session.applyBoot(boot);
 

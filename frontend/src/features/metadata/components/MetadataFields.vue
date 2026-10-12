@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import type { FieldErrors } from "@/api/types";
+import type { FieldErrors, Direction } from "@/api/types";
 import FormField from "@/components/form/FormField.vue";
-import type { Direction } from "@/features/documents/types";
 import type { Category, CustomField } from "@/features/settings/types";
 import { categoryKindOf, categoryOptions, customFieldErrors, type MetadataDraft } from "../metadata";
 import CustomFieldsInputs from "./CustomFieldsInputs.vue";

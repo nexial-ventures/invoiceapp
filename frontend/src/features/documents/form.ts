@@ -1,4 +1,4 @@
-import type { DocLocale, FieldErrors } from "@/api/types";
+import type { DocLocale, FieldErrors, PaymentMethod, RoundingMode } from "@/api/types";
 import { collectErrors, nullIfEmpty, textRule } from "@/lib/formErrors";
 import type { Contact } from "@/features/contacts/types";
 import { toMetadataDraft, toMetadataInput, validateMetadata, type MetadataDraft } from "@/features/metadata/metadata";
@@ -6,7 +6,7 @@ import type { BankAccount, Company, CustomField, VatRate } from "@/features/sett
 import { changeLocale, defaultNote, defaultRounding } from "./defaults";
 import { isCorrection } from "./docTypes";
 import { toLineDraft, toWireLine, type LineDraft } from "./lines";
-import type { ComputeRequest, Document, DocumentInput, EditableDocType, PaymentMethod, RoundingMode, VatMode } from "./types";
+import type { ComputeRequest, Document, DocumentInput, EditableDocType, VatMode } from "./types";
 
 /** Editor form state; nullable wire strings are "" here. */
 export interface DocumentDraft {

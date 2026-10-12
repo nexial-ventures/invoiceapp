@@ -40,6 +40,20 @@ frontend-install: ## Install frontend dependencies (npm ci)
 frontend-build: ## Build the SPA into frontend/dist
 	npm --prefix frontend run build
 
+# The SPA's wire types are generated from the backend's OpenAPI document (`invoice openapi`).
+API_SCHEMA := frontend/src/api/schema.d.ts
+# `openapi-typescript <out>` (paths relative to frontend/); flags after the input, or one eats it.
+OPENAPI_TS = @mkdir -p target && cargo run --quiet -- openapi > target/openapi.json && \
+	npm --prefix frontend run --silent api-types -- ../target/openapi.json --empty-objects-unknown -o
+
+frontend-api-types: ## Regenerate frontend/src/api/schema.d.ts from the backend's OpenAPI document
+	$(OPENAPI_TS) ../$(API_SCHEMA)
+
+api-types-check: ## Fail when frontend/src/api/schema.d.ts is stale (run `make frontend-api-types`)
+	$(OPENAPI_TS) ../target/schema.d.ts
+	@diff -u $(API_SCHEMA) target/schema.d.ts \
+		|| { echo "$(API_SCHEMA) is stale: run 'make frontend-api-types'"; exit 1; }
+
 # ===== Lint ==================================================================
 fmt: ## Format Rust sources
 	cargo fmt --all
@@ -56,7 +70,7 @@ lint-frontend: ## Frontend lint + type-check
 	npm --prefix frontend run lint
 	npm --prefix frontend run type-check
 
-lint: lint-backend lint-frontend ## Lint backend and frontend
+lint: lint-backend lint-frontend api-types-check ## Lint backend and frontend, check the generated API types
 
 # ===== Test ==================================================================
 test-unit: ## Rust unit tests (no DB)
@@ -88,6 +102,7 @@ clean: ## Remove build artifacts
 	rm -rf frontend/dist
 
 .PHONY: help build run dev-server dev-frontend frontend-install frontend-build \
+	frontend-api-types api-types-check \
 	fmt fmt-check clippy lint-backend lint-frontend lint \
 	test-unit test-integration test-backend test-frontend test \
 	migrate migrate-status docker-build clean

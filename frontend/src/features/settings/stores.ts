@@ -1,22 +1,9 @@
 import { defineStore } from "pinia";
 import { ref, type Ref } from "vue";
+import type { DocType } from "@/api/types";
+import { loadOnce } from "@/lib/loadOnce";
 import { accountingApi, bankAccountsApi, categoriesApi, companyApi, customFieldsApi, numberSeriesApi, pdfApi, vatRatesApi, type CrudApi } from "./api";
-import type {
-  AccountingSettings,
-  BankAccount,
-  BankAccountInput,
-  Category,
-  CategoryInput,
-  Company,
-  CustomField,
-  CustomFieldInput,
-  DesignInfo,
-  DesignVersion,
-  DocType,
-  NumberSeries,
-  VatRate,
-  VatRateInput,
-} from "./types";
+import type { AccountingSettings, BankAccount, BankAccountInput, Category, CategoryInput, Company, CustomField, CustomFieldInput, DesignInfo, DesignVersion, NumberSeries, VatRate, VatRateInput } from "./types";
 
 export const useCompanyStore = defineStore("settings/company", () => {
   const company = ref<Company | null>(null);
@@ -25,11 +12,13 @@ export const useCompanyStore = defineStore("settings/company", () => {
     company.value = await companyApi.get();
   }
 
+  const ensure = loadOnce(load, () => company.value !== null);
+
   async function save(input: Company): Promise<void> {
     company.value = await companyApi.update(input);
   }
 
-  return { company, load, save };
+  return { company, load, ensure, save };
 });
 
 export const useAccountingStore = defineStore("settings/accounting", () => {
@@ -62,6 +51,8 @@ function defineCrudStore<T extends { id: string }, I>(id: string, api: CrudApi<T
       loaded.value = true;
     }
 
+    const ensure = loadOnce(load, () => loaded.value);
+
     async function save(input: I, itemId?: string): Promise<void> {
       if (itemId) await api.update(itemId, input);
       else await api.create(input);
@@ -73,7 +64,7 @@ function defineCrudStore<T extends { id: string }, I>(id: string, api: CrudApi<T
       await load();
     }
 
-    return { items, loaded, load, save, remove };
+    return { items, loaded, load, ensure, save, remove };
   });
 }
 

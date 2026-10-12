@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { remainingAmount } from "@/lib/money";
 import {
   addDays,
   applyContact,
@@ -10,7 +11,7 @@ import {
   toInput,
   validateDocument,
 } from "./form";
-import { formatMoney, remainingAmount } from "./format";
+import { formatMoney } from "@/lib/format";
 import { newItemLine, newTextLine, type LineDraft } from "./lines";
 import { bankAccounts, company, contact, ctx, document, vatRates } from "./testData";
 

@@ -1,6 +1,7 @@
 import { defineConfig } from "vitest/config";
 import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
+import VueI18nPlugin from "@intlify/unplugin-vue-i18n/vite";
 import { fileURLToPath, URL } from "node:url";
 
 // In production the SPA is embedded in the Rust binary (rust-embed) and served
@@ -17,7 +18,13 @@ import { fileURLToPath, URL } from "node:url";
 const BACKEND = "http://localhost:3000";
 
 export default defineConfig({
-  plugins: [vue(), tailwindcss()],
+  plugins: [
+    vue(),
+    tailwindcss(),
+    // Locale JSON is precompiled at build time and vue-i18n is aliased to its runtime-only build:
+    // no message compiler ships (smaller bundle, no `new Function`, so the CSP needs no 'unsafe-eval').
+    VueI18nPlugin({ include: [fileURLToPath(new URL("./src/locales/**/*.json", import.meta.url))] }),
+  ],
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
@@ -35,5 +42,6 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     include: ["src/**/*.test.ts"],
+    setupFiles: ["src/test-setup.ts"],
   },
 });

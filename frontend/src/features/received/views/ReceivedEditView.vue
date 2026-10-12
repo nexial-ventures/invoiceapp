@@ -34,7 +34,7 @@ watch(
       initial.value = null;
       // The instance is reused between /new and /:id/edit: nothing of a previously loaded document may leak.
       parent.value = null;
-      await Promise.all([vatRates.loaded ? undefined : vatRates.load(), metadata.load()]);
+      await Promise.all([vatRates.ensure(), metadata.load()]);
       ctx.value = { vatRates: vatRates.items, fieldDefs: metadata.fieldDefs.value, today: todayIso() };
       if (!docId) {
         initial.value = newReceivedDraft(ctx.value, newDocType.value);

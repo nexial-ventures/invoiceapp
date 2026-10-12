@@ -5,7 +5,7 @@ import type { FieldErrors } from "@/api/types";
 import FormField from "@/components/form/FormField.vue";
 import { reasonKey } from "@/lib/formErrors";
 import { docSign } from "@/features/documents/docTypes";
-import { formatMoney } from "@/features/documents/format";
+import { formatMoney } from "@/lib/format";
 import { draftTotal, type ReceivedDraft } from "../form";
 import { derivedRoundingMode, newRecapRow, updateRow, vatAllowed, type RecapRowDraft } from "../recap";
 

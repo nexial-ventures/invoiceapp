@@ -1,19 +1,11 @@
+import { normalizeAmount, sameAmount, toCents } from "@/lib/money";
 import type { FieldErrors } from "@/api/types";
 import { collectErrors, nullIfEmpty, textRule } from "@/lib/formErrors";
 import { defaultVatRate } from "@/features/documents/form";
 import type { Document, DocumentType, ReceivedDocumentInput, VatMode } from "@/features/documents/types";
 import { toMetadataDraft, toMetadataInput, validateMetadata, type MetadataDraft } from "@/features/metadata/metadata";
 import type { CustomField, VatRate } from "@/features/settings/types";
-import {
-  newRecapRow,
-  normalizeAmount,
-  recapTotal,
-  sameAmount,
-  suggestVat,
-  toCents,
-  validateRecap,
-  type RecapRowDraft,
-} from "./recap";
+import { newRecapRow, recapTotal, suggestVat, validateRecap, type RecapRowDraft } from "./recap";
 
 /** Received-document form state; nullable wire strings are "" here. */
 export interface ReceivedDraft {
