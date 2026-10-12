@@ -34,7 +34,8 @@ a TOTP code is accepted (login, step-up). Regenerating replaces all.
   when a space requires MFA**: the user's sessions on those spaces' hosts are deleted and their tokens in those
   spaces stop working at once (401) — the UI lists `requiredBy` before confirming.
 - `POST /api/account/mfa/recovery-codes { password, code }` → `{ recoveryCodes }`.
-- Failed passwords count in the user's login bucket (progressive delay after 3 failures → 429 while it runs), failed
+- Failed passwords count in the user's login buckets (progressive delay per client after 3 failures, per-e-mail
+  ceiling; → 429), failed
   codes in the user's **code bucket** (5 / 15 min, hard → 429), [auth.md](auth.md).
 
 ## Login

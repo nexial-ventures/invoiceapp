@@ -23,7 +23,8 @@ pub use limits::*;
 
 use crate::error::AppError;
 
-/// Most keys tracked; beyond it idle keys go first, then the oldest.
+/// Most keys tracked; beyond it idle keys go first, then the oldest active
+/// down to 90 %.
 const MAX_KEYS: usize = 100_000;
 /// Keys examined by the sweep per reservation.
 const SWEEP: usize = 4;
@@ -88,8 +89,11 @@ impl Inner {
         }
     }
 
-    /// While over `max_keys`: drop every idle key (they hold nothing that
-    /// still counts), then — only if that is not enough — the oldest active.
+    /// Over `max_keys`: drop every idle key (they hold nothing that still
+    /// counts); if that does not get below the low-water mark, evict the
+    /// oldest active down to it (last resort). Either way the next pass is at
+    /// least `max_keys / 10` inserts away, so the O(n) scan under the lock
+    /// stays amortized O(1) per insert even when every key is active.
     fn cap(&mut self, now: Instant) {
         if self.entries.len() <= self.max_keys {
             return;
@@ -97,14 +101,15 @@ impl Inner {
         self.entries.retain(|_, e| !e.idle(now));
         let entries = &self.entries;
         self.order.retain(|k| entries.contains_key(k));
-        if self.entries.len() > self.max_keys && !self.warned {
+        let low = self.max_keys * 9 / 10;
+        if self.entries.len() > low && !self.warned {
             self.warned = true;
             tracing::warn!(
                 keys = self.entries.len(),
                 "rate limiter full of active keys: evicting the oldest (logged once)"
             );
         }
-        while self.entries.len() > self.max_keys {
+        while self.entries.len() > low {
             let Some(key) = self.order.pop_front() else {
                 break;
             };

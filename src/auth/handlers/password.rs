@@ -37,12 +37,13 @@ pub struct ChangeInput {
         (status = 204, description = "Changed (or set: an account without a password, within 10 min of a Google login); the user's other sessions, pending logins and API tokens (all spaces) are revoked"),
         (status = 403, description = "`forbidden` with a token, `email_unverified` (use the password reset, which verifies the address)", body = ErrorBody),
         (status = 422, description = "`currentPassword: invalid | required` (`required`: no password yet and no Google login within 10 min), `newPassword: too_short | too_long`, `code: required | invalid` (users with TOTP)", body = ErrorBody),
-        (status = 429, description = "`rate_limited` (login bucket)", body = ErrorBody),
+        (status = 429, description = "`rate_limited` (login / code bucket)", body = ErrorBody),
     )
 )]
 pub async fn change(
     State(state): State<AppState>,
     authed: Authed,
+    ClientIp(ip): ClientIp,
     ApiJson(input): ApiJson<ChangeInput>,
 ) -> Result<StatusCode, AppError> {
     let current = authed.require_session()?;
@@ -55,7 +56,7 @@ pub async fn change(
             e.add("currentPassword", "required");
         }
     } else if let Err(reason) =
-        super::check_password(&state, &authed.user, input.current_password).await?
+        super::check_password(&state, &authed.user, &ip, input.current_password).await?
     {
         e.add("currentPassword", reason);
     }

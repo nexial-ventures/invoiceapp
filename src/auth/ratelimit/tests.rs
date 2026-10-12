@@ -200,15 +200,22 @@ fn over_the_cap_idle_keys_go_first() {
 
 #[test]
 fn the_cap_evicts_the_oldest_active_only_as_a_last_resort() {
-    let rl = RateLimiter::with_cap(3);
+    let rl = RateLimiter::with_cap(10);
     let t0 = Instant::now();
-    for k in ["a", "b", "c", "d"] {
-        rl.reserve_at(&[(LIM, k)], t0).expect("ok");
+    for i in 0..11 {
+        rl.reserve_at(&[(LIM, &i.to_string())], t0).expect("ok");
     }
-    // All active: one of the older keys had to go, never the new one.
-    assert_eq!(rl.len(), 3);
-    let inner = rl.0.lock().expect("lock");
-    assert!(inner.entries.contains_key(&Inner::key(LIM, "d")));
+    // All active: down to the low-water mark (90 %), never the new key …
+    assert_eq!(rl.len(), 9);
+    assert!(
+        rl.0.lock()
+            .expect("lock")
+            .entries
+            .contains_key(&Inner::key(LIM, "10"))
+    );
+    // … so the next scan is a tenth of the cap away.
+    rl.reserve_at(&[(LIM, "11")], t0).expect("ok");
+    assert_eq!(rl.len(), 10, "no eviction pass below the cap");
 }
 
 #[test]
@@ -259,4 +266,36 @@ fn the_login_limits_are_as_documented() {
     assert_eq!((LOGIN_EMAIL.max, b.base, b.cap), (3, secs(1), secs(30)));
     assert!(LOGIN_IP.backoff.is_none() && MFA_EMAIL.backoff.is_none());
     assert_eq!((LOGIN_IP.max, MFA_EMAIL.max), (20, 5));
+    assert!(LOGIN_EMAIL_ALL.backoff.is_none());
+    assert_eq!(LOGIN_EMAIL_ALL.max, 100);
+}
+
+#[test]
+fn the_login_delay_is_per_client() {
+    let rl = RateLimiter::default();
+    let t0 = Instant::now();
+    let attacker = login_key("owner@example.com", "198.51.100.7");
+    let owner = login_key("owner@example.com", "203.0.113.9");
+    let at = |key: &str| rl.reserve_at(&[(SLOW, key), (LOGIN_EMAIL_ALL, "owner@example.com")], t0);
+    for _ in 0..3 {
+        at(&attacker).expect("free failure");
+    }
+    assert!(at(&attacker).is_err(), "the attacker waits");
+    at(&owner).expect("the owner from another network does not");
+}
+
+#[test]
+fn the_e_mail_ceiling_is_hard() {
+    let rl = RateLimiter::default();
+    let t0 = Instant::now();
+    let e = "owner@example.com";
+    // Spread over many clients: no per-client delay, only the ceiling.
+    for i in 0..100 {
+        let client = login_key(e, &i.to_string());
+        rl.reserve_at(&[(LOGIN_EMAIL, &client), (LOGIN_EMAIL_ALL, e)], t0)
+            .expect("under the ceiling");
+    }
+    let fresh = login_key(e, "fresh");
+    let wait = retry(rl.reserve_at(&[(LOGIN_EMAIL, &fresh), (LOGIN_EMAIL_ALL, e)], t0));
+    assert_eq!(wait, 15 * 60);
 }

@@ -19,7 +19,7 @@ use super::idtoken::Identity;
 use crate::app::AppState;
 use crate::auth::ctx::Authed;
 use crate::auth::entity::user;
-use crate::auth::handlers::check_password;
+use crate::auth::handlers::{ClientIp, check_password};
 use crate::auth::host::HostCtx;
 use crate::auth::users::TokenKind;
 use crate::auth::{mfa, session, users};
@@ -201,11 +201,16 @@ pub struct ConfirmInput {
 }
 
 /// Google on, a session, the own password and the step-up code.
-async fn confirm(state: &AppState, authed: &Authed, input: ConfirmInput) -> Result<(), AppError> {
+async fn confirm(
+    state: &AppState,
+    authed: &Authed,
+    ip: &str,
+    input: ConfirmInput,
+) -> Result<(), AppError> {
     state.google.as_ref().ok_or(AppError::NotFound)?;
     authed.require_session()?;
     let mut e = FieldErrors::new();
-    if let Err(reason) = check_password(state, &authed.user, input.password).await? {
+    if let Err(reason) = check_password(state, &authed.user, ip, input.password).await? {
         e.add("password", reason);
     }
     let code = input.code.as_deref();
@@ -233,19 +238,20 @@ pub struct LinkStart {
         (status = 403, description = "`forbidden` with a token, `email_unverified`", body = ErrorBody),
         (status = 404, description = "Sign in with Google is not configured", body = ErrorBody),
         (status = 422, description = "`password: invalid | not_set`, `code: required | invalid` (users with TOTP)", body = ErrorBody),
-        (status = 429, description = "`rate_limited` (login bucket)", body = ErrorBody),
+        (status = 429, description = "`rate_limited` (login / code bucket)", body = ErrorBody),
     )
 )]
 pub async fn link(
     State(state): State<AppState>,
     Extension(host): Extension<HostCtx>,
     authed: Authed,
+    ClientIp(ip): ClientIp,
     ApiJson(input): ApiJson<ConfirmInput>,
 ) -> Result<Json<LinkStart>, AppError> {
     state.google.as_ref().ok_or(AppError::NotFound)?;
     authed.require_session()?;
     authed.require_verified()?;
-    confirm(&state, &authed, input).await?;
+    confirm(&state, &authed, &ip, input).await?;
     let grant = users::issue_token(&state.db, authed.user.id, TokenKind::GoogleLink).await?;
     Ok(Json(LinkStart {
         url: format!(
@@ -268,15 +274,16 @@ pub async fn link(
         (status = 403, description = "`forbidden` with a token", body = ErrorBody),
         (status = 404, description = "Sign in with Google is not configured", body = ErrorBody),
         (status = 422, description = "`password: invalid | not_set`, `code: required | invalid` (users with TOTP)", body = ErrorBody),
-        (status = 429, description = "`rate_limited` (login bucket)", body = ErrorBody),
+        (status = 429, description = "`rate_limited` (login / code bucket)", body = ErrorBody),
     )
 )]
 pub async fn unlink(
     State(state): State<AppState>,
     authed: Authed,
+    ClientIp(ip): ClientIp,
     ApiJson(input): ApiJson<ConfirmInput>,
 ) -> Result<StatusCode, AppError> {
-    confirm(&state, &authed, input).await?;
+    confirm(&state, &authed, &ip, input).await?;
     user::Entity::update_many()
         .col_expr(user::Column::GoogleSub, Expr::value(None::<String>))
         .filter(user::Column::Id.eq(authed.user.id))

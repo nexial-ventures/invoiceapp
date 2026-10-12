@@ -25,10 +25,10 @@ pub struct Backoff {
     pub cap: Duration,
 }
 
-/// Failed logins per e-mail; also failed own-password checks of a signed-in
-/// user (password change, space delete, TOTP setup, …), keyed by the user's
-/// e-mail. Progressive, not hard: the key is anyone's e-mail, and a hard
-/// lock would let a stranger lock its owner out.
+/// Failed logins per e-mail **and client** ([`login_key`]); also failed
+/// own-password checks of a signed-in user (password change, space delete,
+/// TOTP setup, …). Progressive and per client: the e-mail is anyone's to
+/// type, so a guesser only ever delays their own attempts.
 pub const LOGIN_EMAIL: Limit = Limit {
     name: "login-email",
     max: 3,
@@ -38,6 +38,11 @@ pub const LOGIN_EMAIL: Limit = Limit {
         cap: Duration::from_secs(30),
     }),
 };
+/// All failures of one e-mail from every client, keyed by the e-mail: the
+/// backstop against a guess spread over many networks. One network cannot
+/// reach it (the IP limit stops it at 20), so holding an account at 429
+/// takes at least five — the accepted residual lockout (`docs/api/auth.md`).
+pub const LOGIN_EMAIL_ALL: Limit = hard("login-email-all", 100, FIFTEEN_MIN);
 pub const LOGIN_IP: Limit = hard("login-ip", 20, FIFTEEN_MIN);
 /// Failed TOTP / recovery codes per user (login step, step-up, setup).
 /// Hard: reaching a code check takes the password or a session, so a
@@ -58,6 +63,12 @@ pub const INVITE_USER: Limit = hard("invite-user", 20, HOUR);
 pub const INVITE_SPACE: Limit = hard("invite-space", 50, HOUR);
 /// Design activations and restores per space (each costs two renders).
 pub const DESIGN_SPACE: Limit = hard("design-space", 10, HOUR);
+
+/// The [`LOGIN_EMAIL`] key: one e-mail from one client (its rate-limit IP
+/// key — an IPv6 client by its /64).
+pub fn login_key(email: &str, ip: &str) -> String {
+    format!("{email} from {ip}")
+}
 
 pub const fn hard(name: &'static str, max: usize, window: Duration) -> Limit {
     Limit {
