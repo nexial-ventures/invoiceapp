@@ -122,15 +122,19 @@ async fn a_draft_changed_during_the_check_is_not_applied() {
     let db = TestDb::new().await;
     let env = PdfEnv::new();
     let app = env.router(db.conn.clone());
-    upload_ok(&app, "invoice.typ", template("mock-slow")).await;
+    upload_ok(&app, "invoice.typ", template("v1")).await;
 
+    env.mock.hold();
+    let started = env.mock.started();
     let running = {
         let app = app.clone();
         tokio::spawn(async move { activate(&app).await })
     };
-    // The check renders without the lock: an upload meanwhile goes through.
-    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    // The check renders without the lock: an upload while its render is
+    // held goes through.
+    env.mock.wait_started(started + 1).await;
     upload_ok(&app, "logo.svg", b"<svg/>".to_vec()).await;
+    env.mock.release();
     let (status, err) = running.await.expect("activation task");
     assert_eq!(
         (status, err),

@@ -50,7 +50,7 @@ async fn with_limits(
     s: space::Model,
     role: Role,
 ) -> Result<Json<SpaceInfo>, AppError> {
-    let space = super::SpaceId(s.id);
+    let space = super::SpaceId::from_row(s.id);
     // Best effort: an unreachable storage must not fail `GET /api/space`.
     let ensured = match state.pdf.space(space) {
         Ok(pdf) => ensure_usage(&state.db, space, pdf.storage()).await,

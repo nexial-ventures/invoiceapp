@@ -170,6 +170,19 @@ async fn templates_save_validate_preview_restore() {
         e["fields"],
         json!({ "subject": "required", "body": "too_long" })
     );
+    // Missing parts are 422 `required` too (not a serde 400), save and preview.
+    for (method, uri) in [
+        (Method::PUT, "/api/settings/email/templates/cs"),
+        (Method::POST, "/api/settings/email/templates/cs/preview"),
+    ] {
+        let (status, e) = call(&app, method, uri, Some(json!({}))).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{uri}");
+        assert_eq!(
+            e,
+            json!({ "code": "validation", "fields": { "subject": "required", "body": "required" } }),
+            "{uri}"
+        );
+    }
     assert!(storage.list("email").await.expect("list").is_empty());
 
     // Unguarded `contact.*` fails on the contactless sample (save and preview).

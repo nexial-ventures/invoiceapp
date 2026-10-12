@@ -26,6 +26,17 @@ pub struct Template {
     pub body: String,
 }
 
+/// A template being saved or previewed. Both parts are required; they are
+/// optional here only so that a missing one is a 422 `required` instead of
+/// a serde 400.
+#[derive(Debug, Clone, Default, Deserialize, ToSchema)]
+pub struct TemplateInput {
+    #[schema(required = true)]
+    pub subject: Option<String>,
+    #[schema(required = true)]
+    pub body: Option<String>,
+}
+
 /// A rendered message text.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
 pub struct Rendered {
@@ -80,14 +91,23 @@ pub async fn remove(storage: &Storage, locale: Locale) -> Result<(), AppError> {
     Ok(())
 }
 
-/// Size limits of a template being saved or previewed.
-pub fn check_limits(t: &Template) -> Result<(), AppError> {
-    let mut errors = FieldErrors::new();
-    errors.check("subject", v::required_text(&t.subject, SUBJECT_MAX));
-    if t.body.chars().count() > BODY_MAX {
-        errors.add("body", "too_long");
+impl TemplateInput {
+    /// Presence and size limits; the parts are kept as given.
+    pub fn validate(self) -> Result<Template, AppError> {
+        let mut errors = FieldErrors::new();
+        let subject = self.subject.unwrap_or_default();
+        errors.check("subject", v::required_text(&subject, SUBJECT_MAX));
+        match &self.body {
+            None => errors.add("body", "required"),
+            Some(b) if b.chars().count() > BODY_MAX => errors.add("body", "too_long"),
+            Some(_) => {}
+        }
+        errors.into_result()?;
+        Ok(Template {
+            subject,
+            body: self.body.unwrap_or_default(),
+        })
     }
-    errors.into_result()
 }
 
 fn env() -> Environment<'static> {
@@ -310,25 +330,36 @@ mod tests {
     #[test]
     fn limits() {
         let ok = default(Locale::Cs);
-        assert!(check_limits(&ok).is_ok());
-        let bad = Template {
-            subject: "  ".into(),
-            body: "x".repeat(BODY_MAX + 1),
+        let input = TemplateInput {
+            subject: Some(ok.subject.clone()),
+            body: Some(ok.body.clone()),
         };
-        match check_limits(&bad) {
+        assert_eq!(input.validate().ok(), Some(ok));
+        let bad = TemplateInput {
+            subject: Some("  ".into()),
+            body: Some("x".repeat(BODY_MAX + 1)),
+        };
+        match bad.validate() {
             Err(AppError::Validation(f)) => {
                 assert_eq!(f.get("subject"), Some("required"));
                 assert_eq!(f.get("body"), Some("too_long"));
             }
             other => panic!("{other:?}"),
         }
-        let long = Template {
-            subject: "x".repeat(SUBJECT_MAX + 1),
-            body: String::new(),
+        let long = TemplateInput {
+            subject: Some("x".repeat(SUBJECT_MAX + 1)),
+            body: Some(String::new()),
         };
         assert!(
-            matches!(check_limits(&long), Err(AppError::Validation(f)) if f.get("subject") == Some("too_long"))
+            matches!(long.validate(), Err(AppError::Validation(f)) if f.get("subject") == Some("too_long"))
         );
+        match TemplateInput::default().validate() {
+            Err(AppError::Validation(f)) => {
+                assert_eq!(f.get("subject"), Some("required"));
+                assert_eq!(f.get("body"), Some("required"));
+            }
+            other => panic!("{other:?}"),
+        }
     }
 
     #[test]

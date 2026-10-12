@@ -206,7 +206,11 @@ async fn the_migration_creates_rows_for_existing_spaces() {
         .sqlx_logging(false);
     let conn = Database::connect(opts).await.expect("connect schema");
     // Everything before the limits migration, with one space.
-    let before = Migrator::migrations().len() as u32 - 1;
+    // By name: later migrations must not shift what "before" means.
+    let before = Migrator::migrations()
+        .iter()
+        .position(|m| m.name() == "m20261022_000001_space_limits")
+        .expect("the limits migration") as u32;
     Migrator::up(&conn, Some(before)).await.expect("migrate");
     conn.execute_unprepared(
         "INSERT INTO spaces (id, slug, name) VALUES (gen_random_uuid(), 'old', 'Old')",

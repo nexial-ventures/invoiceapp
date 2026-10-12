@@ -285,5 +285,25 @@ mod tests {
         ] {
             assert!(components.schemas.contains_key(schema), "{schema}");
         }
+        // Required-but-`Option` inputs (422 `required` instead of a serde
+        // 400) still read as required.
+        let schemas = serde_json::to_value(&components.schemas).expect("json");
+        for (schema, fields) in [
+            ("TemplateInput", &["subject", "body"][..]),
+            (
+                "ProfileInput",
+                &["vatPayer", "defaultDueDays", "defaultLocale"][..],
+            ),
+        ] {
+            let text = schemas[schema].to_string();
+            for f in fields {
+                assert!(
+                    schemas[schema]["required"]
+                        .as_array()
+                        .is_some_and(|r| r.iter().any(|v| v == f)),
+                    "{schema}.{f}: {text}"
+                );
+            }
+        }
     }
 }

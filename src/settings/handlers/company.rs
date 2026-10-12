@@ -26,12 +26,47 @@ pub struct Company {
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct CompanyInput {
     #[serde(flatten)]
-    pub profile: Profile,
+    pub profile: ProfileInput,
     #[serde(flatten)]
     pub defaults: DocDefaultsInput,
 }
 
-/// The profile fields; request and response share the shape.
+/// The profile fields of a `PUT`. `vatPayer`, `defaultDueDays` and
+/// `defaultLocale` are required; they are optional here only so that a
+/// missing one is a 422 `required` instead of a serde 400.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileInput {
+    #[serde(default)]
+    pub name: String,
+    pub ico: Option<String>,
+    pub dic: Option<String>,
+    #[schema(required = true)]
+    pub vat_payer: Option<bool>,
+    #[serde(default)]
+    pub street: String,
+    #[serde(default)]
+    pub city: String,
+    #[serde(default)]
+    pub zip: String,
+    #[serde(default)]
+    pub country: String,
+    pub email: Option<String>,
+    pub phone: Option<String>,
+    pub web: Option<String>,
+    pub registration: Option<String>,
+    #[schema(required = true)]
+    pub default_due_days: Option<i32>,
+    /// `cs` or `en`.
+    #[schema(required = true)]
+    pub default_locale: Option<String>,
+}
+
+fn present<T>(value: Option<T>) -> v::Check<T> {
+    value.ok_or("required")
+}
+
+/// The profile fields of a response (and the validated `PUT`).
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Profile {
@@ -69,7 +104,9 @@ impl CompanyInput {
                 .unwrap_or_default(),
             ico: e.check("ico", v::opt_ico(p.ico.as_deref())).flatten(),
             dic: e.check("dic", v::opt_dic(p.dic.as_deref())).flatten(),
-            vat_payer: p.vat_payer,
+            vat_payer: e
+                .check("vatPayer", present(p.vat_payer))
+                .unwrap_or_default(),
             street: e
                 .check("street", v::text(&p.street, 200))
                 .unwrap_or_default(),
@@ -87,10 +124,16 @@ impl CompanyInput {
                 .check("registration", v::opt_text(p.registration.as_deref(), 300))
                 .flatten(),
             default_due_days: e
-                .check("defaultDueDays", v::due_days(p.default_due_days))
+                .check(
+                    "defaultDueDays",
+                    present(p.default_due_days).and_then(v::due_days),
+                )
                 .unwrap_or_default(),
             default_locale: e
-                .check("defaultLocale", v::locale(&p.default_locale))
+                .check(
+                    "defaultLocale",
+                    present(p.default_locale.as_deref()).and_then(v::locale),
+                )
                 .unwrap_or_default(),
         };
         e.into_result()?;

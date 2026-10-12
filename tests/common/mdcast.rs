@@ -4,8 +4,8 @@
 //!
 //! A template containing `// mock-fail` fails like a template that does not
 //! compile; `// mock-fail-en` only for the `en` sample (design checks).
-//! `// mock-slow` delays the answer by half a second; [`MdcastMock::delay`]
-//! delays every render.
+//! [`MdcastMock::delay`] delays every render; [`MdcastMock::hold`] holds
+//! them until [`MdcastMock::release`] (deterministic "during a render").
 
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
@@ -44,6 +44,8 @@ struct Inner {
     /// Render requests received (before any delay or failure).
     started: usize,
     delay: Option<std::time::Duration>,
+    /// Set by `hold`: renders wait for a permit (`release` adds plenty).
+    gate: Option<Arc<tokio::sync::Semaphore>>,
 }
 
 #[derive(Clone, Default)]
@@ -84,6 +86,18 @@ impl MdcastMock {
         self.lock().delay = Some(d);
     }
 
+    /// Every render (after counting as started) waits until [`Self::release`].
+    pub fn hold(&self) {
+        self.lock().gate = Some(Arc::new(tokio::sync::Semaphore::new(0)));
+    }
+
+    /// Let held and later renders through.
+    pub fn release(&self) {
+        if let Some(gate) = &self.lock().gate {
+            gate.add_permits(tokio::sync::Semaphore::MAX_PERMITS / 2);
+        }
+    }
+
     /// Render requests received so far (also failed or still running ones).
     pub fn started(&self) -> usize {
         self.lock().started
@@ -115,21 +129,18 @@ async fn render(State(m): State<MdcastMock>, body: Bytes) -> Response {
         a.values()
             .all(|d| d.as_str().is_some_and(|d| inner.known.contains(d)))
     });
-    let delay = {
+    let (delay, gate) = {
         let mut inner = m.lock();
         if !first_try {
             inner.started += 1;
         }
-        inner.delay
+        (inner.delay, inner.gate.clone())
     };
     if let Some(d) = delay.filter(|_| !first_try) {
         tokio::time::sleep(d).await;
     }
-    if req["template_source"]
-        .as_str()
-        .is_some_and(|t| t.contains("// mock-slow"))
-    {
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    if let Some(gate) = gate.filter(|_| !first_try) {
+        let _permit = gate.acquire().await.expect("mock gate open");
     }
     let mut inner = m.lock();
     if let Some((status, code, message)) = inner.fail.clone() {

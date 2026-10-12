@@ -148,7 +148,7 @@ expires_at; unique (space_id, email)).
   **inviter** is still an enabled member allowed to grant the invited role (`can_invite`); if not, the consumed
   invitation is committed as deleted, nothing else is written, and the answer is 422 `token: invalid`. (`GET`
   does not run this check; invitations of removed / demoted inviters are already deleted by the member change.)
-  An account registered for the address between the lookup and the commit → 409 `conflict`, nothing committed.
+  An account registered for the address between the lookup and the commit → 409 `email_taken`, nothing committed.
 - The CSRF rule is the one of the other public auth routes: a present, foreign `Origin` → 403 `csrf`.
 - **Accepted risks** (decided with the product owner; kept as is):
   - *Account enumeration* and *address squatting* — **only on an instance without SMTP**: there the inviter gets

@@ -364,7 +364,7 @@ async fn confirm_rechecks_duplicates_under_a_lock() {
         .await
         .expect("first import");
     match store::import(&db.conn, &pdf, &p, None, &rate, &opts).await {
-        Err(AppError::Conflict(m)) => assert_eq!(m, "duplicate"),
+        Err(AppError::Duplicate) => {}
         other => panic!("expected a duplicate, got {other:?}"),
     }
     // Concurrent: the advisory lock lets exactly one through.

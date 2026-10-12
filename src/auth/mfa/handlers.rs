@@ -235,7 +235,7 @@ pub async fn disable(
     responses(
         (status = 200, description = "New codes; the old ones stop working", body = RecoveryCodes),
         (status = 403, description = "`forbidden` with a token", body = ErrorBody),
-        (status = 409, description = "`conflict`: TOTP is off", body = ErrorBody),
+        (status = 409, description = "`mfa_disabled`: TOTP is off", body = ErrorBody),
         (status = 422, description = "`password: invalid | not_set`, `code: required | invalid`", body = ErrorBody),
         (status = 429, description = "`rate_limited` (login bucket)", body = ErrorBody),
     )
@@ -247,7 +247,7 @@ pub async fn regenerate(
 ) -> Result<Json<RecoveryCodes>, AppError> {
     authed.require_session()?;
     if !authed.mfa_enabled {
-        return Err(AppError::Conflict("mfa_disabled".into()));
+        return Err(AppError::MfaDisabled);
     }
     confirm(&state, &authed, input).await?;
     let (codes, hashes) = fresh_codes(&state.secret_key)?;

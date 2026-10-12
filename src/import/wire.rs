@@ -11,7 +11,6 @@ use uuid::Uuid;
 
 use super::check::{Checked, Status};
 use super::model::{Code, Plan};
-use super::store::{DUPLICATE, NUMBER_TAKEN};
 use crate::error::AppError;
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -142,9 +141,8 @@ pub fn confirmed<'a>(
 /// logged and reported as `internal`.
 pub fn failure(e: AppError) -> Code {
     match e {
-        AppError::Conflict(m) if m == DUPLICATE => DUPLICATE,
-        AppError::Conflict(m) if m == NUMBER_TAKEN => NUMBER_TAKEN,
-        AppError::NumberTaken => NUMBER_TAKEN,
+        AppError::Duplicate => "duplicate",
+        AppError::NumberTaken => "number_taken",
         // The space's storage quota has no room for this entry's PDF.
         AppError::QuotaExceeded(_) => "quota_exceeded",
         // Like `rate_unavailable`: a temporary outage, worth a retry later.
@@ -167,8 +165,10 @@ mod tests {
     fn store_failures_map_to_entry_codes() {
         let quota = AppError::QuotaExceeded("99.0 / 100 MB".into());
         assert_eq!(failure(quota), "quota_exceeded");
-        assert_eq!(failure(AppError::NumberTaken), NUMBER_TAKEN);
-        assert_eq!(failure(AppError::Conflict(DUPLICATE.into())), DUPLICATE);
+        assert_eq!(failure(AppError::NumberTaken), "number_taken");
+        assert_eq!(failure(AppError::Duplicate), "duplicate");
+        // A plain conflict (e.g. a unique race) is not an entry code.
+        assert_eq!(failure(AppError::Conflict("x".into())), "internal");
         assert_eq!(
             failure(AppError::StorageUnavailable("down".into())),
             "storage_unavailable"

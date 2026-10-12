@@ -35,6 +35,9 @@ fn maps_variants_to_status_and_code() {
             StatusCode::CONFLICT,
             "conflict",
         ),
+        (AppError::MfaDisabled, StatusCode::CONFLICT, "mfa_disabled"),
+        (AppError::EmailTaken, StatusCode::CONFLICT, "email_taken"),
+        (AppError::Duplicate, StatusCode::CONFLICT, "duplicate"),
         (
             AppError::AresNotFound,
             StatusCode::NOT_FOUND,

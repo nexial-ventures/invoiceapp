@@ -84,6 +84,10 @@ const KNOWN_CODES: Record<string, string> = {
   mfa_invalid: "errors.mfaInvalid",
   mfa_required: "errors.mfaRequired",
   mfa_enabled: "errors.mfaEnabled",
+  // 409 on new recovery codes while TOTP is off.
+  mfa_disabled: "errors.mfaDisabled",
+  // 409 when an account for the invited address was registered meanwhile.
+  email_taken: "errors.emailTaken",
   // PDF design (4f): the quota and the render error come with a `detail`.
   quota_exceeded: "errors.quotaExceeded",
   design_invalid: "errors.designInvalid",

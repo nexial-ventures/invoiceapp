@@ -266,7 +266,7 @@ async fn space_storage(slug: &str) -> Result<(DatabaseConnection, space::SpaceId
         .await
         .map_err(|e| anyhow::anyhow!("look up space {slug}: {e}"))?
         .with_context(|| format!("no space with slug {slug}"))?;
-    let space = space::SpaceId(space.id);
+    let space = space::SpaceId::from(&space);
     let storage = open_storage()?.scoped(&space.storage_prefix())?;
     Ok((db, space, storage))
 }

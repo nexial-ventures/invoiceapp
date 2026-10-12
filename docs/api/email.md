@@ -67,7 +67,8 @@ contact: { name, email } | none   // none for a contactless simplified document
 - `GET /api/settings/email/templates` → `{ templates: [ { locale, subject, body, custom: bool } ] }` (cs, en; the
   effective text, `custom` = an override exists).
 - `PUT /api/settings/email/templates/{locale}` `{ subject, body }` → 200 the template entry; invalid → 422 as above,
-  the active template stays. Unknown locale → 404.
+  the active template stays. Unknown locale → 404 (checked first). Both parts are required: a missing `subject` /
+  `body` is 422 `required` (not a 400), also for the preview.
 - `DELETE /api/settings/email/templates/{locale}` → 200 the default entry (`custom: false`); removes the override
   (idempotent).
 - `POST /api/settings/email/templates/{locale}/preview` `{ subject, body }` → `{ subject, body }` rendered on the

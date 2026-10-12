@@ -47,7 +47,7 @@ pub struct InviteInfo {
 fn host_space(host: &HostCtx) -> Result<(SpaceId, ContextSpace), AppError> {
     let s = host.space.as_ref().ok_or(AppError::NotFound)?;
     Ok((
-        SpaceId(s.id),
+        SpaceId::from_row(s.id),
         ContextSpace {
             slug: s.slug.clone(),
             name: s.name.clone(),
@@ -148,7 +148,7 @@ async fn create_detached(
     let txn = state.db.begin().await?;
     let user = users::create(&txn, email, &name, Some(hash))
         .await?
-        .ok_or_else(|| AppError::Conflict("users_email_key".into()))?;
+        .ok_or(AppError::EmailTaken)?;
     users::mark_verified(&txn, user.id).await?;
     txn.commit().await?;
     Ok(())
@@ -174,7 +174,7 @@ enum Who {
         (status = 204, description = "Joined; `Set-Cookie: invoice_session=…` for this host"),
         (status = 401, description = "`invalid_credentials` (existing account: wrong password, disabled)", body = ErrorBody),
         (status = 403, description = "`mfa_required`: the space requires TOTP — an existing account without it, or a new account (`detail: account_created`: created, not joined); the invitation stays valid", body = ErrorBody),
-        (status = 409, description = "`conflict`: the address was registered meanwhile", body = ErrorBody),
+        (status = 409, description = "`email_taken`: the address was registered meanwhile", body = ErrorBody),
         (status = 422, description = "`token: invalid`; new account: `displayName: required | too_long`, `password: too_short | too_long`; existing account: `password: not_set` (no password yet), with TOTP `code: required | invalid`", body = ErrorBody),
         (status = 429, description = "`rate_limited`", body = ErrorBody),
     )

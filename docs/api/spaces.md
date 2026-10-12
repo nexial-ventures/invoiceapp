@@ -128,7 +128,17 @@ member management: [members.md](members.md) (4b).
   never from client input); root queries filter `space_id`, child queries join or check through the parent. A
   referenced id from the client (contactId, bankAccountId, categoryId, catalog item, original document, …) that is
   not in the current space behaves exactly like a non-existent id (same 404 / 422 as today). Another space's id in
-  a URL → 404.
+  a URL → 404. `SpaceId` cannot be built from a bare id outside the crate (private field; `pub(crate)
+  from_row` for an id read from a row, `From<&space::Model>`).
+- **The database enforces it too** (`m20261023_000001_tenant_fks`): `contacts`, `bank_accounts`, `categories` and
+  `documents` carry `UNIQUE (space_id, id)`, and `documents.contact_id` / `bank_account_id` / `category_id` /
+  `related_document_id` are composite FKs `(space_id, x_id) → t (space_id, id)` (same `ON DELETE`; `SET NULL (x_id)`
+  keeps `space_id`; each indexed `(x_id, space_id)`), so even raw SQL cannot link two spaces
+  (`tests/spaces_db_isolation.rs`). The migration first counts existing cross-space links and fails with the counts
+  per column instead of a raw FK error. The category FK and `document_lines.advance_document_id` are `DEFERRABLE
+  INITIALLY DEFERRED`, so the single cascading `DELETE` of a space never trips them mid-statement. Not covered: child
+  tables without `space_id` (`document_lines.advance_document_id`, `documents.payment_id` → payments,
+  `catalog_group_members`) — they stay scoped through their parent by the repos.
 - Migration: append-only; adds the new tables and the NOT NULL columns. It **aborts with a clear error if any
   space-owned table has rows** (there is no default space; reset the dev database). Former global seed rows are
   removed by the migration and created per space instead.

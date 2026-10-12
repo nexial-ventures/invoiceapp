@@ -86,6 +86,29 @@ async fn company_validation_is_422_with_fields() {
 }
 
 #[tokio::test]
+async fn missing_required_company_fields_are_422() {
+    let db = TestDb::new().await;
+    let app = router(db.conn.clone());
+    let mut body = company_body();
+    for f in ["vatPayer", "defaultDueDays", "defaultLocale"] {
+        body.as_object_mut().expect("object").remove(f);
+    }
+    let (status, err) = call(&app, Method::PUT, "/api/settings/company", Some(body)).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(
+        err,
+        json!({
+            "code": "validation",
+            "fields": {
+                "vatPayer": "required",
+                "defaultDueDays": "required",
+                "defaultLocale": "required"
+            }
+        })
+    );
+}
+
+#[tokio::test]
 async fn malformed_json_is_400() {
     let db = TestDb::new().await;
     let app = router(db.conn.clone());

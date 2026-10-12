@@ -11,12 +11,44 @@ number (taken by its shortest text, then validated like the string) — see `src
 - 422 `{"code":"validation","fields":{"<field>":"<reason_code>"}}` — reason codes:
   `required`, `invalid`, `too_long`, `duplicate`, `invalid_ico`, `invalid_pattern`.
   Field names are the camelCase wire names; for list items use `items.0.rate` style if ever needed.
-- 409 `{"code":"conflict"}` for unique violations not attributable to one field.
+- 409 `{"code":"conflict"}` only for unique violations and concurrent-change races not attributable to one field; a
+  refusal with a known cause has its own code (e.g. `mfa_disabled`, `email_taken`, `last_owner`).
 - ARES: 404 `{"code":"ares_not_found"}`, 502 `{"code":"ares_unavailable"}`, 422 `{"code":"validation","fields":{"ico":"invalid_ico"}}`.
 
 
 Later phases add more codes (`document_locked`, `invalid_state`, `cnb_unavailable`, `advance_settled`, `smtp_failed`, `template_invalid`, …) — see each part.
 422 field keys for list items use the 0-based array index: `lines.0.unitPrice`, `members.2.itemId`.
+
+## Conventions
+### PUT semantics
+- `PUT` **replaces** the resource: every field of the body is written, an omitted optional field is stored as its
+  default / `null`, a missing required field is 422 `required` (never a serde 400 — required fields are `Option` in
+  the input struct and checked by `FieldErrors`).
+- **"Absent = keep"** applies only to these named settings singletons and fields, each documented in its part:
+  - `PUT /api/settings/company` — the document defaults (`defaultRounding*`, `defaultPaymentMethod`,
+    `defaultCurrency`, `defaultHeaderNote`, `defaultFooterNote`); absent or `null` = keep ([defaults.md](defaults.md)).
+    The profile fields are replaced.
+  - `PUT /api/settings/accounting` — the `pohoda` / `money` sections; absent or `null` = keep ([money.md](money.md)).
+  - `PUT /api/space` — `name` / `requireMfa`; absent = unchanged ([mfa.md](mfa.md)).
+  - `PUT /api/documents/{id}` — `docType` omitted keeps the draft's type (the rest is replaced).
+- A new route does not add to this list without a reason recorded in its part.
+
+### List shape
+- Paged lists answer `{ items: T[], total }` with `limit` / `offset` query parameters: `GET /api/documents`,
+  `GET /api/contacts` (and the MCP `list_*` tools).
+- Every other list is a **plain JSON array** of all rows, unpaged (small per-space sets): catalog items / groups,
+  bank accounts, VAT rates, number series, categories, custom fields, payments, the e-mail log, members, invitations,
+  tokens, spaces, design versions. `GET /api/settings/email/templates` is `{ templates: [...] }`.
+
+### Exports
+- Exports are `GET` downloads (`Content-Disposition: attachment`). New export formats go under `/api/export/*`
+  (`/api/export/csv`, `/api/export/accountant?format=csv|pohoda|money`); a new format of an existing export is a
+  `format` value there, not a new route. The per-document ISDOC routes (`/api/documents/{id}/isdoc`,
+  `/api/documents/isdoc`) predate the rule and stay where they are.
+
+### Access
+- Every route in `/api/openapi.json` has an access decision (public, account, space role, or exempt with a reason)
+  in `tests/spaces_route_roles.rs`; a route without one fails the test.
 
 ## Parts
 | File | Scope |

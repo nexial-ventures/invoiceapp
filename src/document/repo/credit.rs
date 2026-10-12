@@ -64,7 +64,8 @@ pub async fn draft_from(
         contact_id: orig.contact_id,
         issue_date: today,
         tax_point_date: Some(today),
-        due_date: context::due_date(db, SpaceId(orig.space_id), orig.contact_id, today).await?,
+        due_date: context::due_date(db, SpaceId::from_row(orig.space_id), orig.contact_id, today)
+            .await?,
         exchange_rate: orig.exchange_rate.filter(|_| orig.currency != "CZK"),
         currency: orig.currency.clone(),
         locale: orig.locale.clone(),
@@ -147,7 +148,7 @@ async fn create_note(
     let totals = compute::evaluate(&data.lines, data.params())
         .map_err(AppError::Validation)?
         .totals;
-    let (space, orig_id) = (SpaceId(orig.space_id), orig.id);
+    let (space, orig_id) = (SpaceId::from_row(orig.space_id), orig.id);
     Ok(db
         .transaction(|txn| {
             Box::pin(async move {
@@ -229,7 +230,7 @@ pub async fn check_debit_cancel(
     let Some(original_id) = debit_note.related_document_id else {
         return Ok(());
     };
-    query::lock(txn, SpaceId(debit_note.space_id), original_id).await?;
+    query::lock(txn, SpaceId::from_row(debit_note.space_id), original_id).await?;
     let cap = cap(txn, original_id, debit_note.id).await?;
     let credited = issued_notes(txn, original_id, DocType::CreditNote, Uuid::nil()).await?;
     if exceeds_original(&cap, credited) {
