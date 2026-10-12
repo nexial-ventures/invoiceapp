@@ -45,6 +45,12 @@ describe("EmailTab", () => {
     expect(w.find('[data-test="email-test-send"]').attributes("disabled")).toBeDefined();
   });
 
+  it("shows the kill switch and blocks the test e-mail", async () => {
+    const { w } = await mountTab({ "GET /api/settings/email": emailSettings({ disabled: true }) });
+    expect(w.find('[data-test="email-disabled"]').text()).toContain("INVOICE__EMAIL_DISABLED");
+    expect(w.find('[data-test="email-test-send"]').attributes("disabled")).toBeDefined();
+  });
+
   it("sends a test e-mail to the company or the given address", async () => {
     const bodies: unknown[] = [];
     const { w } = await mountTab({ "POST /api/settings/email/test": (b: unknown) => (bodies.push(b), reply(204)) });

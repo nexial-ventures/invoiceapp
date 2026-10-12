@@ -20,7 +20,9 @@
     "sending": "Odesílám…",
     "sent": "E-mail odeslán na {to}.",
     "templateFix": "Opravte šablonu v {link}.",
-    "templateFixLink": "Nastavení → E-mail"
+    "templateFixLink": "Nastavení → E-mail",
+    "disabledHint": "Odesílání e-mailů je na této instanci vypnuté.",
+    "disabled": "Odesílání e-mailů je na této instanci dočasně vypnuté provozovatelem. E-mail nelze odeslat."
   },
   "history": {
     "title": "Historie e-mailů",
@@ -45,7 +47,8 @@
     "testTo": "Příjemce testovacího e-mailu",
     "testToHint": "Prázdné = odeslat na e-mail firmy.",
     "testSend": "Odeslat testovací e-mail",
-    "testSent": "Testovací e-mail odeslán."
+    "testSent": "Testovací e-mail odeslán.",
+    "disabled": "Odesílání e-mailů je na této instanci dočasně vypnuté provozovatelem (INVOICE__EMAIL_DISABLED)."
   },
   "templates": {
     "title": "Šablony e-mailů",

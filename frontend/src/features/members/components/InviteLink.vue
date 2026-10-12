@@ -38,7 +38,7 @@ async function copy() {
         {{ t("members.link.sentByEmail", { email: sent.email }) }}
       </p>
       <p v-else class="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/50 dark:text-amber-300" data-test="invite-email-status">
-        {{ t("members.link.emailFailed") }}
+        {{ sent.emailDisabled ? t("members.link.emailDisabled") : t("members.link.emailFailed") }}
       </p>
       <p class="text-xs text-gray-500 dark:text-gray-400">{{ t("members.link.sentHint") }}</p>
     </template>

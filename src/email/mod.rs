@@ -7,6 +7,7 @@ pub mod context;
 pub mod entity;
 pub mod handlers;
 pub mod input;
+pub mod limits;
 pub mod log;
 pub mod sender;
 pub mod templates;

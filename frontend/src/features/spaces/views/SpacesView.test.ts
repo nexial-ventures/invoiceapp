@@ -101,13 +101,16 @@ describe("SpacesView", () => {
     expect(w.findAll('[data-test="space-row"]')).toHaveLength(1);
   });
 
-  it("shows a readable message when the server refuses creation", async () => {
-    mockFetchRoutes({ "GET /api/spaces": [], "POST /api/spaces": reply(403, { code: "space_creation_disabled" }) });
+  it.each([
+    ["space_creation_disabled", "errors.spaceCreationDisabled"],
+    ["space_limit", "errors.spaceLimit"],
+  ])("shows a readable message when the server refuses creation (%s)", async (code, key) => {
+    mockFetchRoutes({ "GET /api/spaces": [], "POST /api/spaces": reply(403, { code }) });
     const { w } = await mountHub();
     await w.find('[data-test="space-name"]').setValue("Firma");
     await w.find('[data-test="space-slug"]').setValue("firma");
     await w.find('[data-test="new-space"]').trigger("submit");
     await flushPromises();
-    expect(w.find('[data-test="new-space-error"]').text()).toBe(i18n.global.t("errors.spaceCreationDisabled"));
+    expect(w.find('[data-test="new-space-error"]').text()).toBe(i18n.global.t(key));
   });
 });

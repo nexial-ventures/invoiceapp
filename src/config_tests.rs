@@ -305,3 +305,29 @@ fn debug_never_prints_secrets() {
     assert!(!dbg.contains("supersecret"));
     assert!(!dbg.contains("pw@"));
 }
+
+#[test]
+fn abuse_limit_settings() {
+    let base = [
+        ("INVOICE__DATABASE_URL", "postgres://x"),
+        ("INVOICE__PUBLIC_URL", "https://invoiceapp.cz"),
+    ];
+    let cfg = Config::from_source(env(&base)).expect("defaults");
+    assert!(!cfg.email_disabled);
+    assert_eq!(cfg.max_spaces_per_user, DEFAULT_MAX_SPACES_PER_USER);
+    let mut with = base.to_vec();
+    with.push(("INVOICE__EMAIL_DISABLED", "true"));
+    with.push(("INVOICE__MAX_SPACES_PER_USER", "10"));
+    let cfg = Config::from_source(env(&with)).expect("set");
+    assert!(cfg.email_disabled);
+    assert_eq!(cfg.max_spaces_per_user, 10);
+    for (key, bad) in [
+        ("INVOICE__EMAIL_DISABLED", "yes"),
+        ("INVOICE__MAX_SPACES_PER_USER", "0"),
+    ] {
+        let mut pairs = base.to_vec();
+        pairs.push((key, bad));
+        let err = Config::from_source(env(&pairs)).expect_err(bad);
+        assert!(format!("{err:#}").contains(key), "{err:#}");
+    }
+}

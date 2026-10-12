@@ -30,6 +30,8 @@ export interface Invite {
 export interface SentInvite extends Invite {
   url?: string;
   emailSent: boolean;
+  /** The e-mail was skipped: sending is disabled on the instance (resend later). */
+  emailDisabled: boolean;
 }
 
 export interface InviteBody {

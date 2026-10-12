@@ -17,6 +17,8 @@ describe("slugError", () => {
     ["firmá", "invalid"],
     ["www", "reserved"],
     ["support", "reserved"],
+    ["paypal", "reserved"],
+    ["faktura", "reserved"],
   ])("%s → %s", (slug, reason) => {
     expect(slugError(slug)).toBe(reason);
   });

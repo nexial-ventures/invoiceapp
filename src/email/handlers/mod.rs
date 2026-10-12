@@ -17,7 +17,11 @@ use crate::pdf::format::Locale;
 use crate::pdf::preview::Sample;
 use crate::settings::entity::company;
 
+/// The kill switch wins over a missing SMTP configuration.
 fn mailer(state: &AppState) -> Result<&Mailer, AppError> {
+    if state.email_disabled {
+        return Err(AppError::EmailDisabled);
+    }
     state.email.as_ref().ok_or(AppError::SmtpNotConfigured)
 }
 

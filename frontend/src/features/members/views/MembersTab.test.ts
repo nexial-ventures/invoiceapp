@@ -219,21 +219,39 @@ describe("MembersTab", () => {
     expect(rows[1]!.find('[data-test="invite-revoke"]').exists()).toBe(true);
   });
 
-  it("shows a rate-limited invite and resend readably", async () => {
+  it("says the invitation was not mailed while e-mail is disabled", async () => {
     mockFetchRoutes({
       "GET /api/members": [member("me", "owner", { isSelf: true })],
-      "GET /api/invites": [invite("i1")],
-      "POST /api/invites": reply(429, { code: "rate_limited" }),
-      "POST /api/invites/i1/resend": reply(429, { code: "rate_limited" }),
+      "GET /api/invites": [],
+      "POST /api/invites": reply(201, { ...invite("i1"), emailSent: false, emailDisabled: true }),
     });
     const { w } = await mountTab("owner");
     await w.find('[data-test="invite-email"]').setValue("petr@example.cz");
     await w.find('[data-test="invites"] form').trigger("submit");
     await flushPromises();
-    expect(w.find('[data-test="invite-error"]').text()).toBe("Too many attempts. Please try again later.");
+    expect(w.find('[data-test="invite-email-status"]').text()).toContain("sending e-mails is disabled on this instance");
+    expect(w.find('[data-test="invite-url"]').exists()).toBe(false);
+  });
+
+  it("shows a rate-limited invite and resend readably", async () => {
+    mockFetchRoutes({
+      "GET /api/members": [member("me", "owner", { isSelf: true })],
+      "GET /api/invites": [invite("i1")],
+      "POST /api/invites": reply(429, { code: "rate_limited" }),
+      "POST /api/invites/i1/resend": new Response(JSON.stringify({ code: "rate_limited" }), {
+        status: 429,
+        headers: { "Content-Type": "application/json", "Retry-After": "5400" },
+      }),
+    });
+    const { w } = await mountTab("owner");
+    await w.find('[data-test="invite-email"]').setValue("petr@example.cz");
+    await w.find('[data-test="invites"] form').trigger("submit");
+    await flushPromises();
+    const limit = "The e-mail limit (per hour or per day, for this space or for you) is used up.";
+    expect(w.find('[data-test="invite-error"]').text()).toBe(`${limit} Try again later.`);
     await w.find('[data-test="invite-resend"]').trigger("click");
     await flushPromises();
-    expect(w.find('[data-test="invites-error"]').text()).toBe("Too many attempts. Please try again later.");
+    expect(w.find('[data-test="invites-error"]').text()).toBe(`${limit} Try again in 2 h.`);
     expect(w.find('[data-test="invite-link"]').exists()).toBe(false);
   });
 

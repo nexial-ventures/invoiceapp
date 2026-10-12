@@ -22,6 +22,7 @@
   "exceedsOriginal": "Cannot cancel: the credit notes would exceed the original document plus its debit notes for some VAT rate.",
   "smtpFailed": "Sending the e-mail failed – the SMTP server rejected the message or is unreachable.",
   "smtpNotConfigured": "E-mail sending is not configured (no SMTP server in the configuration).",
+  "emailDisabled": "Sending e-mails is temporarily disabled on this instance.",
   "templateInvalid": "The e-mail template contains an error.",
   "forbidden": "You are not allowed to do this.",
   "csrf": "The request was refused (invalid origin). Reload the page and try again.",
@@ -29,6 +30,7 @@
   "busy": "The server is busy right now. Please try again in a moment.",
   "emailUnverified": "Verify your e-mail first.",
   "spaceCreationDisabled": "Creating new spaces is disabled on this instance.",
+  "spaceLimit": "You already own the maximum number of spaces you can create. Delete one, or ask to be invited into an existing space.",
   "invalidCredentials": "Wrong e-mail or password.",
   "lastOwner": "The only owner cannot be removed or leave the space. Make another member an owner first.",
   "mfaInvalid": "Wrong code.",
@@ -41,5 +43,9 @@
   "draftEmpty": "The draft is empty – there is nothing to activate.",
   "designBusy": "Another design change is in progress. Try again in a moment.",
   "draftChanged": "The draft changed during activation. Check it and activate again.",
-  "versionIncomplete": "The files of this version are missing from the storage – it cannot be restored."
+  "versionIncomplete": "The files of this version are missing from the storage – it cannot be restored.",
+  "emailRateLimited": "The e-mail limit (per hour or per day, for this space or for you) is used up. Try again later.",
+  "emailRateLimitedWait": "The e-mail limit (per hour or per day, for this space or for you) is used up. Try again in {wait}.",
+  "waitMinutes": "{n} min",
+  "waitHours": "{n} h"
 }

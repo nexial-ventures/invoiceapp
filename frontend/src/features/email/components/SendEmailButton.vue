@@ -19,6 +19,8 @@ const open = ref(false);
 // Unknown status (still loading, or the request failed) leaves the button usable: the dialog reports the real error.
 onMounted(() => void settings.ensureLoaded().catch(() => undefined));
 const notConfigured = computed(() => settings.settings?.configured === false);
+const disabled = computed(() => settings.settings?.disabled === true);
+const unavailable = computed(() => notConfigured.value || disabled.value);
 
 const reloadHistory = () => void run(() => history.load(props.documentId));
 
@@ -42,15 +44,15 @@ function onSent(): void {
     <button
       type="button"
       class="btn"
-      :disabled="notConfigured"
-      :aria-describedby="notConfigured ? 'email-not-configured-hint' : undefined"
+      :disabled="unavailable"
+      :aria-describedby="unavailable ? 'email-not-configured-hint' : undefined"
       data-test="send-email"
       @click="open = true"
     >
       {{ t("email.send.button") }}
     </button>
-    <span v-if="notConfigured" id="email-not-configured-hint" class="text-xs text-gray-600 dark:text-gray-400" data-test="send-email-hint">
-      {{ t("email.send.notConfiguredHint") }}
+    <span v-if="unavailable" id="email-not-configured-hint" class="text-xs text-gray-600 dark:text-gray-400" data-test="send-email-hint">
+      {{ disabled ? t("email.send.disabledHint") : t("email.send.notConfiguredHint") }}
     </span>
     <span v-if="error" role="alert" class="alert-error">{{ error }}</span>
     <SendEmailDialog v-if="open" :document-id="documentId" @close="onClose" @sent="onSent" @attempted="reloadHistory" />

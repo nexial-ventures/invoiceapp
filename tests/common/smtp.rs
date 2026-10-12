@@ -195,7 +195,8 @@ impl EmailEnv {
         }
     }
 
-    fn router_with(&self, db: sea_orm::DatabaseConnection, configured: bool) -> Router {
+    /// The state sending through the mock, for tests that change more of it.
+    pub fn state(&self, db: sea_orm::DatabaseConnection) -> invoice::app::AppState {
         let pdf = super::pdf_service(&self.pdf.url, self.pdf.storage.storage.clone());
         let mut state = super::state(
             db,
@@ -203,8 +204,14 @@ impl EmailEnv {
             invoice::cnb::DEFAULT_CNB_URL,
             pdf,
         );
-        if configured {
-            state.email = Some(invoice::email::Mailer::new(&self.config).expect("mailer"));
+        state.email = Some(invoice::email::Mailer::new(&self.config).expect("mailer"));
+        state
+    }
+
+    fn router_with(&self, db: sea_orm::DatabaseConnection, configured: bool) -> Router {
+        let mut state = self.state(db);
+        if !configured {
+            state.email = None;
         }
         super::app(state)
     }

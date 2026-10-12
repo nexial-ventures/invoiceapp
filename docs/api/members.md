@@ -115,7 +115,12 @@ expires_at; unique (space_id, email)).
 - Rate limits on invitation e-mails (so the instance SMTP is no relay): every `POST /api/invites` and `resend`
   that passes validation counts in a per-user bucket (20 / h, the caller) and a per-space bucket (50 / h), reserved
   together (a refused request counts in neither) — whether SMTP is configured or not; used up → 429
-  `rate_limited` + `Retry-After`.
+  `rate_limited` + `Retry-After`. An invitation that will be mailed (SMTP configured, e-mail not disabled) also
+  counts as one e-mail in the space's and the inviter's (in this space) **e-mail limits** (defaults 20 / h and 100 /
+  day each, kept in the database, [spaces.md](spaces.md#limits)), checked after the buckets above (a refusal there
+  gives their reservation back), before the invitation is written: 429 `rate_limited` + `Retry-After`, nothing
+  created or replaced. When the write then refuses (403 for an owner invitation an admin may not touch, 404 for an
+  unknown / expired resend, a failed write) the reservations in the buckets and the e-mail limits are given back.
 - Replacing keeps the invitation `id` and sets a new role, inviter, token, `createdAt` and `expiresAt`. `resend`
   takes an optional body `{ locale? }`, keeps the role and `createdAt`, sets a new token, `expiresAt` and the
   inviter (= who resends, named in the e-mail); an expired invitation → 404 (invite again). `DELETE` of an expired
@@ -126,7 +131,10 @@ expires_at; unique (space_id, email)).
 - `POST` / `resend` answer `{ …item, emailSent, url? }`. With SMTP: `url` is **omitted** (the link exists only in
   the e-mail), `emailSent: true` = queued in a background task, a failure is logged at `error` (`false` only when
   the stored address cannot be used as a recipient — logged; resend after fixing it). Without SMTP: `emailSent:
-  false`, nothing is attempted, `url` = `{space url}/invite?token=…`. Subject `{inviter} vás zve do {space}` / `{inviter} invites you to {space}` (inviter = the sender's
+  false`, nothing is attempted, `url` = `{space url}/invite?token=…`. With SMTP but `INVOICE__EMAIL_DISABLED=true`
+  ([email.md](email.md)) the invitation is created, the e-mail skipped and logged at `warn`, `emailSent: false` and
+  **no `url`** (the link must still only reach the invitee's mailbox), `emailDisabled: true` (the UI says sending is
+  disabled) — resend once e-mail is enabled again. `emailDisabled` is `false` otherwise. Subject `{inviter} vás zve do {space}` / `{inviter} invites you to {space}` (inviter = the sender's
   display name, space = its name; control characters → spaces), the text names the role (cs: vlastník, správce,
   člen, účetní; en: the role id) and the 7-day validity.
 - **Accept**: both routes exist only on a space host (base host → 404); a token of another space is unknown (404 /
@@ -157,12 +165,14 @@ expires_at; unique (space_id, email)).
     with a password they chose (and a later Google sign-in with that address would link to it). With SMTP the link
     goes only to the invitee's mailbox, which closes both. An instance without SMTP cannot have registration on
     (the start is refused), so only admins of existing spaces — people the operator let in — can do this.
-  - *No instance-wide e-mail limit*: the buckets above (and the per-IP / per-address ones of [auth.md](auth.md))
-    bound one inviter, one space or one client, but many accounts and spaces together can still make the instance
-    send a lot of mail. Mitigation: open registration only to vetted users at first, or keep
-    `INVOICE__REGISTRATION=false` — it disables registration **and** space creation (403
-    `space_creation_disabled`, also for invited accounts), so only people invited by an existing space's admins can
-    enter, and only into those spaces.
+  - *No instance-wide e-mail limit*: e-mail is no longer unlimited — invitations count in the per-space and
+    per-user e-mail limits (100 / day, 20 / h each, [spaces.md](spaces.md#limits)), a user owns at most
+    `INVOICE__MAX_SPACES_PER_USER` (3) spaces they created, and the operator has the kill switch
+    `INVOICE__EMAIL_DISABLED`. What remains: many registered accounts together (each bounded) can still make the
+    instance send a lot of mail; there is no global total. Mitigation: watch `email_sends`, open registration only
+    to vetted users at first, or keep `INVOICE__REGISTRATION=false` — it disables registration **and** space
+    creation (403 `space_creation_disabled`, also for invited accounts), so only people invited by an existing
+    space's admins can enter, and only into those spaces.
 - New error code: 409 `last_owner` (remove, leave). Migration `m20261017_000001_space_invites` (`space_invites`,
   FKs to `spaces` and `users` (`invited_by`) with `ON DELETE CASCADE`, unique `(space_id, email)` and
   `token_hash`).

@@ -18,6 +18,7 @@ use crate::storage::StorageConfig;
 
 pub const DEFAULT_BIND: &str = "0.0.0.0:3000";
 pub const DEFAULT_STORAGE_DIR: &str = "./data";
+pub const DEFAULT_MAX_SPACES_PER_USER: u32 = 3;
 
 /// Full server configuration (`invoice serve`).
 #[derive(Debug, Clone, Deserialize)]
@@ -33,6 +34,16 @@ pub struct Config {
     raw_registration: Option<String>,
     #[serde(skip)]
     pub registration: bool,
+    /// `INVOICE__EMAIL_DISABLED` (default `false`): refuse every outbound e-mail.
+    #[serde(default, rename = "email_disabled")]
+    raw_email_disabled: Option<String>,
+    #[serde(skip)]
+    pub email_disabled: bool,
+    /// `INVOICE__MAX_SPACES_PER_USER` (default 3): spaces a user may create and own.
+    #[serde(default, rename = "max_spaces_per_user")]
+    raw_max_spaces_per_user: Option<String>,
+    #[serde(skip)]
+    pub max_spaces_per_user: u32,
     /// `INVOICE__TRUST_FORWARDED` (default `false`).
     #[serde(default, rename = "trust_forwarded")]
     raw_trust_forwarded: Option<String>,
@@ -99,6 +110,12 @@ impl Config {
         cfg.smtp = SmtpConfig::from_config(raw)?;
         cfg.public = PublicUrl::parse(&cfg.raw_public_url)?;
         cfg.registration = flag("INVOICE__REGISTRATION", cfg.raw_registration.as_deref())?;
+        cfg.email_disabled = flag("INVOICE__EMAIL_DISABLED", cfg.raw_email_disabled.as_deref())?;
+        cfg.max_spaces_per_user = positive(
+            "INVOICE__MAX_SPACES_PER_USER",
+            cfg.raw_max_spaces_per_user.as_deref(),
+            DEFAULT_MAX_SPACES_PER_USER,
+        )?;
         cfg.trust_forwarded = flag(
             "INVOICE__TRUST_FORWARDED",
             cfg.raw_trust_forwarded.as_deref(),

@@ -4,12 +4,13 @@ use chrono::Utc;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    Set, TransactionTrait,
+    Set, Statement, TransactionTrait,
 };
 use uuid::Uuid;
 
 use super::entity::{member, space};
 use super::{Role, SpaceId, seed};
+use crate::db::advisory_xact_lock;
 use crate::error::{AppError, unique_violation};
 
 pub async fn find_by_slug(
@@ -71,15 +72,43 @@ pub async fn list_for_user(
     Ok(out)
 }
 
+/// Spaces `user` created and still owns (the space cap,
+/// `INVOICE__MAX_SPACES_PER_USER`); spaces they were invited into, even as
+/// owner, do not count.
+pub async fn count_owned(db: &impl ConnectionTrait, user: Uuid) -> Result<u64, AppError> {
+    let row = db
+        .query_one(Statement::from_sql_and_values(
+            db.get_database_backend(),
+            "SELECT count(*) AS n FROM spaces s JOIN space_members m \
+             ON m.space_id = s.id AND m.user_id = s.created_by AND m.role = 'owner' \
+             WHERE s.created_by = $1",
+            [user.into()],
+        ))
+        .await?;
+    let n = match row {
+        Some(r) => r.try_get::<i64>("", "n")?,
+        None => 0,
+    };
+    Ok(u64::try_from(n).unwrap_or(0))
+}
+
 /// Create a space owned by `owner` with every per-space seed, in one
-/// transaction. A taken slug → 422 `slug: taken`.
+/// transaction. A taken slug → 422 `slug: taken`; `owner` already owning
+/// `max_owned` spaces they created → 403 `space_limit`.
 pub async fn create(
     db: &DatabaseConnection,
     slug: String,
     name: String,
     owner: Uuid,
+    max_owned: u32,
 ) -> Result<space::Model, AppError> {
     let txn = db.begin().await?;
+    // Serializes the creations of one user, so two parallel requests cannot
+    // both pass the count.
+    advisory_xact_lock(&txn, format!("space-create:{owner}")).await?;
+    if count_owned(&txn, owner).await? >= u64::from(max_owned) {
+        return Err(AppError::SpaceLimit);
+    }
     let now = Utc::now();
     let id = Uuid::new_v4();
     let inserted = space::ActiveModel {
@@ -88,6 +117,7 @@ pub async fn create(
         name: Set(name),
         created_at: Set(now.into()),
         require_mfa: Set(false),
+        created_by: Set(Some(owner)),
     }
     .insert(&txn)
     .await;

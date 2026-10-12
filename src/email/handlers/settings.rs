@@ -11,6 +11,7 @@ use super::{mailer, reply_to, sample_contexts};
 use crate::app::AppState;
 use crate::auth::{Manage, Read, Write};
 use crate::email::input::parse_address;
+use crate::email::limits::{self, Kind};
 use crate::email::sender::Outgoing;
 use crate::email::templates::{self, Rendered, Template, TemplateInput};
 use crate::error::{AppError, ErrorBody};
@@ -22,7 +23,10 @@ use crate::space::SpaceId;
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct EmailStatus {
+    /// SMTP is configured (`INVOICE__SMTP__HOST`).
     pub configured: bool,
+    /// `INVOICE__EMAIL_DISABLED`: sending is switched off by the operator.
+    pub disabled: bool,
     /// `INVOICE__SMTP__FROM` as configured.
     pub from: Option<String>,
     /// The company e-mail (`Reply-To`).
@@ -89,6 +93,7 @@ pub async fn status(
     let company = company::get(&state.db, access.space()).await?;
     Ok(Json(EmailStatus {
         configured: state.email.is_some(),
+        disabled: state.email_disabled,
         from: state.email.as_ref().map(|m| m.from().to_string()),
         reply_to: company.email.filter(|e| !e.trim().is_empty()),
     }))
@@ -103,8 +108,9 @@ pub async fn status(
     responses(
         (status = 204, description = "Sent"),
         (status = 422, description = "`to`: `required` (no address and no company e-mail) / `invalid`", body = ErrorBody),
+        (status = 429, description = "`rate_limited` + `Retry-After`: the space's or the user's e-mails per hour / day are used up", body = ErrorBody),
         (status = 502, description = "`smtp_failed` (+ `detail`)", body = ErrorBody),
-        (status = 503, description = "`smtp_not_configured`", body = ErrorBody),
+        (status = 503, description = "`email_disabled`, `smtp_not_configured`", body = ErrorBody),
     )
 )]
 pub async fn test(
@@ -140,6 +146,8 @@ pub async fn test(
         body: text.into(),
         files: vec![],
     };
+    let s = access.scope;
+    limits::reserve(&state.db, s.space, s.user_id, Kind::Test).await?;
     mailer.send(msg, &mailer.message_id()).await?;
     Ok(StatusCode::NO_CONTENT)
 }

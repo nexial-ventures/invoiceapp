@@ -15,6 +15,7 @@ use crate::app::AppState;
 use crate::auth::mail::{self, Mail};
 use crate::auth::ratelimit::{INVITE_SPACE, INVITE_USER};
 use crate::auth::{Authed, Manage, Scope, users};
+use crate::email::limits::{self as email_limits, Kind};
 use crate::error::{AppError, ErrorBody, FieldErrors};
 use crate::extract::{ApiJson, ApiPath, optional_json};
 use crate::space::{Role, repo as space_repo};
@@ -64,8 +65,13 @@ pub struct SentInvite {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
     /// `true` = the e-mail is queued (failures are logged), no `url`;
-    /// `false` = no SMTP, the `url` is returned instead.
+    /// `false` = no SMTP, the `url` is returned instead — or e-mail is
+    /// disabled (`INVOICE__EMAIL_DISABLED`, skipped and logged, no `url`:
+    /// resend once it is enabled again).
     pub email_sent: bool,
+    /// The e-mail was skipped because sending is disabled
+    /// (`INVOICE__EMAIL_DISABLED`); resend once it is enabled again.
+    pub email_disabled: bool,
 }
 
 #[utoipa::path(
@@ -102,13 +108,36 @@ pub struct ResendInput {
     pub locale: Option<String>,
 }
 
-/// Every invitation e-mail (create, resend) counts per inviting user and
-/// per space, so the instance SMTP cannot be used as a relay.
-fn invite_limits(state: &AppState, s: Scope) -> Result<(), AppError> {
+/// Every invitation (create, resend) counts per inviting user and per
+/// space, so the instance SMTP cannot be used as a relay; one that will be
+/// mailed also counts in the space's and the user's e-mail limits
+/// (`email::limits`; `Some(row)`). A refused request counts in none of them.
+async fn invite_limits(state: &AppState, s: Scope) -> Result<Option<i64>, AppError> {
+    let (user, space) = (s.user_id.to_string(), s.space.to_string());
+    let buckets = [(INVITE_USER, user.as_str()), (INVITE_SPACE, space.as_str())];
+    state.limiter.reserve(&buckets)?;
+    if state.email.is_none() || state.email_disabled {
+        return Ok(None);
+    }
+    let counted = email_limits::reserve(&state.db, s.space, s.user_id, Kind::Invite).await;
+    if counted.is_err() {
+        state.limiter.refund(&buckets);
+    }
+    counted.map(Some)
+}
+
+/// The invitation was refused after [`invite_limits`] (forbidden, unknown,
+/// a failed write): nothing is mailed, so nothing stays counted.
+async fn give_back(state: &AppState, s: Scope, reserved: Option<i64>) {
     let (user, space) = (s.user_id.to_string(), s.space.to_string());
     state
         .limiter
-        .reserve(&[(INVITE_USER, user.as_str()), (INVITE_SPACE, space.as_str())])
+        .refund(&[(INVITE_USER, user.as_str()), (INVITE_SPACE, space.as_str())]);
+    if let Some(id) = reserved
+        && let Err(e) = email_limits::release(&state.db, id).await
+    {
+        tracing::warn!(error = %e, "invitation e-mail reservation not given back");
+    }
 }
 
 /// Nothing was written: 403 when the invitation is live (an owner
@@ -142,6 +171,7 @@ fn sent(
             invite: row.into(),
             url: Some(url),
             email_sent: false,
+            email_disabled: false,
         });
     }
     let email_sent = mail::send(
@@ -159,6 +189,7 @@ fn sent(
         invite: row.into(),
         url: None,
         email_sent,
+        email_disabled: state.email_disabled,
     })
 }
 
@@ -198,7 +229,7 @@ async fn validate(
         (status = 201, body = SentInvite),
         (status = 403, description = "`forbidden`: below admin, or replacing an owner invitation as an admin", body = ErrorBody),
         (status = 422, description = "`email: required | invalid | already_member`, `role: required | invalid | too_high`", body = ErrorBody),
-        (status = 429, description = "`rate_limited`: 20 invitation e-mails / h per user, 50 / h per space", body = ErrorBody),
+        (status = 429, description = "`rate_limited`: 20 invitations / h per user, 50 / h per space; with SMTP also the space's and the user's e-mail limits", body = ErrorBody),
     )
 )]
 pub async fn create(
@@ -209,11 +240,16 @@ pub async fn create(
 ) -> Result<(StatusCode, Json<SentInvite>), AppError> {
     let s = access.scope;
     let (email, role) = validate(&state, s, &input).await?;
-    invite_limits(&state, s)?;
+    let reserved = invite_limits(&state, s).await?;
     let owner_ok = rules::may_touch_owner_invite(s.role);
-    let (row, token) = invites::upsert(&state.db, s.space, &email, role, s.user_id, owner_ok)
-        .await?
-        .ok_or(AppError::Forbidden)?;
+    let (row, token) =
+        match invites::upsert(&state.db, s.space, &email, role, s.user_id, owner_ok).await {
+            Ok(Some(written)) => written,
+            refused => {
+                give_back(&state, s, reserved).await;
+                return Err(refused.err().unwrap_or(AppError::Forbidden));
+            }
+        };
     let body = sent(&state, &authed, row, &token, input.locale.as_deref())?;
     Ok((StatusCode::CREATED, Json(body)))
 }
@@ -230,7 +266,7 @@ pub async fn create(
         (status = 200, body = SentInvite),
         (status = 403, description = "`forbidden`: below admin, or an owner invitation as an admin", body = ErrorBody),
         (status = 404, description = "Unknown, foreign or expired", body = ErrorBody),
-        (status = 429, description = "`rate_limited`: 20 invitation e-mails / h per user, 50 / h per space", body = ErrorBody),
+        (status = 429, description = "`rate_limited`: 20 invitations / h per user, 50 / h per space; with SMTP also the space's and the user's e-mail limits", body = ErrorBody),
     )
 )]
 pub async fn resend(
@@ -242,11 +278,17 @@ pub async fn resend(
 ) -> Result<Json<SentInvite>, AppError> {
     let s = access.scope;
     let input: ResendInput = optional_json(&body)?;
-    invite_limits(&state, s)?;
+    let reserved = invite_limits(&state, s).await?;
     let owner_ok = rules::may_touch_owner_invite(s.role);
-    let Some((row, token)) = invites::renew(&state.db, s.space, id, s.user_id, owner_ok).await?
-    else {
-        return Err(refused(&state, s, id).await);
+    let (row, token) = match invites::renew(&state.db, s.space, id, s.user_id, owner_ok).await {
+        Ok(Some(written)) => written,
+        not_renewed => {
+            give_back(&state, s, reserved).await;
+            return Err(match not_renewed {
+                Err(e) => e,
+                Ok(_) => refused(&state, s, id).await,
+            });
+        }
     };
     Ok(Json(sent(
         &state,

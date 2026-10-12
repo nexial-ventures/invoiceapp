@@ -13,6 +13,8 @@ pub mod space {
         pub created_at: DateTimeWithTimeZone,
         /// Logins on this host need TOTP (`docs/api/mfa.md`).
         pub require_mfa: bool,
+        /// The creating user; the space cap counts these while they own them.
+        pub created_by: Option<Uuid>,
     }
 
     #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -51,6 +53,10 @@ pub mod limits {
         #[sea_orm(primary_key, auto_increment = false)]
         pub space_id: Uuid,
         pub storage_quota_bytes: i64,
+        pub email_space_per_hour: i32,
+        pub email_space_per_day: i32,
+        pub email_user_per_hour: i32,
+        pub email_user_per_day: i32,
         pub created_at: DateTimeWithTimeZone,
         pub updated_at: DateTimeWithTimeZone,
     }
