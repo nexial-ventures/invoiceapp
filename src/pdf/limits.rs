@@ -29,8 +29,12 @@ pub const PREVIEW_TIMEOUT: Duration = Duration::from_secs(20);
 pub enum RenderKind {
     /// Shown and thrown away: per-space limits, the short timeout.
     Preview,
-    /// Issue, archive on first download, design checks: only the global cap.
+    /// Issue, archive on first download: only the global cap.
     Archive,
+    /// Design activation / restore checks: the long timeout, but the
+    /// preview share of the slots (never the one kept for issuing); their
+    /// own `design-space` limit replaces the per-space preview limits.
+    Check,
 }
 
 #[derive(Clone)]
@@ -93,7 +97,7 @@ impl RenderLimits {
     pub async fn permit(&self, kind: RenderKind) -> Result<Permit, AppError> {
         let acquire = async {
             let preview = match kind {
-                RenderKind::Preview => {
+                RenderKind::Preview | RenderKind::Check => {
                     Some(Arc::clone(&self.preview_permits).acquire_owned().await?)
                 }
                 RenderKind::Archive => None,
@@ -115,7 +119,7 @@ impl RenderLimits {
     pub fn timeout(&self, kind: RenderKind) -> Option<Duration> {
         match kind {
             RenderKind::Preview => Some(self.preview_timeout),
-            RenderKind::Archive => None,
+            RenderKind::Archive | RenderKind::Check => None,
         }
     }
 
@@ -236,6 +240,12 @@ mod tests {
             limits.permit(RenderKind::Preview).await,
             Err(AppError::PdfBusy)
         ));
+        // A design check shares the previews' part, keeps the long timeout.
+        assert!(matches!(
+            limits.permit(RenderKind::Check).await,
+            Err(AppError::PdfBusy)
+        ));
+        assert_eq!(limits.timeout(RenderKind::Check), None);
         let issue = limits.permit(RenderKind::Archive).await.expect("reserved");
         drop((preview, issue));
     }

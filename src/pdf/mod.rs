@@ -137,6 +137,14 @@ impl PdfService {
         }
     }
 
+    /// The same service rendering design checks ([`limits::RenderKind::Check`]).
+    pub fn check(&self) -> Self {
+        Self {
+            kind: RenderKind::Check,
+            ..self.clone()
+        }
+    }
+
     /// Archives, originals and the design overrides.
     pub fn storage(&self) -> &Storage {
         &self.storage
@@ -163,7 +171,7 @@ impl PdfService {
     ) -> Result<Vec<u8>, AppError> {
         let slot = match self.kind {
             RenderKind::Preview => Some(self.limits.admit_preview(self.space)?),
-            RenderKind::Archive => None,
+            RenderKind::Archive | RenderKind::Check => None,
         };
         let design = design::load_layers(
             &self.storage,

@@ -76,12 +76,14 @@ async fn validate(
     locale: Locale,
     t: &Template,
 ) -> Result<Rendered, AppError> {
-    state
-        .limiter
-        .reserve(&[(TEMPLATE_SPACE, &space.to_string())])?;
+    let key = space.to_string();
+    let bucket = [(TEMPLATE_SPACE, key.as_str())];
+    state.limiter.reserve(&bucket)?;
     let company = company::get(&state.db, space).await?;
     let samples = sample_contexts(&state.db, &company, locale).await?;
-    state.templates.validate(t, &samples).await
+    // No renderer free: the check never ran, so it does not count.
+    let result = state.templates.validate(t, &samples).await;
+    state.limiter.refund_if_busy(&bucket, result)
 }
 
 #[utoipa::path(

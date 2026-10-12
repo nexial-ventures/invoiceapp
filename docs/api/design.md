@@ -137,8 +137,8 @@ are never re-rendered (1d). All routes are on a space host, **admin+** (Settings
   Only a template failure (mdcast `render_failed`, a design file over 10 MB, a non-UTF-8 template) becomes
   `design_invalid` (cs is checked first, so its error wins); mdcast unreachable stays 503 `pdf_unavailable`, other
   upstream errors 502 `pdf_render_failed` — nothing changes in either case.
-- **Render limits**: the activation / restore checks are not previews — they pass only the instance-wide render
-  slots (503 `pdf_unavailable` `busy`, which gives the `design-space` attempt back) and keep the 60 s timeout
+- **Render limits**: the activation / restore checks are not previews (no per-space preview limits) — they take
+  the preview share of the instance-wide render slots, never the one kept for issuing (503 `pdf_unavailable` `busy`, which gives the `design-space` attempt back) and keep the 60 s timeout
   ([pdf.md](pdf.md#render-limits)).
 - **Rate limit**: bucket `design-space` (10 / hour per space, in memory per instance) shared by activate and
   restore; reserved after the `draft_empty` / 404 / `version_incomplete` checks and before the renders, never

@@ -122,10 +122,14 @@ PDFs need an mdcast (`INVOICE__MDCAST_URL`, `INVOICE__MDCAST_TOKEN`).
   `RLIMIT_DATA` 256 MiB and `RLIMIT_CPU` 5 s on **Linux** (other platforms: only the 5 s wall-clock kill), at most 2
   at once. The container needs nothing extra (no seccomp / capability changes).
 - **Orphan sweep:** `serve` deletes document objects no row references (left by a crash between the object write and
-  its commit) once a day, the first time a day after the start, only when older than 1 hour and only for spaces
+  its commit) once a day, the first time 1 hour after the start, only when older than 1 hour and only for spaces
   that exist. It deletes nothing (logs an error) when no row references any object or the orphans exceed
   max(100, 10 %) — check the database, then run `invoice storage sweep --force`. `--dry-run` lists them (needs
   `INVOICE__DATABASE_URL` and the storage settings).
+- **Restoring an older database snapshot** while the storage keeps newer objects: the newer archives and originals
+  look like orphans to the sweep. Stop the server (or restore within its first hour and fix the storage before the
+  sweep runs), restore, then check `invoice storage sweep --dry-run`; below the guard's threshold the sweep **would
+  delete** them, so copy them aside or restore the storage to the same point first.
 - **Sign in with Google** (optional): the only redirect URI to register is
   `{INVOICE__PUBLIC_URL}/api/auth/google/callback`.
 - **PgBouncer:** in transaction mode set `INVOICE__DB_PGBOUNCER=true` (otherwise every connection fails with

@@ -38,8 +38,9 @@ pub struct VersionResponse {
 /// once); a template failure is `design_invalid` with the locale in front.
 async fn validate(state: &AppState, pdf: &PdfService, layers: Layers<'_>) -> Result<(), AppError> {
     let source = SampleSource::load(state, pdf.space_id()).await?;
+    let checking = pdf.check();
     for locale in [Locale::Cs, Locale::En] {
-        match source.render(pdf, locale, layers).await {
+        match source.render(&checking, locale, layers).await {
             Ok(_) => {}
             Err(AppError::PdfRenderFailed(m)) => {
                 return Err(AppError::DesignInvalid(format!("{}: {m}", locale.as_str())));

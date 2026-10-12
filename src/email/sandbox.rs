@@ -3,8 +3,9 @@
 //! renders one itself: it runs its own binary as `invoice render-template`
 //! (hidden), sends the job as JSON on stdin and reads the result from
 //! stdout. The child runs with `RLIMIT_DATA` [`MEMORY_LIMIT`] and
-//! `RLIMIT_CPU` [`CPU_LIMIT_SECS`] (Linux; elsewhere only the wall clock
-//! applies), an empty environment, and is killed after [`TIMEOUT`]. A child
+//! `RLIMIT_CPU` [`CPU_LIMIT_SECS`] and no core dumps (Linux; elsewhere only
+//! the wall clock applies), an empty environment, and is killed after
+//! [`TIMEOUT`]; at most [`MAX_STDOUT`] of its output is read. A child
 //! that dies or is killed is 422 `template_invalid` for the part it was on;
 //! at most [`CONCURRENCY`] run at once (a wait over [`QUEUE_WAIT`] → 503
 //! `busy`).
@@ -18,7 +19,7 @@ use std::time::Duration;
 use anyhow::Context as _;
 use minijinja::Value;
 use serde::{Deserialize, Serialize};
-use tokio::io::{AsyncBufReadExt as _, AsyncWriteExt as _, BufReader};
+use tokio::io::{AsyncBufReadExt as _, AsyncReadExt as _, AsyncWriteExt as _, BufReader};
 use tokio::sync::Semaphore;
 
 use super::template_render;
@@ -36,6 +37,9 @@ pub const TIMEOUT: Duration = Duration::from_secs(5);
 /// Children running at once (instance-wide).
 pub const CONCURRENCY: usize = 2;
 pub const QUEUE_WAIT: Duration = Duration::from_secs(2);
+/// The child's stdout read at most (progress lines + one rendering of at
+/// most 2 × 1 MiB, JSON-escaped).
+pub const MAX_STDOUT: u64 = 16 * 1024 * 1024;
 
 /// What the server sends the child.
 #[derive(Serialize, Deserialize)]
@@ -74,8 +78,12 @@ impl TemplateSandbox {
         }
     }
 
-    /// The running binary.
+    /// The running binary: on Linux `/proc/self/exe`, which still opens
+    /// the running image after the file was replaced by an upgrade.
     pub fn current() -> anyhow::Result<Self> {
+        if cfg!(target_os = "linux") {
+            return Ok(Self::new("/proc/self/exe"));
+        }
         Ok(Self::new(
             std::env::current_exe().context("locate the invoice binary")?,
         ))
@@ -129,15 +137,31 @@ impl TemplateSandbox {
         // Where the child was when it stopped: (prefix, field).
         let mut at = (String::new(), "subject");
         let mut last = String::new();
+        let mut overflow = false;
         let talk = async {
             stdin.write_all(input).await?;
             drop(stdin);
-            let mut lines = BufReader::new(stdout).lines();
-            while let Some(line) = lines.next_line().await? {
-                match line.strip_prefix(PROGRESS).and_then(|l| l.split_once('\t')) {
-                    Some((prefix, field)) => at = (prefix.to_string(), part(field)),
-                    None => last = line,
+            let mut lines = BufReader::new(stdout.take(MAX_STDOUT)).lines();
+            loop {
+                match lines.next_line().await {
+                    Ok(Some(line)) => {
+                        match line.strip_prefix(PROGRESS).and_then(|l| l.split_once('\t')) {
+                            Some((prefix, field)) => at = (prefix.to_string(), part(field)),
+                            None => last = line,
+                        }
+                    }
+                    Ok(None) => break,
+                    // Cut inside a UTF-8 sequence by the limit.
+                    Err(_) => {
+                        overflow = true;
+                        break;
+                    }
                 }
+            }
+            if overflow || lines.into_inner().into_inner().limit() == 0 {
+                overflow = true;
+                // It may be blocked writing the rest.
+                let _ = child.start_kill();
             }
             child.wait().await
         };
@@ -157,11 +181,17 @@ impl TemplateSandbox {
                 )));
             }
         };
+        if overflow {
+            return Err(killed("too much output".into()));
+        }
         if !status.success() {
             tracing::warn!(%status, "e-mail template renderer died");
             return Err(killed("the template needs too much memory or time".into()));
         }
-        match serde_json::from_str(&last).context("read the template renderer's answer")? {
+        let Ok(outcome) = serde_json::from_str(&last) else {
+            return Err(killed("too much output".into()));
+        };
+        match outcome {
             Outcome::Rendered(r) => Ok(r),
             Outcome::Invalid { field, detail } => Err(AppError::TemplateInvalid {
                 field: part(&field),
@@ -188,14 +218,16 @@ fn limit(cmd: &mut tokio::process::Command) {
         rlim_cur: value,
         rlim_max: value,
     };
-    let (data, cpu) = (rlimit(MEMORY_LIMIT), rlimit(CPU_LIMIT_SECS));
+    let (data, cpu, core) = (rlimit(MEMORY_LIMIT), rlimit(CPU_LIMIT_SECS), rlimit(0));
     // SAFETY: the closure runs between fork and exec and only calls
     // setrlimit (async-signal-safe, no allocation), which only reads the
     // limits it is given.
     unsafe {
         cmd.pre_exec(move || {
+            // No core dump of a killed bomb.
             if libc::setrlimit(libc::RLIMIT_DATA, &data) != 0
                 || libc::setrlimit(libc::RLIMIT_CPU, &cpu) != 0
+                || libc::setrlimit(libc::RLIMIT_CORE, &core) != 0
             {
                 return Err(std::io::Error::last_os_error());
             }

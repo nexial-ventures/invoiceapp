@@ -43,7 +43,8 @@ MiniJinja plain-text templates (one set for all document types, per locale), edi
   `rendering took longer than 5 s` (killed).
 - At most 2 children run at once per instance; a render that waits over 2 s for one → 503 `{"code":"busy"}`.
   Template save + preview share a per-space budget of 60 / hour (bucket `template-space`, in memory) → 429
-  `rate_limited` + `Retry-After`; the send prefill only takes a child.
+  `rate_limited` + `Retry-After`; the send prefill has its own 120 / hour per space (bucket `prefill-space`) → 429
+  `rate_limited` + `Retry-After`. A `busy` refusal gives the attempt back in both.
 - Context (all display values are pre-formatted strings in the template's locale, same formatting as the PDF payload;
   missing values are `none`):
 
@@ -102,6 +103,7 @@ contact: { name, email } | none   // none for a contactless simplified document
   e-mail when set; `pdf.available` false only for an imported document without an original. Only for an issued
   (non-draft, cancelled included) document of direction `issued`; a draft → 409 `invalid_state`, a received
   document → 404. Template error on real data (cannot normally happen after validation) → 422 `template_invalid`.
+  120 prefills / hour per space → 429 `rate_limited` + `Retry-After`; no free renderer → 503 `busy` (not counted).
 - `POST /api/documents/{id}/email` `{ to: [string], cc: [string], bcc: [string], subject, body, attachPdf: bool,
   attachIsdoc: bool }`:
   - 422: `to` empty → `to: required`; an unparsable address → `to.0: invalid` (same for cc/bcc); more than **10**

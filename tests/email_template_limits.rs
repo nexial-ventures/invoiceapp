@@ -20,7 +20,6 @@ use serde_json::json;
 const SAVE: &str = "/api/settings/email/templates/cs";
 const PREVIEW: &str = "/api/settings/email/templates/cs/preview";
 const KILLED: &str = "the template needs too much memory or time";
-const TIMED_OUT: &str = "rendering took longer than 5 s";
 
 #[tokio::test]
 async fn runaway_templates_are_refused() {
@@ -57,11 +56,7 @@ async fn runaway_templates_are_refused() {
                     &json!({ "body": "template_invalid" })
                 )
             );
-            // A memory bomb dies at the memory limit, or — on a loaded
-            // machine — is killed by the wall clock first; either way killed.
-            let got = e["detail"].as_str().expect("detail");
-            let killed = detail == KILLED && got == TIMED_OUT;
-            assert!(got == detail || killed, "{e}");
+            assert_eq!(e["detail"], detail);
         }
     }
     // Still serving, nothing stored.
@@ -133,4 +128,25 @@ async fn a_slow_child_is_killed() {
     let sandbox = TemplateSandbox::new(env!("CARGO_BIN_EXE_invoice"));
     let r = sandbox.render(&t, &ctx).await.expect("renders");
     assert_eq!((r.subject.as_str(), r.body.as_str()), ("ok", "x"));
+}
+
+/// A child that floods its stdout is cut at 16 MiB and killed; one that
+/// answers garbage is refused the same way (stand-ins for the binary).
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn unreadable_output_is_too_much_output() {
+    let t = Template {
+        subject: "ok".into(),
+        body: "x".into(),
+    };
+    let ctx = minijinja::Value::from_serialize(json!({}));
+    // `yes render-template` prints that line forever; `echo` prints it once.
+    for exe in ["/usr/bin/yes", "/bin/echo"] {
+        match TemplateSandbox::new(exe).render(&t, &ctx).await {
+            Err(AppError::TemplateInvalid { detail, .. }) => {
+                assert_eq!(detail, "too much output", "{exe}")
+            }
+            other => panic!("{exe}: {other:?}"),
+        }
+    }
 }

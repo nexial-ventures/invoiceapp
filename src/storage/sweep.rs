@@ -4,7 +4,8 @@
 //! them, so a crash or a lost connection in between leaves one behind
 //! (`docs/api/pdf.md`, Storage). Only objects older than [`MIN_AGE`] go: a
 //! younger one may belong to an issue or upload still on its way to the
-//! commit. Runs daily in `serve` (first after one interval) and on demand as
+//! commit. Runs daily in `serve` (first [`FIRST_DELAY`] after the start) and
+//! on demand as
 //! `invoice storage sweep [--dry-run] [--force]`.
 //!
 //! Guard: a sweep that would delete with an empty reference set (a wrong
@@ -22,6 +23,10 @@ use uuid::Uuid;
 use super::Storage;
 
 pub const INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
+/// The first sweep after the start: not at once (a crash loop or a just
+/// restored database gets an hour to be noticed), not a whole day (a
+/// deployment restarted daily would never sweep).
+pub const FIRST_DELAY: Duration = Duration::from_secs(60 * 60);
 pub const MIN_AGE: Duration = Duration::from_secs(60 * 60);
 /// Orphans one sweep may delete without `--force`: this many, or 10 % of
 /// the examined objects when that is more.
@@ -161,11 +166,11 @@ pub fn cutoff_now() -> anyhow::Result<DateTime<Utc>> {
     Ok(Utc::now() - chrono::Duration::from_std(MIN_AGE).context("sweep cutoff")?)
 }
 
-/// Sweep every [`INTERVAL`], the first time one interval after the start
-/// (a restart loop never sweeps); a failed round is logged and retried at
+/// Sweep every [`INTERVAL`], the first time [`FIRST_DELAY`] after the start
+/// (a crash loop does not sweep); a failed round is logged and retried at
 /// the next tick.
 pub async fn run(db: DatabaseConnection, storage: Storage) {
-    let start = tokio::time::Instant::now() + INTERVAL;
+    let start = tokio::time::Instant::now() + FIRST_DELAY;
     let mut tick = tokio::time::interval_at(start, INTERVAL);
     tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     loop {

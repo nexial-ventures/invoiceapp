@@ -154,8 +154,10 @@ Fetch the PDF with the Bearer header (blob → object URL); a plain link cannot 
   **20 s** (→ 503 `pdf_unavailable`); issue, archive-on-download and the design activation / restore checks keep
   the 60 s client timeout. A timed-out preview only stops waiting: mdcast may still finish the render (its own
   limits bound it).
-- **A slot for issuing**: previews may hold at most `INVOICE__MDCAST_CONCURRENCY − 1` slots (at least one), so one
-  is always left for issue / archive renders when the concurrency is 2 or more (with 1 they share it).
+- **A slot for issuing**: previews and the design activation / restore checks together hold at most
+  `INVOICE__MDCAST_CONCURRENCY − 1` slots (at least one), so one is always left for issue / archive renders when the
+  concurrency is 2 or more (with 1 they share it). The checks keep the 60 s timeout and are not under the per-space
+  preview limits (they have `design-space`).
 - **Issuing is never refused by the preview limits** (only the instance-wide slots apply), nor is an archive render
   on first download, an e-mail attachment or an ISDOC export (they serve the archive). The activation / restore
   checks have their own `design-space` limit ([design.md](design.md)).
@@ -205,8 +207,8 @@ contain empty, `.` or `..` segments: `documents/{year}/{id}-{sha8}-{nonce}.pdf` 
   the cleanup never removes an object another attempt (a double-clicked issue, an identical upload) just wrote.
 - **Crash orphans**: objects are written before the transaction that references them, so a crash (or a lost
   connection) between the put and the commit leaves an unreferenced object behind (harmless, never served). The
-  **orphan sweep** (`src/storage/sweep.rs`) runs in `serve` daily — the first time one day after the start, so a
-  restart loop never sweeps — and on demand as `invoice storage sweep [--dry-run] [--force]` (needs the database).
+  **orphan sweep** (`src/storage/sweep.rs`) runs in `serve` daily — the first time 1 hour after the start (a crash
+  loop does not sweep; a deployment restarted daily still does) — and on demand as `invoice storage sweep [--dry-run] [--force]` (needs the database).
   It lists `spaces/*/documents/`, keeps only the objects of spaces that exist in `spaces` (another prefix is never
   touched), then reads every `documents.pdf_path` / `original_path`; an unreferenced object whose modification time
   is more than **1 hour** old is an orphan (younger ones may belong to an issue or upload still before its commit).
