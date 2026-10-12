@@ -20,7 +20,7 @@ use crate::app::AppState;
 use crate::auth::handlers::ClientIp;
 use crate::auth::handlers::login::{may_sign_in, with_cookies};
 use crate::auth::host::HostCtx;
-use crate::auth::ratelimit::{LOGIN_EMAIL, LOGIN_IP};
+use crate::auth::ratelimit::{LOGIN_IP, MFA_EMAIL};
 use crate::auth::{session, users};
 use crate::error::{AppError, ErrorBody};
 use crate::extract::ApiJson;
@@ -85,7 +85,7 @@ pub async fn login_mfa(
                     Some(u) if invite.is_none() && may_sign_in(txn, &u, space).await? => u,
                     _ => return Err(AppError::InvalidCredentials),
                 };
-                let buckets = [(LOGIN_EMAIL, user.email.as_str()), (LOGIN_IP, ip.as_str())];
+                let buckets = [(MFA_EMAIL, user.email.as_str()), (LOGIN_IP, ip.as_str())];
                 let ok = match (invite, space) {
                     (Some(hash), Some(sp)) => {
                         // A savepoint: a wrong code rolls the used-up

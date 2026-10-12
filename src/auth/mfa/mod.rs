@@ -3,7 +3,7 @@
 //! `totp` (RFC 6238 + base32, pure), `seal` (AES-256-GCM secrets and the
 //! recovery-code HMAC under `INVOICE__SECRET_KEY`), `repo` (TOTP columns of
 //! `users`, `recovery_codes`, `mfa_logins`), `verify` (code checks in the
-//! login buckets, the step-up rule), `handlers` (`/api/account/mfa*`),
+//! code bucket, the step-up rule), `handlers` (`/api/account/mfa*`),
 //! `login` (`POST /api/auth/login/mfa`, the `invoice_mfa` cookie).
 
 pub mod handlers;

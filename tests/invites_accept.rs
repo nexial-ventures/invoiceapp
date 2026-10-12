@@ -119,7 +119,7 @@ async fn wrong_passwords_count_in_the_login_bucket() {
     user(&db.conn, "jan@example.com").await;
     let token = invited(&app, "jan@example.com", "member").await;
     let wrong = json!({ "token": token, "password": "not the password" });
-    for _ in 0..5 {
+    for _ in 0..3 {
         assert_eq!(
             accept(&app, TEST_HOST, wrong.clone()).await.0,
             StatusCode::UNAUTHORIZED

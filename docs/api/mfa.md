@@ -34,7 +34,9 @@ a TOTP code is accepted (login, step-up). Regenerating replaces all.
   when a space requires MFA**: the user's sessions on those spaces' hosts are deleted and their tokens in those
   spaces stop working at once (401) — the UI lists `requiredBy` before confirming.
 - `POST /api/account/mfa/recovery-codes { password, code }` → `{ recoveryCodes }`.
-- Failed passwords and codes count in the user's login bucket (5 / 15 min → 429), [auth.md](auth.md).
+- Failed passwords count in the user's login buckets (progressive delay per client after 3 failures, per-e-mail
+  ceiling; → 429), failed
+  codes in the user's **code bucket** (5 / 15 min, hard → 429), [auth.md](auth.md).
 
 ## Login
 - `POST /api/auth/login { email, password }`:
@@ -45,7 +47,7 @@ a TOTP code is accepted (login, step-up). Regenerating replaces all.
     No session yet.
 - `POST /api/auth/login/mfa { code }` (`code` = TOTP or a recovery code) → 204 + session cookie, pending cookie
   cleared. No / expired pending → 401 `invalid_credentials`. Wrong code → 401 `{"code":"mfa_invalid"}`; failures
-  count in the login bucket per e-mail and IP; the pending login dies after 5 failures.
+  count in the code bucket per e-mail and the login bucket per IP; the pending login dies after 5 failures.
 - The `me` response gains `user.mfaEnabled`.
 
 ## Space policy
@@ -71,7 +73,7 @@ For a user with TOTP these also require `code` (TOTP or recovery) next to the pa
 `POST /api/account/password` (`currentPassword` + `code`), `DELETE /api/space` (`slug`, `password`, `code`),
 `POST /api/invites/accept` (existing account), `POST /api/account/mfa/disable`, `/recovery-codes`.
 `POST /api/tokens` takes `code` too (no password) for a user with TOTP. Missing → 422 `code: required`, wrong → 422
-`code: invalid` (login bucket). Users without TOTP: unchanged.
+`code: invalid` (code bucket). Users without TOTP: unchanged.
 
 ## UI
 - Login: after the password, a code step ("Kód z aplikace" + "Použít záchranný kód"); `mfa_required` → message
@@ -101,7 +103,7 @@ For a user with TOTP these also require `code` (TOTP or recovery) next to the pa
   HMAC — "keyed by the secret key" in that sense. The sealed value is `nonce (12) ‖ ciphertext ‖ tag` (bytea) with
   the **user id as associated data** (a sealed secret copied to another user does not decrypt). A secret that does
   not decrypt (key changed, damaged row) is logged at `error` per attempt and a TOTP code is answered as **wrong
-  without a reservation in the login bucket** (no 500, no lockout); recovery codes need no decryption and keep
+  without a reservation in the code bucket** (no 500, no lockout); recovery codes need no decryption and keep
   working **as long as the key is the same**. **Contract correction:** the recovery-code HMAC is keyed by
   `INVOICE__SECRET_KEY` too, so *changing* the key also invalidates every recovery code — the Config note "users
   recover with a recovery code" does not hold for a changed key; such users need TOTP cleared in the database
@@ -132,8 +134,8 @@ For a user with TOTP these also require `code` (TOTP or recovery) next to the pa
   `requireMfa`, `disable`, `recovery-codes`): the other checks first (field validation, password); `code: required`
   is reported together with them; the code is checked — and spent — **only when nothing else failed**, wrong →
   `code: invalid`. A wrong password with any code → only `password` / `currentPassword: invalid`. **A `code` sent by
-  a user without TOTP is ignored everywhere** (no 422). Code failures count in the user's login bucket (e-mail,
-  5 / 15 min); the invite accept and the login code step also in the IP bucket (20 / 15 min).
+  a user without TOTP is ignored everywhere** (no 422). Code failures count in the user's code bucket (e-mail,
+  5 / 15 min, hard); the invite accept and the login code step also in the login IP bucket (20 / 15 min).
 - **No code is spent by a failing request.** Invite accept and the login code step verify (and spend) the code
   **inside the operation's transaction, after its own checks**: accept = space lock → consume the invitation →
   inviter re-check (`may_grant`) → code → user / membership / session; a wrong code rolls everything back (the
@@ -150,21 +152,21 @@ For a user with TOTP these also require `code` (TOTP or recovery) next to the pa
   (the 5th failure deletes the row; later requests → 401 `invalid_credentials`; 8 parallel wrong codes → exactly
   5 × `mfa_invalid` + 3 × `invalid_credentials`) or deletes the row and creates the session with the user agent of
   the first step (single use: a parallel request with another code → 401 `invalid_credentials`, its code unspent).
-  Wrong codes also count in the login buckets (429 when used up). The response sets the session cookie and a
+  Wrong codes also count in the code and IP buckets (429 when used up). The response sets the session cookie and a
   `Set-Cookie` clearing `invoice_mfa` (`Max-Age=0`). A pending cookie of another host → 401 `invalid_credentials`.
 - **Space policy**: `PUT /api/space` takes `{ name?, requireMfa?, code? }` (all optional; an empty body → 200
   unchanged). `requireMfa` present (on **or off**): effective role below owner → 403 `forbidden`, a token → 403
   `forbidden` (session only) — both before any validation; the owner without TOTP → 422 `requireMfa:
   mfa_not_enabled` (reported with `name` errors); with TOTP a step-up `code` is required (`code: required |
-  invalid`, login bucket). Changing only `name` is unchanged (admin+, token or session, no code). `requireMfa` is
+  invalid`, code bucket). Changing only `name` is unchanged (admin+, token or session, no code). `requireMfa` is
   part of every `SpaceInfo` (also `GET /api/spaces` and `POST /api/spaces`).
 - **Where the policy is checked**: login, invitation accept and **`POST /api/tokens`** (minting a credential counts
   as a new login: a caller without TOTP in a space with the policy → 403 `mfa_required`, checked first, also from
   an existing session or token). Existing sessions and tokens are never re-checked per request.
 - **Invitations** (`POST /api/invites/accept`, space with the policy): rate limit → token → existing account:
   password (401 `invalid_credentials`) → no TOTP: a sent `code` is ignored, 403 `mfa_required` (invitation kept) →
-  TOTP: missing `code` → 422 `code: required`, then the transaction above (wrong → 422 `code: invalid`, login
-  buckets e-mail + IP). New account: `displayName` / `password` validation (422) → the user is created **verified**
+  TOTP: missing `code` → 422 `code: required`, then the transaction above (wrong → 422 `code: invalid`, code
+  bucket + login IP bucket). New account: `displayName` / `password` validation (422) → the user is created **verified**
   with that name and password in its own transaction (no membership, no session, invitation kept) → 403
   `{"code":"mfa_required","detail":"account_created"}`; an address registered meanwhile → 409 `email_taken`. Without
   the policy an existing account with TOTP still needs the `code` (step-up). `GET /api/invites/accept` returns

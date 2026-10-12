@@ -18,7 +18,9 @@ use crate::auth::handlers::ClientIp;
 use crate::auth::handlers::login::with_cookie;
 use crate::auth::host::{ContextSpace, HostCtx};
 use crate::auth::mfa::verify::Verifier;
-use crate::auth::ratelimit::{INVITE_IP, LOGIN_EMAIL, LOGIN_IP};
+use crate::auth::ratelimit::{
+    INVITE_IP, LOGIN_EMAIL, LOGIN_EMAIL_ALL, LOGIN_IP, MFA_EMAIL, login_key,
+};
 use crate::auth::session::Method;
 use crate::auth::{crypto, mfa, session, users};
 use crate::error::{AppError, ErrorBody, FieldErrors};
@@ -112,7 +114,12 @@ async fn sign_in(
     let Some(hash) = user.password_hash.clone() else {
         return Err(AppError::field("password", "not_set"));
     };
-    let buckets = [(LOGIN_EMAIL, user.email.as_str()), (LOGIN_IP, ip)];
+    let client = login_key(&user.email, ip);
+    let buckets = [
+        (LOGIN_EMAIL, client.as_str()),
+        (LOGIN_EMAIL_ALL, user.email.as_str()),
+        (LOGIN_IP, ip),
+    ];
     state.limiter.reserve(&buckets)?;
     let verified = crypto::verify_password(password, Some(hash)).await;
     let ok = state.limiter.refund_if_busy(&buckets, verified)?;
@@ -235,7 +242,7 @@ pub async fn accept(
             Box::pin(async move {
                 let joined = match who {
                     Who::Existing { id, email, code } => {
-                        let buckets = [(LOGIN_EMAIL, email.as_str()), (LOGIN_IP, ip.as_str())];
+                        let buckets = [(MFA_EMAIL, email.as_str()), (LOGIN_IP, ip.as_str())];
                         let code = code.as_deref().map(|code| Code {
                             verifier: &v,
                             code,

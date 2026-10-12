@@ -11,7 +11,7 @@ use super::entity::space;
 use super::limits::{self, StorageInfo};
 use super::{Role, repo, slug};
 use crate::app::AppState;
-use crate::auth::handlers::check_password;
+use crate::auth::handlers::{ClientIp, check_password};
 use crate::auth::{Authed, Manage, Own, Read, mfa};
 use crate::error::{AppError, ErrorBody, FieldErrors};
 use crate::extract::ApiJson;
@@ -167,7 +167,7 @@ pub struct UpdateInput {
         (status = 200, body = SpaceInfo),
         (status = 403, description = "`forbidden` below admin, or `requireMfa` sent by a non-owner or with a token", body = ErrorBody),
         (status = 422, description = "`name: required | too_long`, `requireMfa: mfa_not_enabled`, `code: required | invalid`", body = ErrorBody),
-        (status = 429, description = "`rate_limited` (login bucket, code checks)", body = ErrorBody),
+        (status = 429, description = "`rate_limited` (login / code bucket)", body = ErrorBody),
     )
 )]
 pub async fn update(
@@ -219,13 +219,14 @@ pub struct DeleteInput {
         (status = 204, description = "The space, all its data and files are deleted"),
         (status = 403, description = "`forbidden`: not the owner, or a token", body = ErrorBody),
         (status = 422, description = "`slug: mismatch`, `password: invalid | not_set`, `code: required | invalid` (users with TOTP)", body = ErrorBody),
-        (status = 429, description = "`rate_limited` (login bucket)", body = ErrorBody),
+        (status = 429, description = "`rate_limited` (login / code bucket)", body = ErrorBody),
     )
 )]
 pub async fn delete(
     State(state): State<AppState>,
     access: Own,
     authed: Authed,
+    ClientIp(ip): ClientIp,
     ApiJson(input): ApiJson<DeleteInput>,
 ) -> Result<StatusCode, AppError> {
     authed.require_session()?;
@@ -234,7 +235,7 @@ pub async fn delete(
     if input.slug.trim() != space.slug {
         e.add("slug", "mismatch");
     }
-    if let Err(reason) = check_password(&state, &authed.user, input.password).await? {
+    if let Err(reason) = check_password(&state, &authed.user, &ip, input.password).await? {
         e.add("password", reason);
     }
     let code = input.code.as_deref();

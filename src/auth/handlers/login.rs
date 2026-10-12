@@ -15,7 +15,7 @@ use crate::auth::ctx::Authed;
 use crate::auth::entity::user;
 use crate::auth::host::HostCtx;
 use crate::auth::mfa::repo::Pending;
-use crate::auth::ratelimit::{LOGIN_EMAIL, LOGIN_IP};
+use crate::auth::ratelimit::{LOGIN_EMAIL, LOGIN_EMAIL_ALL, LOGIN_IP, login_key};
 use crate::auth::session::Method;
 use crate::auth::{crypto, mfa, session, users};
 use crate::error::{AppError, ErrorBody};
@@ -92,7 +92,12 @@ pub async fn login(
     let email = users::normalize_email(&input.email);
     // Reserved before the slow part, so a parallel burst cannot pass the
     // limit; only failures keep their reservation.
-    let buckets = [(LOGIN_EMAIL, email.as_str()), (LOGIN_IP, ip.as_str())];
+    let client = login_key(&email, &ip);
+    let buckets = [
+        (LOGIN_EMAIL, client.as_str()),
+        (LOGIN_EMAIL_ALL, email.as_str()),
+        (LOGIN_IP, ip.as_str()),
+    ];
     state.limiter.reserve(&buckets)?;
     let user = if email.is_empty() {
         None

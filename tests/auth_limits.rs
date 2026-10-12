@@ -33,7 +33,8 @@ async fn a_parallel_login_burst_cannot_pass_the_limit() {
         .iter()
         .filter(|s| **s == StatusCode::TOO_MANY_REQUESTS)
         .count();
-    assert_eq!((failed, limited), (5, 7), "{statuses:?}");
+    // Three free failures; the fourth would have to wait 1 s after the third.
+    assert_eq!((failed, limited), (3, 9), "{statuses:?}");
 }
 
 #[tokio::test]
@@ -56,7 +57,7 @@ async fn own_password_checks_are_limited() {
         .expect("login");
     let change =
         json!({ "currentPassword": "wrong password!", "newPassword": "a brand new password" });
-    for _ in 0..3 {
+    for _ in 0..2 {
         let (s, _) = on(
             &app,
             Method::POST,
@@ -69,7 +70,7 @@ async fn own_password_checks_are_limited() {
         assert_eq!(s, StatusCode::UNPROCESSABLE_ENTITY);
     }
     let del = json!({ "slug": "acme", "password": "wrong password!" });
-    for _ in 0..2 {
+    {
         let (s, _) = on(
             &app,
             Method::DELETE,
@@ -81,7 +82,7 @@ async fn own_password_checks_are_limited() {
         .await;
         assert_eq!(s, StatusCode::UNPROCESSABLE_ENTITY);
     }
-    // Five failures in the user's bucket (shared with login): now 429.
+    // Three failures in the user's bucket (shared with login): now the delay runs.
     let (s, j) = on(
         &app,
         Method::DELETE,
@@ -110,7 +111,7 @@ async fn own_password_checks_are_limited() {
     assert_eq!(s, StatusCode::TOO_MANY_REQUESTS);
     let err = login(&app, TEST_HOST, OWNER_EMAIL, OWNER_PASSWORD)
         .await
-        .expect_err("the login bucket is used up too");
+        .expect_err("the login bucket is in its delay too");
     assert_eq!(err.0, StatusCode::TOO_MANY_REQUESTS);
 }
 

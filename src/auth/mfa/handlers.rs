@@ -13,7 +13,7 @@ use super::{seal, totp, verify};
 use crate::app::AppState;
 use crate::auth::crypto;
 use crate::auth::ctx::Authed;
-use crate::auth::handlers::check_password;
+use crate::auth::handlers::{ClientIp, check_password};
 use crate::error::{AppError, ErrorBody, FieldErrors};
 use crate::extract::ApiJson;
 use crate::secret::SecretKey;
@@ -81,6 +81,7 @@ pub struct Setup {
 pub async fn setup(
     State(state): State<AppState>,
     authed: Authed,
+    ClientIp(ip): ClientIp,
     ApiJson(input): ApiJson<SetupInput>,
 ) -> Result<Json<Setup>, AppError> {
     authed.require_session()?;
@@ -89,7 +90,7 @@ pub async fn setup(
     if authed.mfa_enabled {
         return Err(AppError::MfaEnabled);
     }
-    if let Err(reason) = check_password(&state, user, input.password).await? {
+    if let Err(reason) = check_password(&state, user, &ip, input.password).await? {
         return Err(AppError::field("password", reason));
     }
     let secret = crypto::random_bytes::<{ totp::SECRET_LEN }>()?;
@@ -138,7 +139,7 @@ fn fresh_codes(key: &SecretKey) -> Result<(Vec<String>, Vec<String>), AppError> 
         (status = 403, description = "`forbidden` with a token, `email_unverified`", body = ErrorBody),
         (status = 409, description = "`mfa_enabled`", body = ErrorBody),
         (status = 422, description = "`code: required | expired | invalid`", body = ErrorBody),
-        (status = 429, description = "`rate_limited` (login bucket)", body = ErrorBody),
+        (status = 429, description = "`rate_limited` (code bucket)", body = ErrorBody),
     )
 )]
 pub async fn enable(
@@ -183,9 +184,14 @@ pub struct ConfirmInput {
 }
 
 /// Password, then (only when it and everything else is right) the code.
-async fn confirm(state: &AppState, authed: &Authed, input: ConfirmInput) -> Result<(), AppError> {
+async fn confirm(
+    state: &AppState,
+    authed: &Authed,
+    ip: &str,
+    input: ConfirmInput,
+) -> Result<(), AppError> {
     let mut e = FieldErrors::new();
-    if let Err(reason) = check_password(state, &authed.user, input.password).await? {
+    if let Err(reason) = check_password(state, &authed.user, ip, input.password).await? {
         e.add("password", reason);
     }
     verify::step_up(
@@ -209,16 +215,17 @@ async fn confirm(state: &AppState, authed: &Authed, input: ConfirmInput) -> Resu
         (status = 204, description = "TOTP off; sessions and tokens in spaces that require it are deleted"),
         (status = 403, description = "`forbidden` with a token", body = ErrorBody),
         (status = 422, description = "`password: invalid | not_set`, `code: required | invalid`", body = ErrorBody),
-        (status = 429, description = "`rate_limited` (login bucket)", body = ErrorBody),
+        (status = 429, description = "`rate_limited` (login / code bucket)", body = ErrorBody),
     )
 )]
 pub async fn disable(
     State(state): State<AppState>,
     authed: Authed,
+    ClientIp(ip): ClientIp,
     ApiJson(input): ApiJson<ConfirmInput>,
 ) -> Result<StatusCode, AppError> {
     authed.require_session()?;
-    confirm(&state, &authed, input).await?;
+    confirm(&state, &authed, &ip, input).await?;
     // Nothing to turn off: no session, token or pending login is touched.
     if authed.mfa_enabled {
         repo::disable(&state.db, authed.user.id).await?;
@@ -237,19 +244,20 @@ pub async fn disable(
         (status = 403, description = "`forbidden` with a token", body = ErrorBody),
         (status = 409, description = "`mfa_disabled`: TOTP is off", body = ErrorBody),
         (status = 422, description = "`password: invalid | not_set`, `code: required | invalid`", body = ErrorBody),
-        (status = 429, description = "`rate_limited` (login bucket)", body = ErrorBody),
+        (status = 429, description = "`rate_limited` (login / code bucket)", body = ErrorBody),
     )
 )]
 pub async fn regenerate(
     State(state): State<AppState>,
     authed: Authed,
+    ClientIp(ip): ClientIp,
     ApiJson(input): ApiJson<ConfirmInput>,
 ) -> Result<Json<RecoveryCodes>, AppError> {
     authed.require_session()?;
     if !authed.mfa_enabled {
         return Err(AppError::MfaDisabled);
     }
-    confirm(&state, &authed, input).await?;
+    confirm(&state, &authed, &ip, input).await?;
     let (codes, hashes) = fresh_codes(&state.secret_key)?;
     repo::set_recovery(&state.db, authed.user.id, hashes).await?;
     Ok(Json(RecoveryCodes {

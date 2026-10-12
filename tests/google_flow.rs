@@ -137,6 +137,10 @@ async fn start_checks() {
             at(TEST_HOST, "/login?google_error=invalid")
         )
     );
+    // The redirect keeps its own referrer policy under the global headers.
+    assert_eq!(h["referrer-policy"], "no-referrer");
+    assert_eq!(h.get_all("referrer-policy").iter().count(), 1);
+    assert_eq!(h["x-frame-options"], "DENY");
     // An invitation on the base host or with a dead token.
     let (_, h, _) = get(
         &app,

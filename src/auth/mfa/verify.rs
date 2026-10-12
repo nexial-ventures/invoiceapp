@@ -1,6 +1,6 @@
 //! Checking a second-factor code: a TOTP code (±1 step, replay-guarded) or
 //! a single-use recovery code, wherever a code is accepted (login step,
-//! step-up confirmations). Failures count in the login buckets.
+//! step-up confirmations). Failures count in the code bucket (`MFA_EMAIL`, hard).
 //!
 //! [`check`] takes any connection: callers whose operation can still fail
 //! run it inside that operation's transaction, after its own checks, so a
@@ -13,7 +13,7 @@ use uuid::Uuid;
 use super::{repo, seal, totp};
 use crate::app::AppState;
 use crate::auth::entity::user;
-use crate::auth::ratelimit::{LOGIN_EMAIL, Limit, RateLimiter};
+use crate::auth::ratelimit::{Limit, MFA_EMAIL, RateLimiter};
 use crate::error::{AppError, FieldErrors};
 use crate::secret::SecretKey;
 
@@ -88,7 +88,7 @@ pub async fn check(
 }
 
 /// A setup's first code against the pending (not yet active) secret, in the
-/// user's login bucket. Returns the matched step.
+/// user's code bucket. Returns the matched step.
 pub async fn check_pending(
     state: &AppState,
     user: &user::Model,
@@ -96,7 +96,7 @@ pub async fn check_pending(
     raw: &str,
 ) -> Result<Option<i64>, AppError> {
     let secret = seal::open(&state.secret_key, user.id, sealed)?;
-    let bucket = [(LOGIN_EMAIL, user.email.as_str())];
+    let bucket = [(MFA_EMAIL, user.email.as_str())];
     state.limiter.reserve(&bucket)?;
     let now = totp::step_at(Utc::now().timestamp());
     let step = totp::verify(&secret, &seal::normalize_code(raw), now, None);
@@ -128,7 +128,7 @@ pub fn pending_code<'a>(
 
 /// The full step-up rule on the pool (routes whose work after the check
 /// cannot fail for a client reason): [`pending_code`], then [`check`] in the
-/// user's login bucket; wrong → `code: invalid`.
+/// user's code bucket; wrong → `code: invalid`.
 pub async fn step_up(
     state: &AppState,
     user: &user::Model,
@@ -139,7 +139,7 @@ pub async fn step_up(
     let Some(code) = pending_code(mfa_enabled, code, e) else {
         return Ok(());
     };
-    let bucket = [(LOGIN_EMAIL, user.email.as_str())];
+    let bucket = [(MFA_EMAIL, user.email.as_str())];
     if !check(&state.db, &Verifier::of(state), user.id, code, &bucket).await? {
         e.add("code", "invalid");
     }

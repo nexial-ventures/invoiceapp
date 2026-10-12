@@ -35,18 +35,25 @@ pub fn email(raw: &str) -> Result<String, &'static str> {
 /// Verify the signed-in `user`'s own password (password change, space
 /// delete, TOTP setup / disable / regenerate, Google unlink): `Err` carries
 /// the field reason — `not_set` for an account without a password (nothing
-/// is counted), `invalid` for a wrong one. Failures count in the user's
-/// login bucket (5 / 15 min, shared with login), so the check cannot be used
-/// to guess; 429 when used up.
+/// is counted), `invalid` for a wrong one. Failures count in the login
+/// buckets of the user's e-mail from client `ip` (shared with login: after 3
+/// failures a growing delay) and of the e-mail overall, so the check cannot
+/// be used to guess; 429 while the delay runs.
 pub async fn check_password(
     state: &AppState,
     user: &crate::auth::entity::user::Model,
+    ip: &str,
     password: String,
 ) -> Result<Result<(), &'static str>, AppError> {
+    use crate::auth::ratelimit::{LOGIN_EMAIL, LOGIN_EMAIL_ALL, login_key};
     let Some(hash) = user.password_hash.clone() else {
         return Ok(Err("not_set"));
     };
-    let bucket = [(crate::auth::ratelimit::LOGIN_EMAIL, user.email.as_str())];
+    let client = login_key(&user.email, ip);
+    let bucket = [
+        (LOGIN_EMAIL, client.as_str()),
+        (LOGIN_EMAIL_ALL, user.email.as_str()),
+    ];
     state.limiter.reserve(&bucket)?;
     let verified = crate::auth::crypto::verify_password(password, Some(hash)).await;
     if !state.limiter.refund_if_busy(&bucket, verified)? {

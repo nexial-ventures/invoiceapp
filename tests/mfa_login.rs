@@ -121,7 +121,7 @@ async fn pending_login_is_bound_to_host_and_time() {
 }
 
 #[tokio::test]
-async fn pending_login_dies_after_five_failures_and_the_bucket_fills() {
+async fn pending_login_dies_after_five_failures_and_the_code_bucket_fills() {
     let db = TestDb::new().await;
     let app = router(db.conn.clone());
     let e = enrol(&app, OWNER_EMAIL).await;
@@ -133,12 +133,13 @@ async fn pending_login_dies_after_five_failures_and_the_bucket_fills() {
     let code = fresh(&db.conn, db.user_id, &e.secret).await;
     let (s, _, j, _) = finish(&app, TEST_HOST, Some(&pending), &code).await;
     assert_eq!((s, j), (StatusCode::UNAUTHORIZED, invalid()));
-    // The five wrong codes filled the e-mail's login bucket.
-    let err = login(&app, TEST_HOST, OWNER_EMAIL, OWNER_PASSWORD)
-        .await
-        .expect_err("rate limited");
+    // The five wrong codes filled the user's (hard) code bucket: the
+    // password still passes, the code step of a new pending login is 429.
+    let pending = start(&app, TEST_HOST, OWNER_EMAIL).await;
+    let code = fresh(&db.conn, db.user_id, &e.secret).await;
+    let (s, _, j, _) = finish(&app, TEST_HOST, Some(&pending), &code).await;
     assert_eq!(
-        err,
+        (s, j),
         (
             StatusCode::TOO_MANY_REQUESTS,
             json!({ "code": "rate_limited" })

@@ -46,6 +46,12 @@ async fn ddpp_payment_survives_mdcast_down_and_first_download_archives() {
         headers["content-disposition"],
         "inline; filename=\"DP20260001.pdf\""
     );
+    // The browser's PDF viewer works under the CSP: no `sandbox` on it.
+    assert_eq!(
+        headers["content-security-policy"],
+        invoice::security_headers::CSP
+    );
+    assert_eq!(headers["x-content-type-options"], "nosniff");
     let doc = get_doc(&up, &ddpp).await;
     assert_eq!(
         doc["pdf"]["sha256"],
