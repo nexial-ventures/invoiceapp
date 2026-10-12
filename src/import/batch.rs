@@ -11,9 +11,9 @@ use sea_orm::{ConnectionTrait, Statement, Value};
 use serde_json::{Value as Json, json};
 
 use super::model::{ContactRule, Plan};
+use crate::document::line::Direction;
 use crate::document::line::Status;
 use crate::error::AppError;
-use crate::settings::doc_type::ISSUED;
 use crate::space::SpaceId;
 
 /// `d`'s supplier snapshot is `i`'s supplier: by IČO, else by name among
@@ -60,7 +60,7 @@ pub async fn duplicates<C: ConnectionTrait>(
         .map(|(n, p)| {
             json!({
                 "n": n,
-                "issued": p.direction == ISSUED,
+                "issued": p.direction == Direction::Issued,
                 "direction": p.direction,
                 "doc_type": p.doc_type.as_str(),
                 "number": p.number,
@@ -138,7 +138,7 @@ pub async fn related<C: ConnectionTrait>(
                 .map(move |t| {
                     json!({
                         "n": n,
-                        "issued": p.direction == ISSUED,
+                        "issued": p.direction == Direction::Issued,
                         "direction": p.direction,
                         "doc_type": t,
                         "ref": reference,

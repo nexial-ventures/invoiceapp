@@ -10,10 +10,11 @@ use common::csvio::{HEADER, confirm, doc_id, file, row};
 use common::documents::{create_contact, set_company};
 use common::{TestDb, router};
 use invoice::document::compute::Totals;
+use invoice::document::doc_type::DocType;
+use invoice::document::line::Direction;
 use invoice::document::line::{PaymentMethod, VatMode};
 use invoice::import::model::{ContactRule, IssuedBank, Party, Plan};
 use invoice::import::{batch, lookup};
-use invoice::settings::doc_type::{DocType, ISSUED, RECEIVED};
 use rust_decimal::Decimal;
 use serde_json::json;
 
@@ -28,14 +29,14 @@ fn party(name: &str, ico: Option<&str>, dic: Option<&str>) -> Party {
 }
 
 fn plan(
-    direction: &'static str,
+    direction: Direction,
     doc_type: DocType,
     number: &str,
     p: &Party,
     rule: ContactRule,
     original_ref: Option<&str>,
 ) -> Plan {
-    let issued = direction == ISSUED;
+    let issued = direction == Direction::Issued;
     Plan {
         direction,
         doc_type,
@@ -133,7 +134,7 @@ async fn batched_lookups_match_the_per_entry_ones() {
     ];
     let mut plans = Vec::new();
     for p in &parties {
-        for direction in [ISSUED, RECEIVED] {
+        for direction in [Direction::Issued, Direction::Received] {
             for rule in [ContactRule::IcoOrName, ContactRule::IcoDicName] {
                 for number in ["F-1", "R-1", "R-2", "none"] {
                     plans.push(plan(direction, DocType::Invoice, number, p, rule, None));
@@ -164,7 +165,7 @@ async fn batched_lookups_match_the_per_entry_ones() {
     let contacts = batch::contacts(conn, space, &refs).await.expect("contacts");
     let related = batch::related(conn, space, &refs).await.expect("related");
     for (n, p) in plans.iter().enumerate() {
-        let what = format!("{n}: {} {} {:?}", p.direction, p.number, p.counterparty());
+        let what = format!("{n}: {:?} {} {:?}", p.direction, p.number, p.counterparty());
         let dup = lookup::duplicate(conn, space, p).await.expect("dup");
         assert_eq!(duplicates.contains(&n), dup, "duplicate {what}");
         let contact = match p.counterparty() {
@@ -203,7 +204,7 @@ async fn batched_lookups_stay_in_their_space() {
     let beta = party("Beta s.r.o.", None, None);
     let plans = [
         plan(
-            ISSUED,
+            Direction::Issued,
             DocType::Invoice,
             "F-1",
             &gama,
@@ -211,7 +212,7 @@ async fn batched_lookups_stay_in_their_space() {
             None,
         ),
         plan(
-            RECEIVED,
+            Direction::Received,
             DocType::Invoice,
             "R-1",
             &gama,
@@ -219,7 +220,7 @@ async fn batched_lookups_stay_in_their_space() {
             None,
         ),
         plan(
-            RECEIVED,
+            Direction::Received,
             DocType::CreditNote,
             "D-1",
             &beta,
