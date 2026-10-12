@@ -1,3 +1,5 @@
+//! Unit tests of `main.rs` (CLI parsing).
+
 use super::*;
 
 #[test]
@@ -33,6 +35,18 @@ fn cli_parses_subcommands() {
         }) if from_dir.as_path() == std::path::Path::new("/data") && d.as_path() == std::path::Path::new("/design")
     ));
     assert!(Cli::try_parse_from(["invoice", "storage", "migrate"]).is_err());
+    assert!(matches!(
+        Cli::try_parse_from(["invoice", "storage", "sweep", "--dry-run"]).map(|c| c.command),
+        Ok(Command::Storage {
+            action: StorageAction::Sweep { dry_run: true }
+        })
+    ));
+    assert!(matches!(
+        Cli::try_parse_from(["invoice", "storage", "sweep"]).map(|c| c.command),
+        Ok(Command::Storage {
+            action: StorageAction::Sweep { dry_run: false }
+        })
+    ));
     assert!(matches!(
         Cli::try_parse_from([
             "invoice",

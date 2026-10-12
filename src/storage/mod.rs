@@ -6,6 +6,7 @@
 
 pub mod config;
 pub mod local;
+pub mod sweep;
 pub mod transfer;
 
 use std::path::Path as FsPath;

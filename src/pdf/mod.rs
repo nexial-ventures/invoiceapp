@@ -10,6 +10,7 @@ pub mod editor;
 pub mod format;
 pub mod handlers;
 pub mod labels;
+pub mod limits;
 pub mod payload;
 pub mod preview;
 pub mod reference;
@@ -29,6 +30,7 @@ use crate::app::AppState;
 use crate::error::AppError;
 use crate::space::SpaceId;
 use crate::storage::Storage;
+use limits::{RenderKind, RenderLimits};
 use payload::Payload;
 
 pub const DEFAULT_MDCAST_URL: &str = "https://mdcast.nexial.cz";
@@ -42,6 +44,7 @@ pub struct PdfRoot {
     client: Client,
     storage: Storage,
     design_cache: design::Cache,
+    limits: RenderLimits,
 }
 
 impl PdfRoot {
@@ -65,6 +68,7 @@ impl PdfRoot {
             client,
             storage,
             design_cache: design::Cache::default(),
+            limits: RenderLimits::default(),
         })
     }
 
@@ -76,8 +80,17 @@ impl PdfRoot {
             client: self.client.clone(),
             storage: self.storage.scoped(&prefix)?,
             design_cache: self.design_cache.clone(),
+            limits: self.limits.clone(),
+            kind: RenderKind::Archive,
             space,
         })
+    }
+
+    /// Replace the render limits (`INVOICE__MDCAST_CONCURRENCY`; tests use
+    /// shorter waits).
+    pub fn with_render_limits(mut self, limits: RenderLimits) -> Self {
+        self.limits = limits;
+        self
     }
 
     /// Bound the design cache to `mb` MiB (`INVOICE__DESIGN_CACHE_MB`;
@@ -104,6 +117,8 @@ pub struct PdfService {
     client: Client,
     storage: Storage,
     design_cache: design::Cache,
+    limits: RenderLimits,
+    kind: RenderKind,
     space: SpaceId,
 }
 
@@ -111,6 +126,15 @@ impl PdfService {
     /// The space this service reads and writes.
     pub fn space_id(&self) -> SpaceId {
         self.space
+    }
+
+    /// The same service rendering previews: the per-space preview limits
+    /// and the shorter timeout apply ([`limits`]).
+    pub fn preview(&self) -> Self {
+        Self {
+            kind: RenderKind::Preview,
+            ..self.clone()
+        }
     }
 
     /// Archives, originals and the design overrides.
@@ -137,6 +161,10 @@ impl PdfService {
         mut payload: Payload,
         layers: design::Layers<'_>,
     ) -> Result<Vec<u8>, AppError> {
+        let slot = match self.kind {
+            RenderKind::Preview => Some(self.limits.admit_preview(self.space)?),
+            RenderKind::Archive => None,
+        };
         let design = design::load_layers(
             &self.storage,
             &self.design_cache,
@@ -170,11 +198,19 @@ impl PdfService {
         let data = serde_json::to_string(&payload).context("serialize PDF payload")?;
         let mut req = request::template(design.template, data);
         req.fonts = fonts;
-        let artifact = self
-            .client
-            .render_template(req, &bundle)
-            .await
-            .map_err(client::map_error)?;
+        let _permit = self.limits.permit().await.inspect_err(|_| {
+            if let Some(slot) = &slot {
+                slot.refund();
+            }
+        })?;
+        let render = self.client.render_template(req, &bundle);
+        let artifact = match self.limits.timeout(self.kind) {
+            Some(limit) => tokio::time::timeout(limit, render).await.map_err(|_| {
+                AppError::PdfUnavailable(format!("preview render took over {limit:?}"))
+            })?,
+            None => render.await,
+        }
+        .map_err(client::map_error)?;
         Ok(artifact.bytes.to_vec())
     }
 }

@@ -177,6 +177,33 @@ fn design_cache_size() {
 }
 
 #[test]
+fn mdcast_concurrency() {
+    let base = [
+        ("INVOICE__DATABASE_URL", "postgres://x"),
+        ("INVOICE__PUBLIC_URL", "http://localhost:3000"),
+    ];
+    let cfg = Config::from_source(env(&base)).expect("defaults");
+    assert_eq!(cfg.mdcast_concurrency, 4);
+    let mut pairs = base.to_vec();
+    pairs.push(("INVOICE__MDCAST_CONCURRENCY", "8"));
+    assert_eq!(
+        Config::from_source(env(&pairs))
+            .expect("set")
+            .mdcast_concurrency,
+        8
+    );
+    for bad in ["0", "-1", "many"] {
+        let mut pairs = base.to_vec();
+        pairs.push(("INVOICE__MDCAST_CONCURRENCY", bad));
+        let err = Config::from_source(env(&pairs)).expect_err(bad);
+        assert!(
+            format!("{err:#}").contains("INVOICE__MDCAST_CONCURRENCY"),
+            "{err:#}"
+        );
+    }
+}
+
+#[test]
 fn empty_pdf_settings_mean_defaults() {
     let cfg = Config::from_source(env(&[
         ("INVOICE__DATABASE_URL", "postgres://x"),

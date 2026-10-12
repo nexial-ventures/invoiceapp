@@ -12,8 +12,10 @@ use invoice::cnb::CnbClient;
 use invoice::config::{Config, DbConfig};
 use invoice::email::Mailer;
 use invoice::migration::{Migrator, MigratorTrait};
+use invoice::pdf::limits::RenderLimits;
 use invoice::pdf::{PdfRoot, design};
 use invoice::space;
+use invoice::storage::sweep;
 use invoice::storage::transfer::{self, Report};
 use invoice::storage::{DESIGN_PREFIX, Storage, StorageConfig};
 use sea_orm::{Database, DatabaseConnection};
@@ -65,6 +67,13 @@ enum StorageAction {
         /// The old INVOICE__DESIGN_DIR (copied under `design/`).
         #[arg(long)]
         design_dir: Option<PathBuf>,
+    },
+    /// Delete document objects no document references, older than an hour
+    /// (also done daily by `serve`). Needs the database.
+    Sweep {
+        /// Only list what would be deleted.
+        #[arg(long)]
+        dry_run: bool,
     },
 }
 
@@ -178,6 +187,7 @@ async fn serve() -> Result<()> {
     let storage = Storage::new(&cfg.storage)?;
     tokio::spawn(storage.clone().probe());
     tokio::spawn(cleanup::run(db.clone()));
+    tokio::spawn(sweep::run(db.clone(), storage.clone()));
     let state = AppState {
         db,
         ares: AresClient::new(&cfg.ares_url)?,
@@ -187,7 +197,8 @@ async fn serve() -> Result<()> {
             cfg.mdcast_token.as_ref().map(|t| t.expose().as_str()),
             storage,
         )?
-        .with_design_cache_mb(cfg.design_cache_mb),
+        .with_design_cache_mb(cfg.design_cache_mb)
+        .with_render_limits(RenderLimits::new(cfg.mdcast_concurrency)),
         email: cfg.smtp.as_ref().map(Mailer::new).transpose()?,
         public: cfg.public.clone(),
         email_disabled: cfg.email_disabled,
@@ -249,6 +260,27 @@ async fn storage_cmd(action: StorageAction) -> Result<()> {
                 finish(&transfer::migrate(&storage, &from_dir, design_dir.as_deref()).await?);
             refresh_design_usage(&storage).await?;
             result
+        }
+        StorageAction::Sweep { dry_run } => {
+            let cfg = DbConfig::from_env()?;
+            let db = connect(cfg.database_url.expose()).await?;
+            let swept = sweep::sweep_now(&db, &storage, dry_run).await?;
+            let verb = if dry_run { "orphan    " } else { "deleted   " };
+            for key in &swept.orphans {
+                println!("{verb}{key}");
+            }
+            println!(
+                "{} document object(s), {} orphan(s), {} deleted, {} too young, {} failed",
+                swept.listed,
+                swept.orphans.len(),
+                swept.deleted,
+                swept.young,
+                swept.failed
+            );
+            if swept.failed > 0 {
+                bail!("{} orphan(s) not deleted", swept.failed);
+            }
+            Ok(())
         }
     }
 }

@@ -57,7 +57,8 @@ impl SampleSource {
         (status = 200, description = "The sample invoice with embedded ∪ live ∪ draft (minus deletions)", content_type = "application/pdf"),
         (status = 422, description = "`locale`: `invalid`", body = ErrorBody),
         (status = 502, description = "`pdf_render_failed` (+ `detail`)", body = ErrorBody),
-        (status = 503, description = "`pdf_unavailable`, `storage_unavailable`", body = ErrorBody),
+        (status = 429, description = "`rate_limited`: a preview of the space is in flight, or 60 in the last hour", body = ErrorBody),
+        (status = 503, description = "`pdf_unavailable` (`detail: busy` when every render slot is taken), `storage_unavailable`", body = ErrorBody),
     )
 )]
 pub async fn preview(
@@ -68,7 +69,7 @@ pub async fn preview(
     let space = access.space();
     let source = SampleSource::load(&state, space).await?;
     let locale = preview_locale(&source.company, q.locale.as_deref())?;
-    let pdf = state.pdf.space(space)?;
+    let pdf = state.pdf.space(space)?.preview();
     let deleted = repo::draft(&state.db, space)
         .await?
         .map(|r| r.deleted)

@@ -29,6 +29,13 @@ MiniJinja plain-text templates (one set for all document types, per locale), edi
   503 `storage_unavailable`.
 - MiniJinja, `UndefinedBehavior::Strict`, no HTML auto-escape, `none` renders as an empty string. The rendered
   subject is trimmed and newlines in it are replaced by spaces; the body keeps its text, trailing whitespace trimmed.
+- **Render limits** (`src/email/template_render.rs`; a template is member input run on the server), per part
+  (subject, body) and render: fuel 100 000 MiniJinja instructions (the defaults use a few hundred), recursion limit
+  100, output at most 1 MiB, and 5 s wall clock on the blocking thread pool. Exceeding one is 422 `template_invalid`
+  for that part with `detail` `line N: too much work (more than 100000 steps)`, `line N: invalid operation: recursion
+  limit exceeded`-style, `the output is larger than 1024 KB` or `rendering took longer than 5 s` — on save, preview
+  and (should a stored template ever hit one) the send prefill. MiniJinja's own caps also apply (`range` ≤ 100 000
+  items, a repeated string ≤ 100 MB).
 - Context (all display values are pre-formatted strings in the template's locale, same formatting as the PDF payload;
   missing values are `none`):
 

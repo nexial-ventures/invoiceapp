@@ -75,6 +75,7 @@ Sending documents by e-mail needs an SMTP server (`INVOICE__SMTP__HOST`, `PORT`,
 
 ```sh
 invoice storage migrate --from-dir ./data --design-dir ./my-design   # fs archive (+ old design dir) → configured storage
+invoice storage sweep --dry-run                                    # unreferenced document objects older than 1 h
 invoice design push ./my-design --space firma   # override design files of a space (invoice.typ, fonts/, logo.svg|png, signature.png)
 invoice design ls --space firma                 # effective design: custom vs built-in
 invoice design pull ./backup --space firma      # download the overrides
@@ -112,6 +113,14 @@ PDFs need an mdcast (`INVOICE__MDCAST_URL`, `INVOICE__MDCAST_TOKEN`).
   disables creating spaces (403 `space_creation_disabled`): only people invited into existing spaces can enter.
 - **mdcast** renders each space's own typst templates: run it **sandboxed** (no file system or network access
   beyond the request, resource limits) — template isolation is mdcast's, not the app's.
+- **Render limits:** at most `INVOICE__MDCAST_CONCURRENCY` (default 4) renders run at once per instance — size it to
+  what the mdcast behind it handles; a render that waits over 10 s for a slot is 503 `pdf_unavailable` (`busy`).
+  Previews (sample, design draft, draft documents) are limited to one in flight and 60 / hour per space with a 20 s
+  timeout; issuing is never refused by them. The limits are in memory per instance (several replicas multiply
+  them). E-mail templates render with fuel / recursion / output (1 MiB) / 5 s limits.
+- **Orphan sweep:** `serve` deletes document objects no row references (left by a crash between the object write and
+  its commit) at start and then daily, only when older than 1 hour; `invoice storage sweep --dry-run` lists them,
+  without the flag deletes them (needs `INVOICE__DATABASE_URL` and the storage settings). Counts are logged.
 - **Sign in with Google** (optional): the only redirect URI to register is
   `{INVOICE__PUBLIC_URL}/api/auth/google/callback`.
 - **PgBouncer:** in transaction mode set `INVOICE__DB_PGBOUNCER=true` (otherwise every connection fails with

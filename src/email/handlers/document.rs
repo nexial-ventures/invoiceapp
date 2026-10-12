@@ -134,7 +134,7 @@ pub async fn prefill(
         Company::from_row(&company),
         live_email.as_deref(),
     );
-    let rendered = templates::render(&template, &Value::from_serialize(&ctx))?;
+    let rendered = templates::render(&template, &Value::from_serialize(&ctx)).await?;
     let to = ctx.contact.and_then(|c| c.email);
     let row = src.row;
     let stem = export::stem(&row);

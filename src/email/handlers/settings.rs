@@ -76,7 +76,7 @@ async fn validate(
     t: &Template,
 ) -> Result<Rendered, AppError> {
     let company = company::get(&state.db, space).await?;
-    templates::validate(t, &sample_contexts(&state.db, &company, locale).await?)
+    templates::validate(t, &sample_contexts(&state.db, &company, locale).await?).await
 }
 
 #[utoipa::path(

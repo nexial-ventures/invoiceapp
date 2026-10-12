@@ -281,6 +281,16 @@ impl PdfEnv {
         Self::app(db, pdf)
     }
 
+    /// The app rendering against this mock under `limits` (short waits).
+    pub fn router_limited(
+        &self,
+        db: sea_orm::DatabaseConnection,
+        limits: invoice::pdf::limits::RenderLimits,
+    ) -> Router {
+        let pdf = super::pdf_service(&self.url, self.storage.storage.clone());
+        Self::app(db, pdf.with_render_limits(limits))
+    }
+
     /// The app rendering against this mock, plus its PDF service (its
     /// shared design cache is inspectable).
     pub fn router_and_pdf(&self, db: sea_orm::DatabaseConnection) -> (Router, PdfRoot) {

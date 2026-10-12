@@ -10,6 +10,7 @@ pub mod input;
 pub mod limits;
 pub mod log;
 pub mod sender;
+pub mod template_render;
 pub mod templates;
 
 use axum::Router;

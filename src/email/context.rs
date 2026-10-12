@@ -270,8 +270,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn sample_variants_cover_every_branch() {
+    #[tokio::test]
+    async fn sample_variants_cover_every_branch() {
         let t = totals("1210", "1210");
         let customer = party(Some("a@example.com"));
         let bank = BankSnapshot {
@@ -323,7 +323,9 @@ mod tests {
             .collect();
         for locale in [Locale::Cs, Locale::En] {
             let t = crate::email::templates::default(locale);
-            crate::email::templates::validate(&t, &values).expect("default template is valid");
+            crate::email::templates::validate(&t, &values)
+                .await
+                .expect("default template is valid");
         }
     }
 

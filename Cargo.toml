@@ -33,7 +33,7 @@ lettre = { version = "0.11", default-features = false, features = ["builder", "s
 md-5 = "0.10"
 mdcast-client = "0.4.2"
 mime_guess = "2"
-minijinja = "2"
+minijinja = { version = "2", features = ["fuel"] }
 object_store = { version = "0.14", features = ["aws", "fs"] }
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 reqwest = { version = "0.13", default-features = false, features = ["json", "form", "rustls", "charset", "http2"] }
