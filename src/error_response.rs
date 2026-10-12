@@ -47,7 +47,9 @@ impl AppError {
                 tracing::warn!(error = %self, "PDF render failed")
             }
             Self::StorageUnavailable(_) => tracing::error!(error = %self, "storage failed"),
-            Self::Busy => tracing::warn!("password hashing saturated, request refused"),
+            Self::Busy => tracing::warn!(
+                "capacity saturated (password hashing or e-mail templates), request refused"
+            ),
             Self::SmtpFailed(_) => tracing::warn!(error = %self, "e-mail not sent"),
             Self::BadRequest(_) | Self::Conflict(_) => tracing::debug!(error = %self, "rejected"),
             _ => {}

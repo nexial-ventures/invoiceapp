@@ -38,13 +38,19 @@ fn cli_parses_subcommands() {
     assert!(matches!(
         Cli::try_parse_from(["invoice", "storage", "sweep", "--dry-run"]).map(|c| c.command),
         Ok(Command::Storage {
-            action: StorageAction::Sweep { dry_run: true }
+            action: StorageAction::Sweep {
+                dry_run: true,
+                force: false
+            }
         })
     ));
     assert!(matches!(
-        Cli::try_parse_from(["invoice", "storage", "sweep"]).map(|c| c.command),
+        Cli::try_parse_from(["invoice", "storage", "sweep", "--force"]).map(|c| c.command),
         Ok(Command::Storage {
-            action: StorageAction::Sweep { dry_run: false }
+            action: StorageAction::Sweep {
+                dry_run: false,
+                force: true
+            }
         })
     ));
     assert!(matches!(
@@ -69,4 +75,8 @@ fn cli_parses_subcommands() {
     ));
     assert!(Cli::try_parse_from(["invoice", "design", "ls"]).is_err());
     assert!(Cli::try_parse_from(["invoice", "design", "rm"]).is_err());
+    assert!(matches!(
+        Cli::try_parse_from(["invoice", "render-template"]).map(|c| c.command),
+        Ok(Command::RenderTemplate)
+    ));
 }

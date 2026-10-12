@@ -44,6 +44,12 @@ async fn validate(state: &AppState, pdf: &PdfService, layers: Layers<'_>) -> Res
             Err(AppError::PdfRenderFailed(m)) => {
                 return Err(AppError::DesignInvalid(format!("{}: {m}", locale.as_str())));
             }
+            // Full render slots: the check never ran, so it does not count.
+            Err(e @ AppError::PdfBusy) => {
+                let key = pdf.space_id().to_string();
+                state.limiter.refund(&[(DESIGN_SPACE, &key)]);
+                return Err(e);
+            }
             Err(e) => return Err(e),
         }
     }

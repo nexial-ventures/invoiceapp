@@ -249,6 +249,7 @@ pub fn state(db: DatabaseConnection, ares_url: &str, cnb_url: &str, pdf: PdfRoot
         trust_forwarded: false,
         secret_key: test_secret_key(),
         limiter: RateLimiter::default(),
+        templates: invoice::email::sandbox::TemplateSandbox::new(env!("CARGO_BIN_EXE_invoice")),
         google: None,
     }
 }

@@ -9,6 +9,7 @@ pub mod handlers;
 pub mod input;
 pub mod limits;
 pub mod log;
+pub mod sandbox;
 pub mod sender;
 pub mod template_render;
 pub mod templates;

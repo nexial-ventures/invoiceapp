@@ -152,7 +152,10 @@ Fetch the PDF with the Bearer header (blob → object URL); a plain link cannot 
   `Retry-After` until the oldest leaves the hour). Both are checked before the design is loaded; a preview refused
   by a full render queue (503 busy) does not count against the hour. A preview's mdcast call times out after
   **20 s** (→ 503 `pdf_unavailable`); issue, archive-on-download and the design activation / restore checks keep
-  the 60 s client timeout.
+  the 60 s client timeout. A timed-out preview only stops waiting: mdcast may still finish the render (its own
+  limits bound it).
+- **A slot for issuing**: previews may hold at most `INVOICE__MDCAST_CONCURRENCY − 1` slots (at least one), so one
+  is always left for issue / archive renders when the concurrency is 2 or more (with 1 they share it).
 - **Issuing is never refused by the preview limits** (only the instance-wide slots apply), nor is an archive render
   on first download, an e-mail attachment or an ISDOC export (they serve the archive). The activation / restore
   checks have their own `design-space` limit ([design.md](design.md)).
@@ -202,13 +205,16 @@ contain empty, `.` or `..` segments: `documents/{year}/{id}-{sha8}-{nonce}.pdf` 
   the cleanup never removes an object another attempt (a double-clicked issue, an identical upload) just wrote.
 - **Crash orphans**: objects are written before the transaction that references them, so a crash (or a lost
   connection) between the put and the commit leaves an unreferenced object behind (harmless, never served). The
-  **orphan sweep** (`src/storage/sweep.rs`) runs in `serve` right after start and then daily, and on demand as
-  `invoice storage sweep [--dry-run]` (needs the database): it lists `spaces/*/documents/`, then reads every
-  `documents.pdf_path` / `original_path`, and deletes the objects no row references whose modification time is
-  more than **1 hour** old (younger ones may belong to an issue or upload still before its commit). Nothing else is
-  touched or recomputed (stored-byte usage comes from the rows, so it does not change). It logs the counts (examined,
-  too young, deleted, failed); the CLI prints each orphan (`--dry-run`: lists only) and exits 1 when a deletion
-  failed.
+  **orphan sweep** (`src/storage/sweep.rs`) runs in `serve` daily — the first time one day after the start, so a
+  restart loop never sweeps — and on demand as `invoice storage sweep [--dry-run] [--force]` (needs the database).
+  It lists `spaces/*/documents/`, keeps only the objects of spaces that exist in `spaces` (another prefix is never
+  touched), then reads every `documents.pdf_path` / `original_path`; an unreferenced object whose modification time
+  is more than **1 hour** old is an orphan (younger ones may belong to an issue or upload still before its commit).
+  **Guard**: when orphans exist but no row references any object (a wrong database or schema), or the orphans exceed
+  max(100, 10 % of the examined objects), it deletes nothing and logs an error; only the CLI's `--force` overrides
+  it. Nothing else is recomputed (stored-byte usage comes from the rows). `serve` logs the counts; the CLI prints
+  `deleted` / `failed` (stderr) / `orphan` (dry run or refused) lines and a summary, and exits 1 when it refused or
+  a deletion failed.
 - `invoice storage migrate --from-dir <old INVOICE__STORAGE_DIR> [--design-dir <old INVOICE__DESIGN_DIR>]` copies
   every non-hidden file into the configured backend (keys = relative paths; the design dir under `design/`), reads
   each one back and compares sha256. Identical objects are skipped (re-runs are no-ops; decided by size + the MD5

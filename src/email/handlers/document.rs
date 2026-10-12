@@ -105,7 +105,7 @@ async fn live_contact_email(
         (status = 404, description = "`not_found` (also a received document)", body = ErrorBody),
         (status = 409, description = "`invalid_state` (a draft)", body = ErrorBody),
         (status = 422, description = "`locale`: `invalid`; `template_invalid`", body = ErrorBody),
-        (status = 503, description = "`storage_unavailable`", body = ErrorBody),
+        (status = 503, description = "`storage_unavailable`, `busy` (every template renderer taken)", body = ErrorBody),
     )
 )]
 pub async fn prefill(
@@ -134,7 +134,10 @@ pub async fn prefill(
         Company::from_row(&company),
         live_email.as_deref(),
     );
-    let rendered = templates::render(&template, &Value::from_serialize(&ctx)).await?;
+    let rendered = state
+        .templates
+        .render(&template, &Value::from_serialize(&ctx))
+        .await?;
     let to = ctx.contact.and_then(|c| c.email);
     let row = src.row;
     let stem = export::stem(&row);

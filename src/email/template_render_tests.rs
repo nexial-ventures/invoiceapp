@@ -19,52 +19,46 @@ fn ctx(paid: bool, to_pay: bool) -> Value {
     }))
 }
 
-#[tokio::test]
-async fn defaults_render_on_every_state() {
+#[test]
+fn defaults_render_on_every_state() {
     for locale in [Locale::Cs, Locale::En] {
         for (paid, to_pay) in [(false, true), (true, false), (false, false)] {
-            let r = render(&default(locale), &ctx(paid, to_pay))
-                .await
-                .expect("renders");
+            let r = render(&default(locale), &ctx(paid, to_pay)).expect("renders");
             assert!(r.subject.ends_with("20260001 – Dodavatel s.r.o."), "{r:?}");
             assert!(!r.body.ends_with('\n'));
             assert!(r.body.contains("1 210,00 Kč"));
             assert!(!r.body.contains("\n\n\n"), "{}", r.body);
         }
     }
-    let cs = render(&default(Locale::Cs), &ctx(false, true))
-        .await
-        .expect("renders");
+    let cs = render(&default(Locale::Cs), &ctx(false, true)).expect("renders");
     assert!(
         cs.body
             .contains("uhraďte do 15. 10. 2026 pod variabilním symbolem 20260001.")
     );
-    let paid = render(&default(Locale::Cs), &ctx(true, false))
-        .await
-        .expect("renders");
+    let paid = render(&default(Locale::Cs), &ctx(true, false)).expect("renders");
     assert!(paid.body.contains("Neplaťte – již uhrazeno."));
     assert!(!paid.body.contains("uhraďte"));
 }
 
-#[tokio::test]
-async fn none_is_empty_and_no_html_escaping() {
+#[test]
+fn none_is_empty_and_no_html_escaping() {
     let t = Template {
         subject: "A{{ doc.bankAccount }}B\n  {{ company.name }} <&>".into(),
         body: "{{ contact }}|{{ '<b>' }}\n\n  ".into(),
     };
-    let r = render(&t, &ctx(false, true)).await.expect("renders");
+    let r = render(&t, &ctx(false, true)).expect("renders");
     assert_eq!(r.subject, "AB Dodavatel s.r.o. <&>");
     assert_eq!(r.body, "|<b>");
 }
 
-#[tokio::test]
-async fn errors_name_the_part_and_line() {
+#[test]
+fn errors_name_the_part_and_line() {
     let ctx = ctx(false, true);
     let undefined = Template {
         subject: "ok".into(),
         body: "a\nb\n{{ doc.nope }}".into(),
     };
-    match render(&undefined, &ctx).await {
+    match render(&undefined, &ctx) {
         Err(AppError::TemplateInvalid { field, detail }) => {
             assert_eq!(field, "body");
             assert!(detail.starts_with("line 3: undefined value"), "{detail}");
@@ -76,7 +70,7 @@ async fn errors_name_the_part_and_line() {
         body: "{{ doc.nope }}".into(),
     };
     assert!(matches!(
-        render(&syntax, &ctx).await,
+        render(&syntax, &ctx),
         Err(AppError::TemplateInvalid {
             field: "subject",
             ..
@@ -87,11 +81,11 @@ async fn errors_name_the_part_and_line() {
         subject: "{{ contact.email }}".into(),
         body: String::new(),
     };
-    assert!(render(&contact, &ctx).await.is_err());
+    assert!(render(&contact, &ctx).is_err());
 }
 
-#[tokio::test]
-async fn validation_renders_every_sample() {
+#[test]
+fn validation_renders_every_sample() {
     let mut base = json!({
         "doc": { "number": "1", "paid": false },
         "contact": { "name": "A", "email": "a@x.cz" }
@@ -107,7 +101,7 @@ async fn validation_renders_every_sample() {
         subject: "{{ doc.number }}".into(),
         body: "x\n{{ contact.name }}".into(),
     };
-    match validate(&unguarded, &samples).await {
+    match validate(&unguarded, &samples) {
         Err(AppError::TemplateInvalid { field, detail }) => {
             assert_eq!(field, "body");
             assert!(detail.starts_with("without contact: line 2: "), "{detail}");
@@ -118,9 +112,9 @@ async fn validation_renders_every_sample() {
         subject: "{% if doc.paid %}{{ doc.nope }}{% endif %}x".into(),
         body: String::new(),
     };
-    assert!(render(&untaken, &samples[0].1).await.is_ok());
+    assert!(render(&untaken, &samples[0].1).is_ok());
     assert!(matches!(
-        validate(&untaken, &samples).await,
+        validate(&untaken, &samples),
         Err(AppError::TemplateInvalid { field: "subject", detail })
             if detail.starts_with("paid: line 1: undefined value")
     ));
@@ -128,7 +122,7 @@ async fn validation_renders_every_sample() {
         subject: "{{ doc.number }}".into(),
         body: "{% if contact %}{{ contact.name }}{% endif %}".into(),
     };
-    let r = validate(&guarded, &samples).await.expect("valid");
+    let r = validate(&guarded, &samples).expect("valid");
     assert_eq!(r.body, "A", "the result is the base sample's rendering");
     // An error on the base sample keeps its plain detail.
     let broken = Template {
@@ -136,7 +130,7 @@ async fn validation_renders_every_sample() {
         body: String::new(),
     };
     assert!(matches!(
-        validate(&broken, &samples).await,
+        validate(&broken, &samples),
         Err(AppError::TemplateInvalid { field: "subject", detail }) if detail.starts_with("line 1:")
     ));
 }
@@ -158,49 +152,31 @@ fn body(body: &str) -> Template {
     }
 }
 
-#[tokio::test]
-async fn nested_loops_run_out_of_fuel() {
+#[test]
+fn nested_loops_run_out_of_fuel() {
     let t = body("{% for a in range(1000) %}{% for b in range(1000) %}.{% endfor %}{% endfor %}");
-    let detail = invalid_body(render(&t, &ctx(false, true)).await);
+    let detail = invalid_body(render(&t, &ctx(false, true)));
     assert_eq!(
         detail,
         format!("line 1: too much work (more than {FUEL} steps)")
     );
 }
 
-#[tokio::test]
-async fn huge_output_is_refused() {
+#[test]
+fn huge_output_is_refused() {
     // Few instructions, 2 MB of output.
     let t = body("{% for i in range(100) %}{{ 'x' * 20000 }}{% endfor %}");
-    let detail = invalid_body(render(&t, &ctx(false, true)).await);
+    let detail = invalid_body(render(&t, &ctx(false, true)));
     assert_eq!(detail, "the output is larger than 1024 KB");
     // Up to the cap is fine.
     let t = body("{{ 'x' * 1000000 }}");
-    let r = render(&t, &ctx(false, true)).await.expect("under 1 MB");
+    let r = render(&t, &ctx(false, true)).expect("under 1 MB");
     assert_eq!(r.body.len(), 1_000_000);
 }
 
-#[tokio::test]
-async fn deep_recursion_is_refused() {
+#[test]
+fn deep_recursion_is_refused() {
     let t = body("{% macro f(n) %}{{ f(n + 1) }}{% endmacro %}{{ f(0) }}");
-    let detail = invalid_body(render(&t, &ctx(false, true)).await);
+    let detail = invalid_body(render(&t, &ctx(false, true)));
     assert!(detail.contains("recursion"), "{detail}");
-}
-
-#[tokio::test]
-async fn a_slow_render_times_out() {
-    // The fuel keeps real renders far below the timeout; the timeout is the
-    // backstop, exercised here with an instant limit.
-    let r = render_part_within(
-        Duration::ZERO,
-        "body",
-        "{% for i in range(30000) %}.{% endfor %}",
-        &ctx(false, true),
-    )
-    .await;
-    assert!(matches!(
-        r,
-        Err(AppError::TemplateInvalid { field: "body", detail })
-            if detail == "rendering took longer than 0 s"
-    ));
 }

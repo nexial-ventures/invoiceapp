@@ -2,8 +2,8 @@
 //! subject + body per locale. Defaults are embedded; overrides live in the
 //! storage as one object per locale, `email/templates/{locale}.json`
 //! (`{"subject","body"}`), so a save replaces both parts atomically.
-//! Rendering (under fuel / recursion / output / time limits) is in
-//! [`super::template_render`].
+//! Rendering: [`super::template_render`] (the engine and its limits), run in
+//! a child process by [`super::sandbox`].
 
 use anyhow::Context as _;
 use bytes::Bytes;
@@ -14,8 +14,6 @@ use crate::error::{AppError, FieldErrors};
 use crate::pdf::format::Locale;
 use crate::storage::{self, Storage};
 use crate::validation as v;
-
-pub use super::template_render::{render, validate};
 
 pub const SUBJECT_MAX: usize = 500;
 pub const BODY_MAX: usize = 20_000;
@@ -41,7 +39,7 @@ pub struct TemplateInput {
 }
 
 /// A rendered message text.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct Rendered {
     pub subject: String,
     pub body: String,

@@ -43,6 +43,8 @@ pub struct AppState {
     /// `INVOICE__SECRET_KEY`: TOTP secrets at rest, recovery-code HMAC.
     pub secret_key: SecretKey,
     pub limiter: RateLimiter,
+    /// Renders e-mail templates in a limited child process.
+    pub templates: crate::email::sandbox::TemplateSandbox,
     /// `INVOICE__GOOGLE__*`; `None` = Sign in with Google disabled.
     pub google: Option<auth::google::Google>,
 }

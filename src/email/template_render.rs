@@ -1,12 +1,11 @@
-//! Rendering e-mail templates: MiniJinja plain text (strict, no
-//! auto-escape) under limits, since a template is space-member input run on
-//! the server — fuel ([`FUEL`] instructions per part), a recursion limit, an
-//! output cap ([`OUTPUT_MAX`] per part) and a wall-clock timeout
-//! ([`TIMEOUT`]) around the render on the blocking pool. Exceeding any of
-//! them is 422 `template_invalid` with a readable `detail`.
+//! The e-mail template engine: MiniJinja plain text (strict, no
+//! auto-escape) with fuel ([`FUEL`] instructions per part), a recursion
+//! limit and an output cap ([`OUTPUT_MAX`] per part); exceeding one is 422
+//! `template_invalid` with a readable `detail`. These bound the work, not the
+//! memory (`'x' * n ~ …` can still allocate a lot), so the server only runs
+//! it inside the child process of [`super::sandbox`].
 
 use std::io;
-use std::time::Duration;
 
 use anyhow::Context as _;
 use minijinja::{AutoEscape, Environment, ErrorKind, UndefinedBehavior, Value};
@@ -20,8 +19,6 @@ pub const FUEL: u64 = 100_000;
 pub const RECURSION_LIMIT: usize = 100;
 /// Output bytes of one part.
 pub const OUTPUT_MAX: usize = 1024 * 1024;
-/// Wall-clock limit of one part's render.
-pub const TIMEOUT: Duration = Duration::from_secs(5);
 
 fn env() -> Environment<'static> {
     let mut env = Environment::new();
@@ -74,7 +71,7 @@ impl io::Write for Capped {
     }
 }
 
-fn render_now(field: &'static str, source: &str, ctx: &Value) -> Result<String, AppError> {
+fn render_part(field: &'static str, source: &str, ctx: &Value) -> Result<String, AppError> {
     let invalid = |e: minijinja::Error| AppError::TemplateInvalid {
         field,
         detail: describe(&e),
@@ -92,41 +89,21 @@ fn render_now(field: &'static str, source: &str, ctx: &Value) -> Result<String, 
     }
 }
 
-/// [`render_now`] on the blocking pool, given up after `limit` (the thread
-/// itself still stops at the fuel limit).
-async fn render_part_within(
-    limit: Duration,
-    field: &'static str,
-    source: &str,
-    ctx: &Value,
-) -> Result<String, AppError> {
-    let (source, ctx) = (source.to_string(), ctx.clone());
-    let task = tokio::task::spawn_blocking(move || render_now(field, &source, &ctx));
-    match tokio::time::timeout(limit, task).await {
-        Ok(joined) => joined.context("e-mail template render task")?,
-        Err(_) => Err(AppError::TemplateInvalid {
-            field,
-            detail: format!("rendering took longer than {} s", limit.as_secs()),
-        }),
-    }
-}
-
-/// Save / preview check: render on every sample variant (`(prefix,
-/// context)`, see `context::samples`), so strict errors inside branches the
-/// base sample does not take are caught at save time. Returns the first
-/// variant's rendering; a failure's detail is led by its variant's prefix.
-pub async fn validate(t: &Template, samples: &[(&str, Value)]) -> Result<Rendered, AppError> {
+/// Render on every sample variant (`(prefix, context)`, see
+/// `context::samples`), so strict errors inside branches the base sample
+/// does not take are caught at save time. Returns the first variant's
+/// rendering; a failure's detail is led by its variant's prefix.
+/// `progress(prefix, field)` is called before each part (the sandbox
+/// reports it, so a killed render still names its part).
+pub fn validate_with(
+    t: &Template,
+    samples: &[(&str, Value)],
+    progress: &mut dyn FnMut(&str, &'static str),
+) -> Result<Rendered, AppError> {
     let mut first = None;
     for (prefix, ctx) in samples {
-        let rendered = render(t, ctx).await.map_err(|e| match e {
-            AppError::TemplateInvalid { field, detail } if !prefix.is_empty() => {
-                AppError::TemplateInvalid {
-                    field,
-                    detail: format!("{prefix}: {detail}"),
-                }
-            }
-            other => other,
-        })?;
+        let rendered = render_with(t, ctx, &mut |field| progress(prefix, field))
+            .map_err(|e| with_prefix(prefix, e))?;
         first.get_or_insert(rendered);
     }
     first
@@ -134,11 +111,35 @@ pub async fn validate(t: &Template, samples: &[(&str, Value)]) -> Result<Rendere
         .map_err(AppError::from)
 }
 
+/// [`validate_with`] without progress reports (tests).
+pub fn validate(t: &Template, samples: &[(&str, Value)]) -> Result<Rendered, AppError> {
+    validate_with(t, samples, &mut |_, _| {})
+}
+
+/// Lead a `template_invalid` detail with the sample variant's prefix.
+pub fn with_prefix(prefix: &str, e: AppError) -> AppError {
+    match e {
+        AppError::TemplateInvalid { field, detail } if !prefix.is_empty() => {
+            AppError::TemplateInvalid {
+                field,
+                detail: format!("{prefix}: {detail}"),
+            }
+        }
+        other => other,
+    }
+}
+
 /// Render both parts on `ctx` (subject first): the subject trimmed with its
 /// newlines turned into spaces, the body with trailing whitespace trimmed.
-pub async fn render(t: &Template, ctx: &Value) -> Result<Rendered, AppError> {
-    let subject = render_part_within(TIMEOUT, "subject", &t.subject, ctx).await?;
-    let body = render_part_within(TIMEOUT, "body", &t.body, ctx).await?;
+fn render_with(
+    t: &Template,
+    ctx: &Value,
+    progress: &mut dyn FnMut(&'static str),
+) -> Result<Rendered, AppError> {
+    progress("subject");
+    let subject = render_part("subject", &t.subject, ctx)?;
+    progress("body");
+    let body = render_part("body", &t.body, ctx)?;
     Ok(Rendered {
         subject: subject
             .split(['\r', '\n'])
@@ -148,6 +149,11 @@ pub async fn render(t: &Template, ctx: &Value) -> Result<Rendered, AppError> {
             .join(" "),
         body: body.trim_end().to_string(),
     })
+}
+
+/// Both parts on one context (tests).
+pub fn render(t: &Template, ctx: &Value) -> Result<Rendered, AppError> {
+    render_with(t, ctx, &mut |_| {})
 }
 
 #[cfg(test)]

@@ -1,7 +1,6 @@
 use std::net::SocketAddr;
-use std::path::PathBuf;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use invoice::app::{self, AppState};
 use invoice::ares::AresClient;
@@ -11,15 +10,17 @@ use invoice::cleanup;
 use invoice::cnb::CnbClient;
 use invoice::config::{Config, DbConfig};
 use invoice::email::Mailer;
+use invoice::email::sandbox::{self, TemplateSandbox};
 use invoice::migration::{Migrator, MigratorTrait};
+use invoice::pdf::PdfRoot;
 use invoice::pdf::limits::RenderLimits;
-use invoice::pdf::{PdfRoot, design};
-use invoice::space;
-use invoice::storage::sweep;
-use invoice::storage::transfer::{self, Report};
-use invoice::storage::{DESIGN_PREFIX, Storage, StorageConfig};
+use invoice::storage::{Storage, sweep};
 use sea_orm::{Database, DatabaseConnection};
 use tracing_subscriber::EnvFilter;
+
+#[path = "main_storage.rs"]
+mod storage_cli;
+use storage_cli::{DesignAction, StorageAction, design_cmd, storage_cmd};
 
 #[derive(Parser)]
 #[command(
@@ -53,68 +54,10 @@ enum Command {
     },
     /// Print the OpenAPI document (as served at `/api/openapi.json`) to stdout.
     Openapi,
-}
-
-#[derive(Subcommand)]
-enum StorageAction {
-    /// Copy a filesystem storage directory (and an old design directory) into
-    /// the configured backend. Verifies sha256, skips identical files, never
-    /// overwrites different ones, never deletes the source.
-    Migrate {
-        /// The old INVOICE__STORAGE_DIR (keys = relative paths).
-        #[arg(long)]
-        from_dir: PathBuf,
-        /// The old INVOICE__DESIGN_DIR (copied under `design/`).
-        #[arg(long)]
-        design_dir: Option<PathBuf>,
-    },
-    /// Delete document objects no document references, older than an hour
-    /// (also done daily by `serve`). Needs the database.
-    Sweep {
-        /// Only list what would be deleted.
-        #[arg(long)]
-        dry_run: bool,
-    },
-}
-
-#[derive(Subcommand)]
-enum DesignAction {
-    /// Upload every file of DIR to the space's `design/…` (changed files replaced).
-    Push {
-        dir: PathBuf,
-        /// The space slug.
-        #[arg(long)]
-        space: String,
-    },
-    /// Download every `design/…` file of the space into DIR.
-    Pull {
-        dir: PathBuf,
-        #[arg(long)]
-        space: String,
-    },
-    /// List the effective design of the space: custom files and the built-in defaults.
-    Ls {
-        #[arg(long)]
-        space: String,
-    },
-    /// Remove custom design files (the built-in default shows through again).
-    Rm {
-        #[arg(required = true)]
-        paths: Vec<String>,
-        #[arg(long)]
-        space: String,
-    },
-}
-
-impl DesignAction {
-    fn space(&self) -> &str {
-        match self {
-            Self::Push { space, .. }
-            | Self::Pull { space, .. }
-            | Self::Ls { space }
-            | Self::Rm { space, .. } => space,
-        }
-    }
+    /// Internal: render one e-mail template job (stdin → stdout) under the
+    /// limits the server's sandbox sets.
+    #[command(hide = true, name = "render-template")]
+    RenderTemplate,
 }
 
 #[derive(Subcommand)]
@@ -130,13 +73,24 @@ enum MigrateAction {
     },
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let command = Cli::parse().command;
     // stdout carries the JSON document: no subscriber, so no log line can mix into it.
     if matches!(command, Command::Openapi) {
         return print_openapi();
     }
+    // Before any runtime or logger: one thread, stdout is the protocol.
+    if matches!(command, Command::RenderTemplate) {
+        return sandbox::child_main();
+    }
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .context("start the async runtime")?
+        .block_on(run(command))
+}
+
+async fn run(command: Command) -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
             EnvFilter::new("invoice=info,tower_http=info,sea_orm_migration=info")
@@ -149,6 +103,7 @@ async fn main() -> Result<()> {
         Command::Storage { action } => storage_cmd(action).await,
         Command::Design { action } => design_cmd(action).await,
         Command::Openapi => print_openapi(),
+        Command::RenderTemplate => sandbox::child_main(),
     }
 }
 
@@ -207,6 +162,7 @@ async fn serve() -> Result<()> {
         trust_forwarded: cfg.trust_forwarded,
         secret_key: cfg.secret_key.clone(),
         limiter: RateLimiter::default(),
+        templates: TemplateSandbox::current()?,
         google: cfg.google.clone().map(Google::new).transpose()?,
     };
     let listener = tokio::net::TcpListener::bind(&cfg.bind)
@@ -229,140 +185,6 @@ async fn migrate(action: MigrateAction) -> Result<()> {
         MigrateAction::Down { n } => Migrator::down(&db, Some(n)).await,
     }
     .context("run migrations")
-}
-
-fn open_storage() -> Result<Storage> {
-    Storage::new(&StorageConfig::from_env()?)
-}
-
-fn finish(report: &Report) -> Result<()> {
-    for key in &report.copied {
-        println!("copied     {key}");
-    }
-    for problem in &report.problems {
-        eprintln!("problem    {problem}");
-    }
-    println!("{}", report.summary());
-    if !report.problems.is_empty() {
-        bail!("{} file(s) not copied", report.problems.len());
-    }
-    Ok(())
-}
-
-async fn storage_cmd(action: StorageAction) -> Result<()> {
-    let storage = open_storage()?;
-    match action {
-        StorageAction::Migrate {
-            from_dir,
-            design_dir,
-        } => {
-            let result =
-                finish(&transfer::migrate(&storage, &from_dir, design_dir.as_deref()).await?);
-            refresh_design_usage(&storage).await?;
-            result
-        }
-        StorageAction::Sweep { dry_run } => {
-            let cfg = DbConfig::from_env()?;
-            let db = connect(cfg.database_url.expose()).await?;
-            let swept = sweep::sweep_now(&db, &storage, dry_run).await?;
-            let verb = if dry_run { "orphan    " } else { "deleted   " };
-            for key in &swept.orphans {
-                println!("{verb}{key}");
-            }
-            println!(
-                "{} document object(s), {} orphan(s), {} deleted, {} too young, {} failed",
-                swept.listed,
-                swept.orphans.len(),
-                swept.deleted,
-                swept.young,
-                swept.failed
-            );
-            if swept.failed > 0 {
-                bail!("{} orphan(s) not deleted", swept.failed);
-            }
-            Ok(())
-        }
-    }
-}
-
-/// The copied keys may hold space files: record every space's design bytes
-/// again (needs the database; without it, the next design listing does).
-async fn refresh_design_usage(storage: &Storage) -> Result<()> {
-    let Ok(cfg) = DbConfig::from_env() else {
-        println!("design storage usage not refreshed (no INVOICE__DATABASE_URL)");
-        return Ok(());
-    };
-    let db = connect(cfg.database_url.expose()).await?;
-    let n = invoice::pdf::editor::refresh_all(&db, storage)
-        .await
-        .map_err(|e| anyhow::anyhow!("refresh the design storage usage: {e}"))?;
-    println!("design storage usage refreshed for {n} space(s)");
-    Ok(())
-}
-
-/// The space `slug` (looked up in the database) and its storage.
-async fn space_storage(slug: &str) -> Result<(DatabaseConnection, space::SpaceId, Storage)> {
-    let cfg = DbConfig::from_env()?;
-    let db = connect(cfg.database_url.expose()).await?;
-    let space = space::repo::find_by_slug(&db, slug)
-        .await
-        .map_err(|e| anyhow::anyhow!("look up space {slug}: {e}"))?
-        .with_context(|| format!("no space with slug {slug}"))?;
-    let space = space::SpaceId::from(&space);
-    let storage = open_storage()?.scoped(&space.storage_prefix())?;
-    Ok((db, space, storage))
-}
-
-async fn design_cmd(action: DesignAction) -> Result<()> {
-    let (db, space, storage) = space_storage(action.space()).await?;
-    let changes = matches!(action, DesignAction::Push { .. } | DesignAction::Rm { .. });
-    let result = design_action(&storage, action).await;
-    if changes {
-        // Also after a partial failure: some files may have changed.
-        invoice::pdf::editor::refresh_usage(&db, space, &storage).await;
-    }
-    result
-}
-
-async fn design_action(storage: &Storage, action: DesignAction) -> Result<()> {
-    match action {
-        DesignAction::Push { dir, .. } => {
-            let mut report = Report::default();
-            transfer::copy_tree(storage, &dir, Some(DESIGN_PREFIX), true, &mut report).await?;
-            finish(&report)
-        }
-        DesignAction::Pull { dir, .. } => {
-            for rel in transfer::pull(storage, DESIGN_PREFIX, &dir).await? {
-                println!("{rel}");
-            }
-            Ok(())
-        }
-        DesignAction::Ls { .. } => {
-            for f in design::list(storage).await? {
-                let source = match f.source {
-                    design::Source::Custom => "custom",
-                    design::Source::Default => "default",
-                };
-                println!("{source:<8} {:>10}  {}", f.size, f.path);
-            }
-            Ok(())
-        }
-        DesignAction::Rm { paths, .. } => {
-            let mut missing = 0;
-            for path in paths {
-                if design::remove(storage, &path).await? {
-                    println!("removed    {path}");
-                } else {
-                    eprintln!("not found  {path}");
-                    missing += 1;
-                }
-            }
-            if missing > 0 {
-                bail!("{missing} design file(s) not found");
-            }
-            Ok(())
-        }
-    }
 }
 
 async fn shutdown_signal() {

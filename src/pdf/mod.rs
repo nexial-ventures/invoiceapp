@@ -198,7 +198,7 @@ impl PdfService {
         let data = serde_json::to_string(&payload).context("serialize PDF payload")?;
         let mut req = request::template(design.template, data);
         req.fonts = fonts;
-        let _permit = self.limits.permit().await.inspect_err(|_| {
+        let _permit = self.limits.permit(self.kind).await.inspect_err(|_| {
             if let Some(slot) = &slot {
                 slot.refund();
             }

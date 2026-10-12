@@ -2,7 +2,10 @@
 //! concurrent mdcast renders, and per-space limits on previews (the live
 //! sample, the design draft preview, a draft document's PDF) — one in flight
 //! per space and [`PREVIEW_SPACE`] per hour. Issue and archive renders only
-//! pass the instance-wide cap: issuing is never refused by a preview limit.
+//! pass the instance-wide cap: issuing is never refused by a preview limit,
+//! and previews may hold at most all but one of the slots, so one is always
+//! left for issue / archive renders (with a concurrency of 2 or more).
+//! A preview that times out here may still run to its end in mdcast.
 
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
@@ -33,6 +36,8 @@ pub enum RenderKind {
 #[derive(Clone)]
 pub struct RenderLimits {
     permits: Arc<Semaphore>,
+    /// `concurrency - 1` (at least 1): taken by a preview before a slot.
+    preview_permits: Arc<Semaphore>,
     queue_wait: Duration,
     preview_timeout: Duration,
     in_flight: Arc<Mutex<HashSet<SpaceId>>>,
@@ -48,9 +53,12 @@ impl Default for RenderLimits {
 impl RenderLimits {
     /// At most `concurrency` mdcast renders at once (at least one).
     pub fn new(concurrency: u32) -> Self {
-        let n = usize::try_from(concurrency.max(1)).unwrap_or(usize::MAX);
+        let n = usize::try_from(concurrency.max(1))
+            .unwrap_or(usize::MAX)
+            .min(Semaphore::MAX_PERMITS);
         Self {
-            permits: Arc::new(Semaphore::new(n.min(Semaphore::MAX_PERMITS))),
+            permits: Arc::new(Semaphore::new(n)),
+            preview_permits: Arc::new(Semaphore::new((n - 1).max(1))),
             queue_wait: QUEUE_WAIT,
             preview_timeout: PREVIEW_TIMEOUT,
             in_flight: Arc::default(),
@@ -80,12 +88,25 @@ impl RenderLimits {
         Ok(slot)
     }
 
-    /// A global render slot, waiting at most the queue wait (then 503 busy).
-    pub async fn permit(&self) -> Result<OwnedSemaphorePermit, AppError> {
-        match tokio::time::timeout(self.queue_wait, Arc::clone(&self.permits).acquire_owned()).await
-        {
+    /// A global render slot for a `kind` render, waiting at most the queue
+    /// wait (then 503 busy).
+    pub async fn permit(&self, kind: RenderKind) -> Result<Permit, AppError> {
+        let acquire = async {
+            let preview = match kind {
+                RenderKind::Preview => {
+                    Some(Arc::clone(&self.preview_permits).acquire_owned().await?)
+                }
+                RenderKind::Archive => None,
+            };
+            let slot = Arc::clone(&self.permits).acquire_owned().await?;
+            Ok::<_, tokio::sync::AcquireError>(Permit {
+                _slot: slot,
+                _preview: preview,
+            })
+        };
+        match tokio::time::timeout(self.queue_wait, acquire).await {
             Ok(Ok(permit)) => Ok(permit),
-            // The semaphore is never closed; treat it like a full queue.
+            // The semaphores are never closed; treat it like a full queue.
             Ok(Err(_)) | Err(_) => Err(AppError::PdfBusy),
         }
     }
@@ -101,6 +122,12 @@ impl RenderLimits {
     fn lock(&self) -> std::sync::MutexGuard<'_, HashSet<SpaceId>> {
         self.in_flight.lock().unwrap_or_else(|e| e.into_inner())
     }
+}
+
+/// A held render slot (and a preview's share), released on drop.
+pub struct Permit {
+    _slot: OwnedSemaphorePermit,
+    _preview: Option<OwnedSemaphorePermit>,
 }
 
 /// The one preview a space has in flight.
@@ -184,12 +211,32 @@ mod tests {
     #[tokio::test]
     async fn global_cap_waits_then_refuses() {
         let limits = RenderLimits::new(1).with_waits(Duration::from_millis(50), PREVIEW_TIMEOUT);
-        let held = limits.permit().await.expect("free");
-        assert!(matches!(limits.permit().await, Err(AppError::PdfBusy)));
+        let held = limits.permit(RenderKind::Archive).await.expect("free");
+        assert!(matches!(
+            limits.permit(RenderKind::Archive).await,
+            Err(AppError::PdfBusy)
+        ));
         drop(held);
-        drop(limits.permit().await.expect("free again"));
+        drop(
+            limits
+                .permit(RenderKind::Preview)
+                .await
+                .expect("free again"),
+        );
         assert_eq!(limits.timeout(RenderKind::Archive), None);
         assert_eq!(limits.timeout(RenderKind::Preview), Some(PREVIEW_TIMEOUT));
         assert!(RenderLimits::new(0).permits.available_permits() == 1);
+    }
+
+    #[tokio::test]
+    async fn previews_leave_one_slot_for_issue() {
+        let limits = RenderLimits::new(2).with_waits(Duration::from_millis(50), PREVIEW_TIMEOUT);
+        let preview = limits.permit(RenderKind::Preview).await.expect("free");
+        assert!(matches!(
+            limits.permit(RenderKind::Preview).await,
+            Err(AppError::PdfBusy)
+        ));
+        let issue = limits.permit(RenderKind::Archive).await.expect("reserved");
+        drop((preview, issue));
     }
 }

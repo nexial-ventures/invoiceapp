@@ -9,8 +9,11 @@ use std::time::Duration;
 use axum::Router;
 use axum::http::{StatusCode, header};
 use common::TestDb;
+use common::auth::seed_space;
+use common::design::{activate, template, upload_ok};
 use common::documents::{create_doc, id, issuable, issue};
 use common::mdcast::{PdfEnv, get_raw};
+use common::members::{B_TOKEN, as_beta};
 use invoice::pdf::limits::{PREVIEW_TIMEOUT, QUEUE_WAIT, RenderLimits};
 use serde_json::Value;
 
@@ -131,4 +134,53 @@ async fn previews_time_out_sooner_than_issue() {
     );
     let (status, doc) = issue(&app, &id(&doc)).await;
     assert_eq!(status, StatusCode::OK, "{doc}");
+}
+
+#[tokio::test]
+async fn busy_activations_do_not_spend_the_design_budget() {
+    let db = TestDb::new().await;
+    let env = PdfEnv::new();
+    let limits = RenderLimits::new(1).with_waits(Duration::from_millis(100), PREVIEW_TIMEOUT);
+    let app = env.router_limited(db.conn.clone(), limits);
+    let doc = create_doc(&app, issuable(&app).await).await;
+    upload_ok(&app, "invoice.typ", template("draft")).await;
+
+    env.mock.hold();
+    let issued = spawn_issue(&app, &doc);
+    env.mock.wait_started(1).await;
+    // More than the 10 / h `design-space` budget, all refused as busy.
+    for _ in 0..12 {
+        let (status, e) = activate(&app).await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{e}");
+        assert_eq!(e["detail"], "busy");
+    }
+    env.mock.release();
+    assert_eq!(issued.await.expect("issue task").0, StatusCode::OK);
+    let (status, e) = activate(&app).await;
+    assert_eq!(status, StatusCode::OK, "{e}");
+}
+
+#[tokio::test]
+async fn previews_leave_a_slot_for_issue() {
+    let db = TestDb::new().await;
+    let env = PdfEnv::new();
+    let limits = RenderLimits::new(2).with_waits(Duration::from_millis(300), PREVIEW_TIMEOUT);
+    let app = env.router_limited(db.conn.clone(), limits);
+    let doc = create_doc(&app, issuable(&app).await).await;
+    seed_space(&db.conn, "beta", "beta@example.com", Some(B_TOKEN)).await;
+    let beta = as_beta(&app);
+
+    env.mock.hold();
+    let preview = spawn_get(&app, PREVIEW);
+    env.mock.wait_started(1).await;
+    // Another space's preview finds no preview share left.
+    let (status, _, body) = get_raw(&beta, PREVIEW).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(code(&body)["detail"], "busy");
+    // The last slot is the issue's.
+    let issued = spawn_issue(&app, &doc);
+    env.mock.wait_started(2).await;
+    env.mock.release();
+    assert_eq!(preview.await.expect("preview task"), StatusCode::OK);
+    assert_eq!(issued.await.expect("issue task").0, StatusCode::OK);
 }
