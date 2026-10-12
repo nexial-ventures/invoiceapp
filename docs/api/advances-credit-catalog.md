@@ -129,6 +129,9 @@ Advance lines
   advance, while the zero-VAT non-payer form is allowed in every mode; a proforma that is not this invoice's `relatedDocumentId` or whose payments issue DDPPs),
   `duplicate` (twice in one document, or already on another non-cancelled invoice — drafts included);
   `lines.N.kind: invalid` on a non-invoice. Advance lines are never subtotal members (`lines.N.refs: invalid`).
+- Only issued-direction documents can be deducted: a received document id is treated as unknown (`invalid`). An
+  imported document cannot carry `advance` lines ([received-import.md](received-import.md)), but an issued imported
+  proforma / DDPP is a valid source like a native one.
 - The deducted amounts are a snapshot stored on the line at save and refreshed (and re-validated) at issue.
   Writes lock the referenced documents; if the paid amount of a non-payer proforma changed between validation and
   the write → 409 `conflict` (retry).
@@ -180,3 +183,5 @@ Catalog
 - Item `PUT` changing `vatRate` so that one of its groups would mix rates → 422 `{"fields":{"vatRate":"mixed_vat"}}`.
   Item `DELETE` removes it from its groups (cascade), except when it is the **last** member of a group → 409
   `catalog_item_in_use` (delete or edit the group first).
+- Group writes replace the members in one transaction with the member items locked `FOR SHARE`, so a concurrent item
+  rate change cannot mix a group's rates.

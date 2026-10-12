@@ -37,7 +37,8 @@ Everything goes through `make` (`make help` lists targets). `CARGO_BUILD_JOBS=4`
   extractor (`Read` / `Write` / `Manage` / `Own`) and pass its `SpaceId` to every repo — space data is never
   queried without it ([`docs/api/spaces.md`](../docs/api/spaces.md), [`docs/api/auth.md`](../docs/api/auth.md)).
 - Integration tests run inside a seeded space (`tests/common`: `TestDb.space`, `TEST_TOKEN`, `TEST_HOST`); storage
-  keys of a space are under `spaces/{id}/` (`db.key(..)`).
+  keys of a space are under `spaces/{id}/` (`db.key(..)`). Build test routers with `TestApp::builder(&db.conn)`
+  (`tests/common/builder.rs`, options in [`docs/architecture.md`](../docs/architecture.md#tests-tests)), not a hand-edited `AppState`.
 - UI strings go through vue-i18n; `frontend/src/locales/{cs,en}/<namespace>.json` must have the same files and identical keys (test enforced); split a namespace file before it passes 400 lines.
 - Migrations are append-only (`src/migration/mod.rs` explains how to add one).
 - New env var → `.env.example` + `docs/architecture.md` in the same change.

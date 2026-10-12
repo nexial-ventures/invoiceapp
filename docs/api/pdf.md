@@ -7,7 +7,8 @@ Documents are rendered to PDF by the mdcast service (`POST {INVOICE__MDCAST_URL}
 ## Design files
 
 - The default design is embedded in the binary from the repo directory `design/`: `invoice.typ`, `fonts/Inter-*.ttf`
-  (+ `fonts/OFL.txt`). Minimalist layout, black/grey, one accent colour, no logo.
+  (+ `fonts/OFL.txt`). Minimalist layout, black/grey, one accent colour, no logo. Release builds embed it (rust-embed);
+  debug builds read it from disk, so a design edit needs no rebuild while developing.
 - The storage keys `design/…` (see [Storage](#storage)) override it **file by file**: the effective set is embedded ∪
   `design/`, the stored file wins on the same relative path (`design/logo.svg` → `logo.svg`). The prefix listing of a
   render is reused for up to 30 s per space and dropped by an activation / restore / reset (design edits apply

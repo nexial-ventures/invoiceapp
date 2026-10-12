@@ -156,14 +156,10 @@ async fn an_undecryptable_secret_keeps_recovery_codes_usable() {
 async fn a_changed_secret_key_does_not_lock_out_the_login_bucket() {
     let db = TestDb::new().await;
     let e = enrol(&router(db.conn.clone()), OWNER_EMAIL).await;
-    let mut state = common::state(
-        db.conn.clone(),
-        invoice::ares::DEFAULT_ARES_URL,
-        invoice::cnb::DEFAULT_CNB_URL,
-        common::pdf_service("http://127.0.0.1:9", common::shared_storage()),
-    );
-    state.secret_key = invoice::secret::SecretKey::from_bytes([7; 32]);
-    let app = common::app(state);
+    let app = common::TestApp::builder(&db.conn)
+        .mdcast_url("http://127.0.0.1:9")
+        .state(|s| s.secret_key = invoice::secret::SecretKey::from_bytes([7; 32]))
+        .build();
     for _ in 0..2 {
         let pending = start(&app, TEST_HOST, OWNER_EMAIL).await;
         for _ in 0..4 {

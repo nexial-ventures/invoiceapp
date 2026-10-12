@@ -16,13 +16,11 @@ use serde_json::json;
 const OWNER: As<'static> = As::Bearer(TEST_TOKEN);
 
 fn disabled(db: &TestDb, env: &EmailEnv, smtp: bool) -> axum::Router {
-    let mut state = env.state(db.conn.clone());
-    state.email_disabled = true;
-    state.registration = true;
-    if !smtp {
-        state.email = None;
-    }
-    common::app(state)
+    let app = common::TestApp::builder(&db.conn)
+        .mdcast(&env.pdf)
+        .registration(true)
+        .state(|s| s.email_disabled = true);
+    if smtp { app.smtp(&env.config) } else { app }.build()
 }
 
 #[tokio::test]
