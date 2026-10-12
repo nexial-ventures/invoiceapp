@@ -31,7 +31,9 @@ pub struct Template {
 /// a serde 400.
 #[derive(Debug, Clone, Default, Deserialize, ToSchema)]
 pub struct TemplateInput {
+    #[schema(required = true)]
     pub subject: Option<String>,
+    #[schema(required = true)]
     pub body: Option<String>,
 }
 

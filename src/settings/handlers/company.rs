@@ -41,6 +41,7 @@ pub struct ProfileInput {
     pub name: String,
     pub ico: Option<String>,
     pub dic: Option<String>,
+    #[schema(required = true)]
     pub vat_payer: Option<bool>,
     #[serde(default)]
     pub street: String,
@@ -54,8 +55,10 @@ pub struct ProfileInput {
     pub phone: Option<String>,
     pub web: Option<String>,
     pub registration: Option<String>,
+    #[schema(required = true)]
     pub default_due_days: Option<i32>,
     /// `cs` or `en`.
+    #[schema(required = true)]
     pub default_locale: Option<String>,
 }
 

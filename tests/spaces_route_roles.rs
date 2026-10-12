@@ -1,9 +1,10 @@
 //! Every route in `/api/openapi.json` has an explicit access decision here
 //! (spaces.md, 4a) — a new route without one fails this test. Each decision
 //! is then probed: a space route refuses anonymous callers (401) and every
-//! role below its minimum (403 `forbidden`) and lets its minimum role past
-//! the role check; an account route refuses anonymous callers; a public
-//! route does not ask for credentials. The success paths per route group
+//! role below its minimum (403 `forbidden`) and answers every role from its
+//! minimum up with neither 401 nor 403; an account route refuses anonymous
+//! callers; a public route does not ask for credentials; a session-only
+//! route refuses a token of a sufficient role (403). The success paths per route group
 //! are in `spaces_roles.rs`.
 
 mod common;
@@ -15,7 +16,7 @@ use axum::http::{Method, StatusCode};
 use common::auth::{As, member, on};
 use common::documents::dead_url;
 use common::members::{session_on, user_id};
-use common::{BASE_HOST, TEST_HOST, TestDb, call, router_with};
+use common::{BASE_HOST, TEST_HOST, TEST_TOKEN, TestDb, call, router_with};
 use invoice::space::Role;
 use serde_json::{Value, json};
 
@@ -199,8 +200,29 @@ const ROUTES: &[(&str, &str, Access)] = &[
     ("POST", "/api/space/leave", Space(Acc)),
 ];
 
+/// Routes that refuse a token even of a sufficient role (`require_session()`
+/// on every path): credentials, TOTP, Google link, leaving / deleting the
+/// space. Each must also be in [`ROUTES`]. (`PUT /api/space` needs a session
+/// only for `requireMfa`, covered in `mfa_policy.rs`; logout takes either.)
+const SESSION_ONLY: &[(&str, &str)] = &[
+    ("POST", "/api/account/password"),
+    ("POST", "/api/auth/sessions/revoke-others"),
+    ("GET", "/api/account/mfa"),
+    ("POST", "/api/account/mfa/setup"),
+    ("POST", "/api/account/mfa/enable"),
+    ("POST", "/api/account/mfa/disable"),
+    ("POST", "/api/account/mfa/recovery-codes"),
+    ("POST", "/api/account/google/link"),
+    ("DELETE", "/api/account/google"),
+    ("DELETE", "/api/space"),
+    ("POST", "/api/space/leave"),
+];
+
 /// A concrete URI for an OpenAPI path: every `{param}` gets a well-formed
-/// value that matches nothing (nil ids), so a probe never changes data.
+/// value that matches nothing (nil ids). The bodies are empty objects, so
+/// most probes stop at validation — not all: a sufficient role really runs
+/// the handler (e.g. `POST /api/space/leave` makes the accountant leave,
+/// `PUT /api/space` with `{}` saves nothing new). Run on a throwaway space.
 fn concrete(path: &str) -> String {
     let nil = uuid::Uuid::nil().to_string();
     path.split('/')
@@ -305,6 +327,11 @@ async fn every_route_has_an_access_decision_that_holds() {
                 let (s, _) = on(&app, m.clone(), TEST_HOST, &uri, As::Nobody, body(&m)).await;
                 assert_eq!(s, StatusCode::UNAUTHORIZED, "{what}: anonymous");
                 for (role, cookie) in &sessions {
+                    // Leaving is probed by the accountant only (the owner
+                    // could not leave; an admin leaving would end its probes).
+                    if *path == "/api/space/leave" && *role != Acc {
+                        continue;
+                    }
                     let (s, j) = on(
                         &app,
                         m.clone(),
@@ -320,11 +347,40 @@ async fn every_route_has_an_access_decision_that_holds() {
                             (StatusCode::FORBIDDEN, json!({ "code": "forbidden" })),
                             "{what} as {role:?}"
                         );
-                    } else if role == min {
-                        assert!(!refused(&j), "{what} as {role:?}: got {s} {j}");
+                    } else {
+                        assert!(
+                            s != StatusCode::UNAUTHORIZED && s != StatusCode::FORBIDDEN,
+                            "{what} as {role:?}: got {s} {j}"
+                        );
                     }
                 }
             }
         }
+    }
+}
+
+#[tokio::test]
+async fn session_only_routes_refuse_tokens() {
+    let decided: BTreeSet<(&str, &str)> = ROUTES.iter().map(|(m, p, _)| (*m, *p)).collect();
+    let db = TestDb::new().await;
+    // Google configured, else its account routes are 404 before the check.
+    let (app, _oidc) = common::google::app(&db.conn, false);
+    // Shaped like the real inputs, so the request reaches the session check.
+    let body = json!({ "slug": "x", "password": "x", "currentPassword": "x",
+                       "newPassword": "x", "code": "123456" });
+    for (method, path) in SESSION_ONLY {
+        assert!(
+            decided.contains(&(*method, *path)),
+            "{method} {path} not in ROUTES"
+        );
+        let m = Method::from_bytes(method.as_bytes()).expect("method");
+        let b = (m != Method::GET).then(|| body.clone());
+        // The owner's token: every role check passes, only the session one is left.
+        let (s, j) = on(&app, m, TEST_HOST, path, As::Bearer(TEST_TOKEN), b).await;
+        assert_eq!(
+            (s, j),
+            (StatusCode::FORBIDDEN, json!({ "code": "forbidden" })),
+            "{method} {path} with a token"
+        );
     }
 }

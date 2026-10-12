@@ -11,6 +11,7 @@ use common::auth::seed_space;
 use common::documents::{create_bank, create_contact, create_doc, id, item, set_company};
 use common::members::{B_TOKEN, as_beta};
 use common::{TestDb, call, router};
+use invoice::migration::{Migrator, MigratorTrait};
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, Statement};
 use serde_json::json;
 use uuid::Uuid;
@@ -106,4 +107,52 @@ async fn cross_space_references_are_refused_by_the_database() {
         Some(None)
     );
     assert!(row.try_get::<Uuid>("", "space_id").is_ok());
+}
+
+/// Existing cross-space links make the migration fail with their counts,
+/// not with a raw FK error; once fixed it applies (and `down` works).
+#[tokio::test]
+async fn the_migration_refuses_existing_cross_space_links() {
+    let db = TestDb::new().await;
+    seed_space(&db.conn, "beta", "beta@example.com", Some(B_TOKEN)).await;
+    let a = router(db.conn.clone());
+    let b = as_beta(&a);
+    let alpha = refs(&a).await;
+    let beta = refs(&b).await;
+
+    // Back to before the migration (also undoing any later one).
+    let all = Migrator::migrations();
+    let at = all
+        .iter()
+        .position(|m| m.name() == "m20261023_000001_tenant_fks")
+        .expect("the tenant FK migration");
+    let steps = u32::try_from(all.len() - at).expect("steps");
+    Migrator::down(&db.conn, Some(steps)).await.expect("down");
+    for (column, foreign) in [
+        ("contact_id", alpha.contact),
+        ("category_id", alpha.category),
+    ] {
+        set(&db.conn, column, foreign, beta.doc)
+            .await
+            .unwrap_or_else(|e| panic!("{column} without the FK: {e}"));
+    }
+
+    let msg = Migrator::up(&db.conn, None)
+        .await
+        .expect_err("must refuse")
+        .to_string();
+    assert!(
+        msg.contains("another space") && msg.contains("contact: 1") && msg.contains("category: 1"),
+        "{msg}"
+    );
+    assert!(!msg.contains("bank_account"), "{msg}");
+
+    for (column, own) in [("contact_id", beta.contact), ("category_id", beta.category)] {
+        set(&db.conn, column, own, beta.doc)
+            .await
+            .unwrap_or_else(|e| panic!("fix {column}: {e}"));
+    }
+    Migrator::up(&db.conn, None)
+        .await
+        .expect("migrates once fixed");
 }
