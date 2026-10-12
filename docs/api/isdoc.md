@@ -318,8 +318,8 @@ Import
   `{"fields":{"options":"invalid"}}`; `selected` defaults to `[]`. `categoryId` must name an active expense category
   (else `categoryId: invalid` / `inactive`). Entries are imported in rank order (proforma → invoice / simplified /
   DDPP → corrections), so a selected original is committed before a document that links to it; results are listed
-  in upload order. Database lookups (existing duplicate, contact, related) run only for the selected entries; the
-  in-batch duplicate pass covers all. Each entry's transaction takes `pg_advisory_xact_lock` on its identity
+  in upload order. Database lookups (existing duplicate, contact, related) run only for the selected entries — one
+  query per kind for the whole batch, in the preview too; the in-batch duplicate pass covers all. Each entry's transaction takes `pg_advisory_xact_lock` on its identity
   (direction + type / supplier + number) and re-checks the duplicate rule, so two concurrent confirms cannot import
   the same received document twice (no unique index backs supplier + supplier number). A duplicate found then is
   `failed` with `duplicate`. Failure codes: `rate_unavailable`, `storage_unavailable` (the file storage is down

@@ -1,6 +1,7 @@
 //! Database lookups of the import: existing contact, duplicate, related
-//! original. [`super::check`] runs them for the preview and for the selected
-//! entries of a confirm; [`super::store`] runs them again inside each entry's
+//! original. [`super::check`] runs their batched form ([`super::batch`]) for
+//! the preview and for the selected entries of a confirm; [`super::store`]
+//! runs them per entry inside each entry's
 //! transaction, the duplicate check under an advisory lock on the
 //! document's identity.
 

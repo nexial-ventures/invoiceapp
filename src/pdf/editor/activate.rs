@@ -98,9 +98,11 @@ async fn finish(
     txn: DatabaseTransaction,
     result: Result<Recorded, AppError>,
 ) -> Result<Json<VersionResponse>, AppError> {
-    let recorded = in_txn(txn, result).await?;
-    files::remove_versions(pdf.storage(), &recorded.pruned).await;
+    let recorded = in_txn(txn, result).await;
+    // Also on failure: the live files may have changed before it.
     pdf.invalidate_design();
+    let recorded = recorded?;
+    files::remove_versions(pdf.storage(), &recorded.pruned).await;
     Ok(Json(VersionResponse {
         version: recorded.version,
     }))

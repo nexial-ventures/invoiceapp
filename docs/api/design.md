@@ -73,10 +73,11 @@ are never re-rendered (1d). All routes are on a space host, **admin+** (Settings
 - Rate limit: activation / restore 10 per hour per space (each costs two mdcast renders); 429 `rate_limited`.
 
 ## Interaction with existing behaviour
-- Renders (issue, preview) keep reading **live** only. The design cache (1d, per space since 4a) is invalidated by
-  the activation / restore / reset or the deletion of that space, and bounded by `INVOICE__DESIGN_CACHE_MB` (LRU).
+- Renders (issue, preview) keep reading **live** only. The design cache (1d, per space since 4a) — the downloaded
+  files and the live listing (reused for 30 s) — is invalidated by the activation / restore / reset (also when its
+  transaction fails) or the deletion of that space, and bounded by `INVOICE__DESIGN_CACHE_MB` (LRU).
 - `invoice design push|pull|ls|rm --space` keep working on live directly (operator tool, no versions); the next
-  activation snapshots whatever is live.
+  activation snapshots whatever is live. A running server picks a push up once its cached listing expires (≤ 30 s).
 - Space delete removes the whole `spaces/{id}/` prefix incl. drafts and versions (4a).
 
 ## UI (Settings → Design, admin+)
@@ -143,7 +144,7 @@ are never re-rendered (1d). All routes are on a space host, **admin+** (Settings
   (logged). The completeness check of a restore compares presence and size against the row (not the sha256).
 - **After an activation's commit** the applied draft files are deleted unless one was re-uploaded meanwhile (its
   ETag — or size + modification time without one — differs); the design cache of the space is invalidated after
-  every activation / restore / reset commit.
+  every activation / restore / reset (commit or failure).
 - **Restore**: live files not in the version are deleted (hidden files are left alone); restoring a `default`
   version empties the live set like reset but records `revert`. Unknown version (or another space's, or pruned in
   the meantime) → 404.

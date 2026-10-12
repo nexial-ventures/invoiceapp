@@ -5,6 +5,7 @@ pub mod auth;
 pub mod catalog;
 pub mod cleanup;
 pub mod cnb;
+pub mod compression;
 pub mod config;
 pub mod contact;
 pub mod csvio;

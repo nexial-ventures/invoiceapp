@@ -150,7 +150,18 @@ impl PdfService {
         let fonts = design.fonts();
         let mut bundle = AssetBundle::new();
         for (key, bytes) in design.files {
-            bundle.insert(key, bytes);
+            match design.digests.get(&key) {
+                // Embedded: digest precomputed, bytes only sent if mdcast
+                // asks for them.
+                Some(digest) => {
+                    bundle.insert_digest(key, digest.clone(), move || {
+                        std::future::ready(Ok::<_, std::convert::Infallible>(bytes.clone()))
+                    });
+                }
+                None => {
+                    bundle.insert(key, bytes);
+                }
+            }
         }
         if let Some(s) = &payload.spayd {
             bundle.insert(design::QR_IMAGE, spayd::qr_svg(s)?.into_bytes());

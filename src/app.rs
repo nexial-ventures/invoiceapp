@@ -17,8 +17,8 @@ use crate::error::AppError;
 use crate::pdf::PdfRoot;
 use crate::secret::SecretKey;
 use crate::{
-    ares, auth, catalog, cnb, contact, csvio, document, email, health, isdoc, mcp, members,
-    openapi, pdf, security_headers, settings, spa, space,
+    ares, auth, catalog, cnb, compression, contact, csvio, document, email, health, isdoc, mcp,
+    members, openapi, pdf, security_headers, settings, spa, space,
 };
 
 #[derive(Clone)]
@@ -54,7 +54,7 @@ pub struct AppState {
 /// (space host); space-host routes (everything of phases 1–3, `/api/space`,
 /// `/api/tokens`, members and invitations, MCP). Non-API paths fall
 /// through to the embedded SPA. Every response carries the security headers
-/// (`security_headers`).
+/// (`security_headers`); text bodies are compressed (`compression`).
 pub fn router(state: AppState) -> Router {
     let authenticate = || middleware::from_fn_with_state(state.clone(), auth::ctx::authenticate);
 
@@ -115,6 +115,9 @@ pub fn router(state: AppState) -> Router {
         .layer(TraceLayer::new_for_http().make_span_with(|req: &Request<Body>| {
             tracing::debug_span!("request", method = %req.method(), path = %req.uri().path())
         }))
+        // Under the security headers, which only add headers and so pass the
+        // (possibly streamed) compressed body through.
+        .layer(compression::layer())
         // Outermost: every response gets them, rejections and 404s included.
         .layer(middleware::from_fn_with_state(
             state.clone(),
