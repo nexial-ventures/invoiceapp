@@ -83,7 +83,7 @@ function remove() {
       <OriginalPdfPanel :doc="doc" />
       <!-- We are the customer of a received document; without a stored snapshot the current company is shown. -->
       <PartiesCard :supplier="doc.supplier" :customer="doc.customer ?? company.company" />
-      <RelatedDocumentsPanel :parent="doc.parent" :children="doc.relatedDocuments" :currency="doc.currency" direction="received" />
+      <RelatedDocumentsPanel :parent="doc.parent" :children="doc.relatedDocuments" direction="received" />
       <ReceivedInfoCard :doc="doc" />
       <!-- Lines only come from an ISDOC import and are informational: the recap below is what counts. -->
       <section v-if="doc.lines?.length" class="space-y-2" data-test="received-lines">

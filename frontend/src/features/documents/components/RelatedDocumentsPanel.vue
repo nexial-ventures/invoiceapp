@@ -10,16 +10,16 @@ import type { RelatedDocument } from "../types";
 import StatusBadges from "./StatusBadges.vue";
 
 /** `parent`: what this document refers to; `children`: documents referring to it. */
-const props = defineProps<{ parent: RelatedDocument | null; children: RelatedDocument[]; currency: string; /** Links stay within one direction. */ direction?: Direction }>();
+const props = defineProps<{ parent: RelatedDocument | null; children: RelatedDocument[]; /** Links stay within one direction. */ direction?: Direction }>();
 const { t, locale } = useI18n();
 
 const rows = computed(() => [
   ...(props.parent ? [{ role: "parent" as const, doc: props.parent }] : []),
   ...props.children.map((doc) => ({ role: "child" as const, doc })),
 ]);
-// Native related documents share the currency (credit note / DDPP / final invoice copy it); received ones need not.
+// Each related document carries its own currency (a received DDPP may differ from its proforma).
 const money = (d: RelatedDocument) =>
-  formatMoney(signed(d.payable, docSign(d.docType)), d.currency ?? props.currency, locale.value);
+  formatMoney(signed(d.payable, docSign(d.docType)), d.currency, locale.value);
 const typeLabel = (d: RelatedDocument) => t(props.direction === "received" ? `received.docTypes.${d.docType}` : `documents.docTypes.${d.docType}`);
 </script>
 

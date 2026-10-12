@@ -15,6 +15,8 @@ function isLocale(value: string | null): value is Locale {
 
 const stored = readStorage(LOCALE_STORAGE_KEY);
 const initial: Locale = isLocale(stored) ? stored : DEFAULT_LOCALE;
+/** The last locale asked for: a slower earlier switch must not override a later one. */
+let requested: Locale = initial;
 
 /**
  * Messages are precompiled at build time (`@intlify/unplugin-vue-i18n`) and split into one chunk
@@ -45,11 +47,34 @@ const loaders = Object.fromEntries(
 /** Loads a locale's messages once (concurrent callers share the load; a failure is retried). */
 export const loadLocale = (locale: Locale): Promise<void> => loaders[locale]();
 
-/** Loads the messages of the locale the app starts in (before mount). */
-export const loadInitialLocale = () => loadLocale(i18n.global.locale.value as Locale);
+/**
+ * Loads the messages of the locale the app starts in (before mount); if that chunk fails (e.g. a
+ * stale cached `index.html` after a redeploy) falls back to the default locale. False when no
+ * messages could be loaded at all: the app still mounts, on the boot error page.
+ */
+export async function loadInitialLocale(): Promise<boolean> {
+  const first = i18n.global.locale.value as Locale;
+  try {
+    await loadLocale(first);
+    return true;
+  } catch {
+    if (first === DEFAULT_LOCALE) return false;
+  }
+  try {
+    await loadLocale(DEFAULT_LOCALE);
+    i18n.global.locale.value = DEFAULT_LOCALE;
+    requested = DEFAULT_LOCALE;
+    return true;
+  } catch {
+    return false;
+  }
+}
 
+/** Switches once the locale's messages are loaded; rejects (locale unchanged) when they fail. */
 export async function setLocale(locale: Locale): Promise<void> {
+  requested = locale;
   await loadLocale(locale);
+  if (requested !== locale) return;
   i18n.global.locale.value = locale;
   writeStorage(LOCALE_STORAGE_KEY, locale);
   document.documentElement.lang = locale;

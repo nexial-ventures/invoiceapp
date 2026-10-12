@@ -124,13 +124,18 @@ enum MigrateAction {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let command = Cli::parse().command;
+    // stdout carries the JSON document: no subscriber, so no log line can mix into it.
+    if matches!(command, Command::Openapi) {
+        return print_openapi();
+    }
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
             EnvFilter::new("invoice=info,tower_http=info,sea_orm_migration=info")
         }))
         .init();
 
-    match Cli::parse().command {
+    match command {
         Command::Serve => serve().await,
         Command::Migrate { action } => migrate(action).await,
         Command::Storage { action } => storage_cmd(action).await,

@@ -2,7 +2,7 @@ import { createApp } from "vue";
 import { createPinia } from "pinia";
 import { createWebHistory } from "vue-router";
 import App from "./App.vue";
-import { loadContext } from "./boot";
+import { loadContext, type Boot } from "./boot";
 import { createAppRouter } from "./router";
 import { i18n, loadInitialLocale } from "./i18n";
 import { setAuthHandlers } from "./api/client";
@@ -11,7 +11,8 @@ import "./style.css";
 
 async function main() {
   const pinia = createPinia();
-  const [boot] = await Promise.all([loadContext(), loadInitialLocale()]);
+  const [context, messages] = await Promise.all([loadContext(), loadInitialLocale()]);
+  const boot: Boot = messages ? context : { status: "error" };
   const session = useSessionStore(pinia);
   session.applyBoot(boot);
 

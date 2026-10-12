@@ -6,6 +6,12 @@ import { calls, mockFetchRoutes, reply } from "@/test-utils";
 import { mountView } from "@/testMount";
 import AppHeader from "./AppHeader.vue";
 
+const switching = vi.hoisted(() => ({ fail: false }));
+vi.mock("@/i18n", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/i18n")>();
+  return { ...real, setLocale: (l: "cs" | "en") => (switching.fail ? Promise.reject(new Error("chunk failed")) : real.setLocale(l)) };
+});
+
 const navOf = (w: Awaited<ReturnType<typeof mountView>>["w"]) => w.findAll("nav a").map((a) => a.attributes("data-test"));
 
 describe("AppHeader", () => {
@@ -13,6 +19,7 @@ describe("AppHeader", () => {
     i18n.global.locale.value = "en";
   });
   afterEach(() => {
+    switching.fail = false;
     vi.unstubAllGlobals();
     document.body.innerHTML = "";
   });
@@ -46,6 +53,21 @@ describe("AppHeader", () => {
     expect(w.find('[data-test="header-title"]').text()).toBe(i18n.global.t("app.name"));
     expect(w.find('[data-test="menu-tokens"]').exists()).toBe(false);
     expect(w.find('[data-test="menu-spaces"]').exists()).toBe(false);
+  });
+
+  it("switches the locale, and on a failed load keeps it and shows it in the select again", async () => {
+    mockFetchRoutes({});
+    const { w } = await mountAs("member");
+    const select = w.find<HTMLSelectElement>("#locale-select");
+    await select.setValue("cs");
+    await flushPromises();
+    expect(i18n.global.locale.value).toBe("cs");
+
+    switching.fail = true;
+    await select.setValue("en");
+    await flushPromises();
+    expect(i18n.global.locale.value).toBe("cs");
+    expect(select.element.value).toBe("cs");
   });
 
   it("logs out and goes to the login page, even if the server call fails", async () => {

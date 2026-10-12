@@ -9,7 +9,8 @@ export type Schemas = components["schemas"];
 
 /**
  * serde writes every field of a response (an `Option` as `null`), so nothing the schema marks
- * optional is ever absent: strip the `?` all the way down.
+ * optional is ever absent: strip the `?` all the way down. Not for DTOs with a
+ * `skip_serializing_if` field (absent, not null): describe those by hand.
  */
 export type Present<T> = T extends readonly (infer U)[]
   ? Present<U>[]
