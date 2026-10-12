@@ -64,3 +64,50 @@ async fn bulk_export_keeps_list_order_and_stores_compressed_payloads() {
     );
     assert_eq!(inner["manifest.xml"], zip::CompressionMethod::Deflated);
 }
+
+async fn archived_count(db: &TestDb) -> Option<i64> {
+    use sea_orm::ConnectionTrait;
+    db.conn
+        .query_one(sea_orm::Statement::from_string(
+            db.conn.get_database_backend(),
+            "SELECT count(*) AS n FROM documents WHERE pdf_path IS NOT NULL",
+        ))
+        .await
+        .expect("count")
+        .and_then(|r| r.try_get::<i64>("", "n").ok())
+}
+
+#[tokio::test]
+async fn a_dropped_request_still_records_the_lazy_archive() {
+    use sea_orm::ConnectionTrait;
+    let db = TestDb::new().await;
+    let env = PdfEnv::new();
+    let app = env.router(db.conn.clone());
+    create_issued(&app, issuable(&app).await).await;
+    db.conn
+        .execute_unprepared(
+            "UPDATE documents SET pdf_path = NULL, pdf_sha256 = NULL, pdf_size = NULL",
+        )
+        .await
+        .expect("drop the archive");
+    env.mock.delay(std::time::Duration::from_millis(300));
+    let started = env.mock.started();
+    let request = tokio::spawn({
+        let app = app.clone();
+        async move { get_raw(&app, "/api/documents/isdoc").await }
+    });
+    env.mock.wait_started(started + 1).await;
+    request.abort();
+    let mut recorded = false;
+    for _ in 0..300 {
+        if archived_count(&db).await == Some(1) {
+            recorded = true;
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    assert!(
+        recorded,
+        "the render finished and was recorded after the abort"
+    );
+}

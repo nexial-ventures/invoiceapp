@@ -88,7 +88,7 @@ async fn a_list_that_may_still_change_is_not_cached() {
     assert_eq!(
         hits(&counter),
         1,
-        "reused from memory for a few minutes, never stored"
+        "reused from memory for up to a minute, never stored"
     );
     let stored = db
         .conn

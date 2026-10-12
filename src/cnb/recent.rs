@@ -10,9 +10,10 @@ use chrono::NaiveDate;
 
 use super::client::RateList;
 
-/// How long a provisional list is reused: ČNB publishes once a day, so a
-/// rate at most this old is as good as a fresh fetch.
-pub const TTL: Duration = Duration::from_secs(10 * 60);
+/// How long a provisional list is reused. Short on purpose: a list cached
+/// just before ČNB publishes (~14:30) is served until it expires, so a
+/// document issued in that window would get the previous day's rate.
+pub const TTL: Duration = Duration::from_secs(60);
 
 /// Provisional lists by requested date.
 #[derive(Clone, Default)]
@@ -48,6 +49,11 @@ mod tests {
 
     fn date(d: u32) -> NaiveDate {
         NaiveDate::from_ymd_opt(2026, 10, d).expect("date")
+    }
+
+    #[test]
+    fn ttl_is_at_most_a_minute() {
+        assert!(TTL <= Duration::from_secs(60));
     }
 
     #[test]

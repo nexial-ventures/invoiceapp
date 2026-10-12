@@ -101,11 +101,22 @@ pub async fn bulk(
         .all(&state.db)
         .await?;
     let pdf = state.pdf.space(space)?;
-    let (db, pdf) = (&state.db, &pdf);
-    // In order (`buffered`, not unordered): entry order and the `-2`
-    // suffixes stay those of the list.
+    // Each document on its own task: a dropped request must not cut a lazy
+    // archive between its storage put and the row update. In order
+    // (`buffered`, not unordered): entry order and the `-2` suffixes stay
+    // those of the list.
     let mut exports = stream::iter(docs)
-        .map(|(id, number)| async move { (id, number, export(db, pdf, id).await) })
+        .map(|(id, number)| {
+            let (db, pdf) = (state.db.clone(), pdf.clone());
+            let task = tokio::spawn(async move { export(&db, &pdf, id).await });
+            async move {
+                let result = match task.await {
+                    Ok(r) => r,
+                    Err(e) => Err(anyhow::Error::new(e).context("ISDOC export task").into()),
+                };
+                (id, number, result)
+            }
+        })
         .buffered(CONCURRENCY);
     let (tx, rx) = mpsc::channel(CONCURRENCY);
     let handle = writer(rx);

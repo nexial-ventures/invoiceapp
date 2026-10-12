@@ -11,8 +11,11 @@ pub struct Migration;
 const UP: &str = r#"
 CREATE INDEX documents_bank_account_idx ON documents (bank_account_id)
     WHERE bank_account_id IS NOT NULL;
-CREATE INDEX documents_received_supplier_number_idx ON documents (space_id, supplier_number)
-    WHERE direction = 'received';
+-- Not partial on direction: the lookup binds `direction` as a parameter,
+-- and a generic plan could not use an index with a literal predicate.
+CREATE INDEX documents_received_supplier_number_idx ON documents (space_id, supplier_number);
+-- Only the partial unique default-per-currency index led with space_id.
+CREATE INDEX bank_accounts_space_idx ON bank_accounts (space_id);
 CREATE INDEX sessions_space_idx ON sessions (space_id) WHERE space_id IS NOT NULL;
 CREATE INDEX mfa_logins_user_idx ON mfa_logins (user_id);
 CREATE INDEX mfa_logins_space_idx ON mfa_logins (space_id) WHERE space_id IS NOT NULL;
@@ -40,6 +43,7 @@ DROP INDEX google_flows_user_idx;
 DROP INDEX mfa_logins_space_idx;
 DROP INDEX mfa_logins_user_idx;
 DROP INDEX sessions_space_idx;
+DROP INDEX bank_accounts_space_idx;
 DROP INDEX documents_received_supplier_number_idx;
 DROP INDEX documents_bank_account_idx;
 "#;

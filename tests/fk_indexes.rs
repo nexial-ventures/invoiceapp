@@ -7,7 +7,10 @@ use common::TestDb;
 use sea_orm::{ConnectionTrait, Statement};
 
 /// FKs of the current schema without an index whose leading columns are
-/// exactly the FK's columns (in any order; partial indexes count).
+/// exactly the FK's columns (in any order). A partial index counts only
+/// with the predicate `<one of the FK's columns> IS NOT NULL` (a NULL never
+/// references anything); any other predicate leaves rows a referenced-row
+/// delete must still find.
 const UNINDEXED: &str = r#"
 SELECT c.conrelid::regclass::text || ' (' ||
        (SELECT string_agg(a.attname, ', ' ORDER BY a.attname)
@@ -22,7 +25,12 @@ SELECT c.conrelid::regclass::text || ' (' ||
         WHERE i.indrelid = c.conrelid
           AND (SELECT array_agg(k ORDER BY k)
                  FROM unnest((i.indkey::int2[])[0:cardinality(c.conkey) - 1]) k)
-            = (SELECT array_agg(k ORDER BY k) FROM unnest(c.conkey) k))
+            = (SELECT array_agg(k ORDER BY k) FROM unnest(c.conkey) k)
+          AND (i.indpred IS NULL
+               OR pg_get_expr(i.indpred, i.indrelid) IN
+                       (SELECT format('(%s IS NOT NULL)', a.attname)
+                          FROM pg_attribute a
+                         WHERE a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey))))
  ORDER BY 1
 "#;
 
@@ -53,6 +61,14 @@ async fn every_foreign_key_is_indexed() {
         .await
         .expect("drop");
     assert_eq!(unindexed(&db).await, ["api_tokens (user_id)"]);
+    // A partial index with any other predicate does not cover it.
+    db.conn
+        .execute_unprepared(
+            "CREATE INDEX api_tokens_user_idx ON api_tokens (user_id) WHERE name <> ''",
+        )
+        .await
+        .expect("partial");
+    assert_eq!(unindexed(&db).await, ["api_tokens (user_id)"]);
 }
 
 #[tokio::test]
@@ -70,7 +86,7 @@ async fn received_duplicate_lookup_has_an_index() {
         .and_then(|r| r.try_get::<String>("", "indexdef").ok())
         .expect("index exists");
     assert!(
-        row.contains("(space_id, supplier_number)") && row.contains("'received'"),
+        row.contains("(space_id, supplier_number)") && !row.contains("WHERE"),
         "{row}"
     );
 }
