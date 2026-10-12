@@ -70,6 +70,8 @@ const KNOWN_CODES: Record<string, string> = {
   // 502 with the SMTP response as `detail`; must win over the generic "unreachable" for 502.
   smtp_failed: "errors.smtpFailed",
   smtp_not_configured: "errors.smtpNotConfigured",
+  // 503: the operator's kill switch (INVOICE__EMAIL_DISABLED).
+  email_disabled: "errors.emailDisabled",
   template_invalid: "errors.templateInvalid",
   forbidden: "errors.forbidden",
   csrf: "errors.csrf",
@@ -78,6 +80,8 @@ const KNOWN_CODES: Record<string, string> = {
   busy: "errors.busy",
   email_unverified: "errors.emailUnverified",
   space_creation_disabled: "errors.spaceCreationDisabled",
+  // 403: the user already owns INVOICE__MAX_SPACES_PER_USER spaces they created.
+  space_limit: "errors.spaceLimit",
   invalid_credentials: "errors.invalidCredentials",
   // 409 on removing / the leave of the last owner (the 422 field reason is `validation.last_owner`).
   last_owner: "errors.lastOwner",

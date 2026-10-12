@@ -156,6 +156,12 @@ async fn auth_errors() {
             StatusCode::FORBIDDEN,
             "space_creation_disabled",
         ),
+        (AppError::SpaceLimit, StatusCode::FORBIDDEN, "space_limit"),
+        (
+            AppError::EmailDisabled,
+            StatusCode::SERVICE_UNAVAILABLE,
+            "email_disabled",
+        ),
         (AppError::Csrf, StatusCode::FORBIDDEN, "csrf"),
         (AppError::Busy, StatusCode::SERVICE_UNAVAILABLE, "busy"),
         (

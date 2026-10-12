@@ -30,13 +30,17 @@ INSERT INTO google_handoffs (id, token_hash, space_id, purpose, return_path, goo
 INSERT INTO space_invites (id, space_id, email, role, token_hash, invited_by, expires_at) VALUES
   (gen_random_uuid(), $2, 'old@example.com', 'member', 'i-old', $1, now() - interval '1 minute'),
   (gen_random_uuid(), $2, 'new@example.com', 'member', 'i-live', $1, now() + interval '7 days');
+INSERT INTO email_sends (space_id, user_id, kind, created_at) VALUES
+  ($2, $1, 'e-old', now() - interval '2 days 1 minute'),
+  ($2, $1, 'e-live', now() - interval '47 hours');
 "#;
 
 async fn count(db: &TestDb, table: &str, like: &str) -> i64 {
-    let hash = if table == "google_flows" {
-        "state_hash"
-    } else {
-        "token_hash"
+    let hash = match table {
+        "google_flows" => "state_hash",
+        // The marker of an `email_sends` row (no token there).
+        "email_sends" => "kind",
+        _ => "token_hash",
     };
     db.conn
         .query_one(Statement::from_string(
@@ -73,6 +77,7 @@ async fn purge_deletes_only_expired_rows() {
             google_flows: 1,
             google_handoffs: 1,
             space_invites: 1,
+            email_sends: 1,
         }
     );
     for (table, prefix) in [
@@ -82,6 +87,7 @@ async fn purge_deletes_only_expired_rows() {
         ("google_flows", "f-"),
         ("google_handoffs", "h-"),
         ("space_invites", "i-"),
+        ("email_sends", "e-"),
     ] {
         assert_eq!(
             count(&db, table, &format!("{prefix}live")).await,

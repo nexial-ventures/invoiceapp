@@ -96,6 +96,8 @@ describe("auth error messages", () => {
     [403, "csrf", "errors.csrf"],
     [403, "email_unverified", "errors.emailUnverified"],
     [403, "space_creation_disabled", "errors.spaceCreationDisabled"],
+    [403, "space_limit", "errors.spaceLimit"],
+    [503, "email_disabled", "errors.emailDisabled"],
     [429, "rate_limited", "errors.rateLimited"],
   ])("%i %s → %s", (status, code, key) => {
     expect(errorMessageKey(new ApiError(status, code))).toEqual({ key });

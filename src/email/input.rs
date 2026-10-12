@@ -8,7 +8,7 @@ use utoipa::ToSchema;
 use super::templates::SUBJECT_MAX;
 use crate::error::FieldErrors;
 
-pub const MAX_RECIPIENTS: usize = 50;
+pub const MAX_RECIPIENTS: usize = 10;
 pub const SEND_BODY_MAX: usize = 100_000;
 
 #[derive(Debug, Clone, Default, Deserialize, ToSchema)]

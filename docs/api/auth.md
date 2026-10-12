@@ -174,7 +174,10 @@ Nothing secret (password, cookie, token, reset / verify token) is ever logged.
 - Request logs record method + path only (never the query string: the SPA's `/verify?token=…` / `/reset?token=…`
   pages); no password, cookie, token or verify / reset token is logged anywhere.
 - New error codes: 401 `invalid_credentials`, 403 `forbidden`, `email_unverified`, `csrf`, 429 `rate_limited`,
-  503 `busy` (password hashing saturated).
+  503 `busy` (password hashing saturated). Later: 403 `space_limit` (space cap), 503 `email_disabled` (kill switch,
+  [email.md](email.md)).
+- `INVOICE__EMAIL_DISABLED=true`: verify, "already registered" and reset e-mails are skipped and logged at `warn`
+  (the routes still answer 202, nothing else changes).
 - `GET /api/auth/check` (the old token check) is removed; the SPA uses `GET /api/auth/me`.
 - **4d** ([google.md](google.md)): `password_hash` is nullable. A password login of an account without a password
   runs the dummy verification and answers 401 `invalid_credentials` (as a wrong password). Sessions record
@@ -189,10 +192,13 @@ Nothing secret (password, cookie, token, reset / verify token) is ever logged.
     networks, sustained, can keep an e-mail over its 100 / 15 min ceiling, so the owner's logins and own-password
     checks answer 429 until the window frees up (existing sessions keep working); without the ceiling such an
     attacker could guess without bound.
-  - *No instance-wide e-mail limit*: register, verify/resend and password-reset are limited per IP and per address
-    (invitations per inviter and space, [members.md](members.md)), but many clients together can still make the
-    instance send a lot of mail through its SMTP. Mitigation: open registration only to vetted users at first, or
-    keep `INVOICE__REGISTRATION=false`.
+  - *No instance-wide e-mail total*: register, verify/resend and password-reset are limited per IP and per
+    address; every e-mail sent on behalf of a space (documents, test, invitations) is limited per space and per
+    user in the database (100 / day, 20 / h each, [spaces.md](spaces.md#limits)), and a user owns at most
+    `INVOICE__MAX_SPACES_PER_USER` (3) spaces they created. Many clients and accounts together can still make the
+    instance send more mail than any one of these bounds. Mitigations: `INVOICE__EMAIL_DISABLED=true` (kill switch:
+    space e-mails → 503 `email_disabled`, account e-mails skipped and logged — registration then cannot be
+    completed), open registration only to vetted users at first, or keep `INVOICE__REGISTRATION=false`.
   - *PDF template isolation is mdcast's*: a space's design (typst templates uploaded by its admins,
     [design.md](design.md)) is rendered by the mdcast service; the app does not sandbox it. The operator must run
     a sandboxed mdcast (no file system or network access beyond the request, resource limits) — otherwise a

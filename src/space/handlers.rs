@@ -100,7 +100,7 @@ pub struct CreateInput {
     request_body = CreateInput,
     responses(
         (status = 201, body = SpaceInfo),
-        (status = 403, description = "`space_creation_disabled` (`INVOICE__REGISTRATION` off), `email_unverified`", body = ErrorBody),
+        (status = 403, description = "`space_creation_disabled` (`INVOICE__REGISTRATION` off), `email_unverified`, `space_limit` (owns `INVOICE__MAX_SPACES_PER_USER` spaces they created)", body = ErrorBody),
         (status = 422, description = "`slug: required | invalid | reserved | taken`, `name: required | too_long`", body = ErrorBody),
     )
 )]
@@ -122,6 +122,7 @@ pub async fn create(
         slug.unwrap_or_default(),
         name.unwrap_or_default(),
         authed.user.id,
+        state.max_spaces_per_user,
     )
     .await?;
     Ok((StatusCode::CREATED, Json(info(&state, row, Role::Owner))))

@@ -26,6 +26,18 @@ pub enum Mail {
     },
 }
 
+impl Mail {
+    /// For logs (never the link: it carries a token).
+    fn kind(&self) -> &'static str {
+        match self {
+            Self::Verify(_) => "verify",
+            Self::AlreadyRegistered(_) => "already_registered",
+            Self::Reset(_) => "reset",
+            Self::Invite { .. } => "invite",
+        }
+    }
+}
+
 /// `cs` unless the request asked for `en`.
 pub fn locale(raw: Option<&str>) -> Locale {
     raw.and_then(|l| Locale::parse(l.trim()))
@@ -129,6 +141,13 @@ fn role_cs(role: Role) -> &'static str {
 /// every branch (whether an account exists must not show in the timing);
 /// failures (no SMTP, refused) are logged only. `true` = queued.
 pub fn send(state: &AppState, to: &str, mail: Mail, locale: Locale) -> bool {
+    if state.email_disabled {
+        tracing::warn!(
+            kind = mail.kind(),
+            "account e-mail skipped: INVOICE__EMAIL_DISABLED"
+        );
+        return false;
+    }
     let Some(mailer) = state.email.clone() else {
         tracing::error!("account e-mail not sent: SMTP is not configured");
         return false;

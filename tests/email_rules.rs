@@ -16,7 +16,7 @@ async fn validation_errors() {
     let env = EmailEnv::new().await;
     let app = env.router(db.conn.clone());
     let doc = create_issued(&app, issuable_with_emails(&app).await).await;
-    let many: Vec<String> = (0..51).map(|n| format!("a{n}@example.com")).collect();
+    let many: Vec<String> = (0..11).map(|n| format!("a{n}@example.com")).collect();
     let cases = [
         (json!({ "to": [] }), "to", "required"),
         (json!({ "to": ["not-an-address"] }), "to.0", "invalid"),

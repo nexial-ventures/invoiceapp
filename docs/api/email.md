@@ -12,6 +12,7 @@ MiniJinja plain-text templates (one set for all document types, per locale), edi
 | `INVOICE__SMTP__TLS` | `starttls` (default) \| `tls` (implicit TLS) \| `none` (plain, tests / local relay only) |
 | `INVOICE__SMTP__USERNAME`, `INVOICE__SMTP__PASSWORD` | both or neither (one alone → `serve` refuses to start); with `TLS=none` only to a loopback HOST (`localhost`, `127.0.0.0/8`, `::1`), else `serve` refuses to start |
 | `INVOICE__SMTP__FROM` | sender, `addr@x` or `Name <addr@x>`; required when HOST is set |
+| `INVOICE__EMAIL_DISABLED` | `true` = the operator's kill switch (default `false`): every e-mail sent on behalf of a space (document e-mails, the test e-mail) → 503 `email_disabled` (also without SMTP — it wins over `smtp_not_configured`); account e-mails (verify, "already registered", reset, invitations) are skipped and logged at `warn` — an invitation is still created, with `emailSent: false` and no `url` ([members.md](members.md)) |
 
 - Invalid config (bad FROM, unknown TLS mode, HOST without FROM) → `serve` refuses to start with a clear message.
 - Every SMTP exchange (connect + send) has a 30 s total timeout.
@@ -63,7 +64,8 @@ contact: { name, email } | none   // none for a contactless simplified document
 - `GET /api/settings/email` → `{ configured: bool, from: string | null, replyTo: string | null }`
   (`replyTo` = company e-mail).
 - `POST /api/settings/email/test` `{ to?: string }` (default: company e-mail; neither → 422 `to: required`) → 204;
-  sends a short fixed test message (no template), not logged. 503 `smtp_not_configured`, 502 `smtp_failed` + `detail`.
+  sends a short fixed test message (no template), not in the document log but counted by the e-mail limits.
+  503 `email_disabled` / `smtp_not_configured`, 429 `rate_limited`, 502 `smtp_failed` + `detail`.
 - `GET /api/settings/email/templates` → `{ templates: [ { locale, subject, body, custom: bool } ] }` (cs, en; the
   effective text, `custom` = an override exists).
 - `PUT /api/settings/email/templates/{locale}` `{ subject, body }` → 200 the template entry; invalid → 422 as above,
@@ -86,10 +88,13 @@ contact: { name, email } | none   // none for a contactless simplified document
   document → 404. Template error on real data (cannot normally happen after validation) → 422 `template_invalid`.
 - `POST /api/documents/{id}/email` `{ to: [string], cc: [string], bcc: [string], subject, body, attachPdf: bool,
   attachIsdoc: bool }`:
-  - 422: `to` empty → `to: required`; an unparsable address → `to.0: invalid` (same for cc/bcc); more than 50
-    recipients in total → `to: too_long`; subject empty → `required`, > 500 → `too_long`, newline in subject →
+  - 422: `to` empty → `to: required`; an unparsable address → `to.0: invalid` (same for cc/bcc); more than **10**
+    recipients in total (to + cc + bcc) → `to: too_long`; subject empty → `required`, > 500 → `too_long`, newline in subject →
     `invalid`; body > 100 000 → `too_long`; `attachPdf` while `pdf.available` is false → `attachPdf: invalid`.
-  - Same state rules as the GET. SMTP not configured → 503 `smtp_not_configured`.
+  - Same state rules as the GET. E-mail disabled → 503 `email_disabled`; SMTP not configured → 503
+    `smtp_not_configured`.
+  - **Limits** ([spaces.md](spaces.md#limits)): the space's and the sending user's e-mails per hour / day (defaults
+    20 / 100 each); used up → 429 `{"code":"rate_limited"}` + `Retry-After`, nothing sent or logged.
   - Attachments are prepared before sending: `{number}.pdf` (the archive; lazy render like `GET …/pdf`, the imported
     original for imported documents), `{number}.isdoc` (`application/xml`, the plain XML of `GET …/isdoc`, no
     `.isdocx`). Preparation errors (`pdf_unavailable`, `pdf_render_failed`, `storage_unavailable`) abort before
@@ -121,7 +126,7 @@ EmailLogEntry { id, createdAt: datetime, to: [string], cc: [string], bcc: [strin
   prefill; edits are replaced after a confirm if the subject/body were changed), To / Cc / Bcc as chip inputs,
   "Bcc to me" checkbox (adds/removes the company e-mail), subject, body (textarea), attachment checkboxes (PDF
   disabled when unavailable), Send. Disabled with a hint when not configured. Errors shown inline (`smtp_failed`
-  with its detail). Success → toast, detail reloads (`sentAt`, history).
+  with its detail; `email_disabled`, `rate_limited` by their messages). Success → toast, detail reloads (`sentAt`, history).
 - Detail: "E-mail history" section (date, recipients, subject, result; expanding shows body + attachments + error).
 - Settings → E-mail tab: configuration status (from, reply-to, configured yes/no), test e-mail form, template editor
   per locale (subject input + body textarea, variable reference list, Preview → rendered subject/body, Save, Restore
@@ -158,8 +163,10 @@ EmailLogEntry { id, createdAt: datetime, to: [string], cc: [string], bcc: [strin
 - `template_invalid.detail` = `line N: <MiniJinja error kind>[: <detail>]` (e.g. `line 3: undefined value`). Template
   `PUT` / `preview` need both `subject` and `body` as strings (missing → 400 `bad_request`); an empty body is allowed.
   An unknown locale → 404 before any validation.
-- Order of checks on `POST …/email`: 404 / 409 (state) → 503 `smtp_not_configured` → 422 → attachment preparation →
-  SMTP. The test route checks `smtp_not_configured` before its 422; its body is optional (empty → company e-mail).
+- Order of checks on `POST …/email`: 404 / 409 (state) → 503 `email_disabled` → 503 `smtp_not_configured` → 422 →
+  attachment preparation → 429 e-mail limits → SMTP. The test route checks `email_disabled` / `smtp_not_configured`
+  before its 422, then the e-mail limits (it counts as one e-mail, kind `test`); its body is optional (empty →
+  company e-mail).
   The test message is fixed text in the company's default locale (cs "Testovací e-mail", en "Test e-mail"), with
   `Reply-To` like a document e-mail.
 - Sending a **cancelled** document sets `sentAt` too (`lifecycle::email_sent`); `POST …/mark-sent` still refuses

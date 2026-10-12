@@ -1,7 +1,8 @@
 //! The hourly purge of expired rows: sessions past their idle or absolute
 //! expiry, e-mail / link tokens, pending TOTP logins, Google flows and
-//! handoffs, and invitations. Every reader already ignores an expired row;
-//! this only keeps the tables (and their indexes) from growing.
+//! handoffs, invitations, and the e-mail limit log past [`KEEP`]. Every
+//! reader already ignores an expired row; this only keeps the tables (and
+//! their indexes) from growing.
 
 use std::time::Duration;
 
@@ -13,6 +14,8 @@ use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use crate::auth::entity::{mfa_login, session, user_token};
 use crate::auth::google::entity::{google_flow, google_handoff};
 use crate::auth::session::IDLE;
+use crate::email::entity::email_send;
+use crate::email::limits::KEEP;
 use crate::members::entity::space_invite;
 
 pub const INTERVAL: Duration = Duration::from_secs(60 * 60);
@@ -26,6 +29,7 @@ pub struct Purged {
     pub google_flows: u64,
     pub google_handoffs: u64,
     pub space_invites: u64,
+    pub email_sends: u64,
 }
 
 async fn delete<E: EntityTrait>(db: &DatabaseConnection, cond: Condition) -> anyhow::Result<u64> {
@@ -74,6 +78,11 @@ pub async fn purge(db: &DatabaseConnection) -> anyhow::Result<Purged> {
             Condition::all().add(space_invite::Column::ExpiresAt.lte(now)),
         )
         .await?,
+        email_sends: delete::<email_send::Entity>(
+            db,
+            Condition::all().add(email_send::Column::CreatedAt.lte(now - KEEP)),
+        )
+        .await?,
     })
 }
 
@@ -92,6 +101,7 @@ pub async fn run(db: DatabaseConnection) {
                 google_flows = p.google_flows,
                 google_handoffs = p.google_handoffs,
                 space_invites = p.space_invites,
+                email_sends = p.email_sends,
                 "expired rows purged"
             ),
             Err(e) => tracing::warn!(error = %format!("{e:#}"), "expired row purge failed"),

@@ -17,6 +17,7 @@ use crate::document::line::Status;
 use crate::document::repo::{lifecycle, query};
 use crate::email::context::{self, Company};
 use crate::email::input::{SendInput, validate};
+use crate::email::limits::{self, Kind};
 use crate::email::log::{self, Attempt, EmailLogEntry};
 use crate::email::sender::{File, Outgoing};
 use crate::email::templates;
@@ -221,9 +222,10 @@ async fn record_sent(
         (status = 200, description = "Sent and logged; the document's `sentAt` is now", body = EmailLogEntry),
         (status = 404, description = "`not_found` (also a received document)", body = ErrorBody),
         (status = 409, description = "`invalid_state` (a draft)", body = ErrorBody),
-        (status = 422, description = "`to` / `cc` / `bcc` (`required`, `to.N`: `invalid`, `too_long` over 50 recipients), `subject` (`required`, `too_long`, `invalid`), `body` (`too_long`), `attachPdf` (`invalid`)", body = ErrorBody),
+        (status = 422, description = "`to` / `cc` / `bcc` (`required`, `to.N`: `invalid`, `too_long` over 10 recipients), `subject` (`required`, `too_long`, `invalid`), `body` (`too_long`), `attachPdf` (`invalid`)", body = ErrorBody),
+        (status = 429, description = "`rate_limited` + `Retry-After`: the space's or the user's e-mails per hour / day are used up", body = ErrorBody),
         (status = 502, description = "`smtp_failed` (+ `detail`), logged with `ok: false`; `pdf_render_failed`", body = ErrorBody),
-        (status = 503, description = "`smtp_not_configured`, `pdf_unavailable`, `storage_unavailable`", body = ErrorBody),
+        (status = 503, description = "`email_disabled`, `smtp_not_configured`, `pdf_unavailable`, `storage_unavailable`", body = ErrorBody),
     )
 )]
 pub async fn send(
@@ -259,6 +261,7 @@ pub async fn send(
         body: v.body,
         files,
     };
+    limits::reserve(&state.db, space, access.scope.user_id, Kind::Document).await?;
     let message_id = mailer.message_id();
     let result = mailer.send(msg, &message_id).await;
     // Microseconds, like the stored column, so the entry returned now equals

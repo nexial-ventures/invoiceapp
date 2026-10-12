@@ -6,7 +6,7 @@ use chrono::{Datelike, NaiveDate};
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DatabaseTransaction,
-    EntityTrait, QueryFilter, Set, Statement, TransactionTrait,
+    EntityTrait, QueryFilter, Set, TransactionTrait,
 };
 use uuid::Uuid;
 
@@ -146,12 +146,7 @@ async fn insert(
 ) -> Result<(), AppError> {
     // Serialise imports of the same document and re-check under the lock: no
     // unique index covers received documents (supplier + supplier number).
-    txn.query_one(Statement::from_sql_and_values(
-        txn.get_database_backend(),
-        "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
-        [format!("{space}|{}", lookup::identity(plan)).into()],
-    ))
-    .await?;
+    crate::db::advisory_xact_lock(txn, format!("{space}|{}", lookup::identity(plan))).await?;
     if lookup::duplicate(txn, space, plan).await? {
         return Err(AppError::Duplicate);
     }

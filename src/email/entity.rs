@@ -23,3 +23,27 @@ pub struct Model {
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}
+
+/// One e-mail sent on behalf of a space, counted by the e-mail limits
+/// (`email::limits`); purged after 2 days.
+pub mod email_send {
+    use sea_orm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+    #[sea_orm(table_name = "email_sends")]
+    pub struct Model {
+        #[sea_orm(primary_key)]
+        pub id: i64,
+        /// `NULL` once the space is deleted (the user's count stays).
+        pub space_id: Option<Uuid>,
+        pub user_id: Uuid,
+        /// `document` | `test` | `invite`.
+        pub kind: String,
+        pub created_at: DateTimeWithTimeZone,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}

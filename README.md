@@ -116,9 +116,14 @@ PDFs need an mdcast (`INVOICE__MDCAST_URL`, `INVOICE__MDCAST_TOKEN`).
 - **Storage:** the image's `/data` volume (`INVOICE__STORAGE_KIND=fs`, default) or an S3-compatible bucket
   (`INVOICE__STORAGE_KIND=s3`, `INVOICE__S3__*`).
 - **Space limits:** every space has a hidden storage quota (default 100 MB: originals, archived PDFs, design files;
-  issuing is never blocked). There is no API or admin UI for it — raise a space's quota in the database
-  ([docs/api/spaces.md](docs/api/spaces.md#limits)):
+  issuing is never blocked) and outbound e-mail limits (document, test and invitation e-mails: 100 / day and 20 / h
+  per space, the same per sending user over all their spaces; over → 429 `rate_limited`). There is no API or admin
+  UI for them — change a space's row in the database ([docs/api/spaces.md](docs/api/spaces.md#limits)):
   ```sql
-  UPDATE space_limits SET storage_quota_bytes = 500 * 1024 * 1024, updated_at = now()
+  UPDATE space_limits SET storage_quota_bytes = 500 * 1024 * 1024, email_space_per_day = 500, updated_at = now()
   WHERE space_id = (SELECT id FROM spaces WHERE slug = 'firma');
   ```
+- **Public registration safeguards:** a user may create and own at most `INVOICE__MAX_SPACES_PER_USER` (default 3)
+  spaces; phishing-looking and service slugs (`login`, `paypal`, `bank`, `faktura`, …) are reserved; a document
+  e-mail has at most 10 recipients. `INVOICE__EMAIL_DISABLED=true` is the kill switch for abuse: every space e-mail
+  → 503 `email_disabled`, account e-mails (verify, reset, invitations) are skipped and logged.

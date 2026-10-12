@@ -170,6 +170,7 @@ describe("SendEmailDialog", () => {
 
   it.each([
     ["smtp_not_configured", 503, "E-mail sending is not configured"],
+    ["email_disabled", 503, "Sending e-mails is temporarily disabled"],
     ["pdf_render_failed", 502, "Rendering the PDF failed."],
     ["pdf_unavailable", 503, "The PDF service is unavailable."],
     ["storage_unavailable", 503, "The file storage is unavailable."],

@@ -34,6 +34,7 @@ pub mod csv_export;
 pub mod csvio;
 pub mod design;
 pub mod documents;
+pub mod email_limits;
 pub mod google;
 pub mod isdoc;
 pub mod limits;
@@ -242,7 +243,9 @@ pub fn state(db: DatabaseConnection, ares_url: &str, cnb_url: &str, pdf: PdfRoot
         pdf,
         email: None,
         public: PublicUrl::parse(PUBLIC_URL).expect("public URL"),
+        email_disabled: false,
         registration: false,
+        max_spaces_per_user: invoice::config::DEFAULT_MAX_SPACES_PER_USER,
         trust_forwarded: false,
         secret_key: test_secret_key(),
         limiter: RateLimiter::default(),

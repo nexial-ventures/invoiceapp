@@ -23,15 +23,23 @@ registration: boolean, baseUrl: string }` — `registration` = the instance swit
 `INVOICE__PUBLIC_URL`. Unknown host → 404.
 
 ## Spaces
-Table `spaces` (id uuid, slug unique, name, created_at). Slug: `[a-z0-9-]`, 3–30 chars, no leading / trailing `-`,
-not reserved (`www`, `api`, `app`, `admin`, `mail`, `smtp`, `static`, `assets`, `cdn`, `status`, `docs`, `help`,
-`support`, `blog`), **immutable**. `name` 1–200 chars.
+Table `spaces` (id uuid, slug unique, name, created_at, `created_by` → users `ON DELETE SET NULL`). Slug:
+`[a-z0-9-]`, 3–30 chars, no leading / trailing `-`, not reserved, **immutable**. `name` 1–200 chars. Reserved
+(`src/space/slug.rs`, mirrored in `frontend/src/features/spaces/slug.ts`) — infrastructure names and names a phishing
+page would pick: `www`, `api`, `app`, `admin`, `mail`, `smtp`, `static`, `assets`, `cdn`, `status`, `docs`, `help`,
+`support`, `blog`, `login`, `signin`, `signup`, `register`, `account`, `accounts`, `auth`, `oauth`, `sso`, `secure`,
+`security`, `verify`, `verification`, `password`, `reset`, `billing`, `pay`, `payment`, `payments`, `paypal`, `bank`,
+`banking`, `google`, `microsoft`, `apple`, `root`, `system`, `email`, `webmail`, `imap`, `ns` (already too short),
+`dns`, `invoice`, `invoices`, `faktura`, `faktury`, `test`, `demo`. Only exact names are reserved (`login-firma` is
+fine); existing spaces with a newly reserved slug keep working.
 
 Base context (session of a verified user, [auth.md](auth.md)):
 - `GET /api/spaces` → `[ { slug, name, role, url } ]` — the user's memberships, by name.
 - `POST /api/spaces { slug, name }` → `201 { slug, name, role: "owner", url }`. 422: `slug: required | invalid |
   reserved | taken`, `name: required | too_long`; 403 `space_creation_disabled` while `INVOICE__REGISTRATION` is off
-  (only invited people enter such an instance, [members.md](members.md)). No limit on the number of spaces per user.
+  (only invited people enter such an instance, [members.md](members.md)); **403 `space_limit`** when the caller
+  already owns `INVOICE__MAX_SPACES_PER_USER` (default 3) spaces they created ([Limits](#limits)). Order: 403
+  `space_creation_disabled` → 403 `email_unverified` → 422 → 403 `space_limit` → 422 `slug: taken`.
   Creation also creates
   everything a fresh instance used to get from migrations (company profile row, default VAT rates, number series,
   e-mail templates, accounting settings, … — every former global seed, now per space).
@@ -48,9 +56,11 @@ Space context:
 
 ## Limits
 Every space has one hidden row in `space_limits` (space_id PK → `spaces` `ON DELETE CASCADE`,
-`storage_quota_bytes bigint NOT NULL DEFAULT 104857600` = 100 MiB, `created_at`, `updated_at`), created with the space
-(and by the migration for every existing space). **No route changes it and there is no global admin role**: an
-operator changes it directly in the database. A space without a row gets the defaults.
+`storage_quota_bytes bigint NOT NULL DEFAULT 104857600` = 100 MiB, the e-mail limits `email_space_per_hour` (20),
+`email_space_per_day` (100), `email_user_per_hour` (20), `email_user_per_day` (100) — `integer NOT NULL`, ≥ 0 —
+`created_at`, `updated_at`), created with the space (and by the migrations for every existing space). **No route
+changes it and there is no global admin role**: an operator changes it directly in the database. A space without a
+row gets the defaults.
 
 ```sql
 -- Raise the storage quota of the space `firma` to 500 MiB.
@@ -62,7 +72,41 @@ SELECT s.slug, l.storage_quota_bytes,
           FROM documents d WHERE d.space_id = s.id)
        + COALESCE((SELECT design_bytes FROM space_storage_usage u WHERE u.space_id = s.id), 0) AS used_bytes
 FROM spaces s LEFT JOIN space_limits l ON l.space_id = s.id ORDER BY s.slug;
+-- Let the space `firma` (and its users, while they send from it) send 500 e-mails a day, 100 an hour.
+UPDATE space_limits SET email_space_per_day = 500, email_space_per_hour = 100,
+       email_user_per_day = 500, email_user_per_hour = 100, updated_at = now()
+WHERE space_id = (SELECT id FROM spaces WHERE slug = 'firma');
+-- E-mails of the last 24 h per space (NULL = a deleted space) and kind.
+SELECT s.slug, e.kind, count(*) FROM email_sends e LEFT JOIN spaces s ON s.id = e.space_id
+WHERE e.created_at > now() - interval '1 day' GROUP BY 1, 2 ORDER BY 3 DESC;
 ```
+
+**E-mail limits.** Every e-mail the app sends on behalf of a space counts: a document e-mail
+(`POST /api/documents/{id}/email`, one per message however many recipients), the settings test e-mail and an
+invitation (create / resend, only when it is mailed — not without SMTP or while e-mail is disabled). Account
+e-mails (verify, "already registered", reset) are per-address limited instead ([auth.md](auth.md)) and do not
+count.
+- Each send is a row in `email_sends` (`id bigserial`, `space_id` → spaces `ON DELETE SET NULL`, `user_id` →
+  users `ON DELETE CASCADE`, `kind` `document | test | invite`, `created_at`), purged by the hourly cleanup after 2
+  days. It survives restarts; `space_id` survives the space's deletion as `NULL`, so deleting and recreating a
+  space does not reset the user's count.
+- A send passes when, over the rolling last hour and the last 24 h, the **space** has sent fewer than
+  `email_space_per_hour` / `email_space_per_day` and the **sending user** — over all their spaces — fewer than
+  `email_user_per_hour` / `email_user_per_day` (the values of the space sent from). Otherwise **429
+  `{"code":"rate_limited"}`** with `Retry-After` = whole seconds until the send whose expiry frees a slot leaves
+  the full window (the longest wait of the full windows; a limit of 0 → the whole window). A refused request is
+  not counted.
+- Checked and recorded in one transaction under the space's and the user's advisory locks, so parallel sends cannot
+  both take the last slot. The check runs right before the SMTP exchange (after validation and attachment
+  preparation); a send the SMTP server then refuses (502 `smtp_failed`) still counts.
+- The kill switch `INVOICE__EMAIL_DISABLED=true` refuses them all with 503 `email_disabled` ([email.md](email.md)).
+
+**Space cap.** A user may **own** at most `INVOICE__MAX_SPACES_PER_USER` (default 3, ≥ 1) spaces **they created**:
+`spaces.created_by` = the user and they are still its owner. Memberships from invitations — also as owner — do not
+count; a created space handed over (the creator no longer an owner) or deleted frees a slot. Over the cap →
+`POST /api/spaces` 403 `{"code":"space_limit"}`. Checked under a per-user advisory lock in the creating transaction
+(parallel requests cannot both pass). Spaces created before the column existed are attributed to their earliest
+owner.
 
 **Storage quota.** The usage counts every stored object of the space: originals of received / imported documents
 (`documents.original_size`), the issued-PDF archive (`documents.pdf_size`) and the PDF design files — live, draft and
@@ -179,6 +223,10 @@ For MCP and scripts. A token belongs to **one user in one space** and works only
 - Hosts: base vs space vs unknown; token on a foreign space host → 401.
 - Roles: the matrix above per route group (incl. MCP tools); token role ceiling.
 - Space create (slug rules, seeds present), delete (mismatch, wrong password, token → 403, data and storage gone).
+- Limits: the space cap (owned vs invited, handover / delete frees a slot, parallel creations —
+  `tests/spaces_cap.rs`); e-mail limits per space and per user over the hour and the day windows (timestamps moved
+  back in SQL), operator overrides, test and invitation e-mails, the recipients cap (`tests/email_limits.rs`); the
+  kill switch (`tests/email_disabled.rs`).
 - Every existing integration test runs inside a fresh space through a token or session (`tests/common`).
 
 ## Clarifications (as implemented)

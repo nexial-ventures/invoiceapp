@@ -32,12 +32,37 @@ pub const DEFAULT_STORAGE_QUOTA_BYTES: u64 = 100 * MIB;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Limits {
     pub storage_quota_bytes: u64,
+    /// Outbound e-mails on behalf of the space ([`crate::email::limits`]).
+    pub email: EmailLimits,
+}
+
+/// E-mails per rolling hour / day: of the space, and of the sending user
+/// (counted over all their spaces, bounded by this space's values).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EmailLimits {
+    pub space_per_hour: u32,
+    pub space_per_day: u32,
+    pub user_per_hour: u32,
+    pub user_per_day: u32,
+}
+
+impl Default for EmailLimits {
+    /// Must match the column defaults (`m20261024_000001_abuse_limits`).
+    fn default() -> Self {
+        Self {
+            space_per_hour: 20,
+            space_per_day: 100,
+            user_per_hour: 20,
+            user_per_day: 100,
+        }
+    }
 }
 
 impl Default for Limits {
     fn default() -> Self {
         Self {
             storage_quota_bytes: DEFAULT_STORAGE_QUOTA_BYTES,
+            email: EmailLimits::default(),
         }
     }
 }
@@ -55,6 +80,10 @@ fn unsigned(n: i64) -> u64 {
     u64::try_from(n).unwrap_or(0)
 }
 
+fn count(n: i32) -> u32 {
+    u32::try_from(n).unwrap_or(0)
+}
+
 /// The space's limits; the defaults when it has no row.
 pub async fn limits(db: &impl ConnectionTrait, space: SpaceId) -> Result<Limits, AppError> {
     Ok(limits::Entity::find_by_id(space.uuid())
@@ -62,6 +91,12 @@ pub async fn limits(db: &impl ConnectionTrait, space: SpaceId) -> Result<Limits,
         .await?
         .map_or_else(Limits::default, |r| Limits {
             storage_quota_bytes: unsigned(r.storage_quota_bytes),
+            email: EmailLimits {
+                space_per_hour: count(r.email_space_per_hour),
+                space_per_day: count(r.email_space_per_day),
+                user_per_hour: count(r.email_user_per_hour),
+                user_per_day: count(r.email_user_per_day),
+            },
         }))
 }
 
@@ -75,6 +110,8 @@ pub async fn seed(db: &impl ConnectionTrait, space: SpaceId) -> Result<(), AppEr
         ),
         created_at: Set(now.into()),
         updated_at: Set(now.into()),
+        // The e-mail limits keep their column defaults.
+        ..Default::default()
     })
     .exec_without_returning(db)
     .await?;
@@ -167,12 +204,7 @@ pub async fn check_room(
 pub async fn lock(txn: &impl ConnectionTrait, space: SpaceId) -> Result<(), AppError> {
     txn.execute_unprepared("SET LOCAL statement_timeout = 0")
         .await?;
-    txn.execute(Statement::from_sql_and_values(
-        txn.get_database_backend(),
-        "SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))",
-        [format!("space-quota:{space}").into()],
-    ))
-    .await?;
+    crate::db::advisory_xact_lock(txn, format!("space-quota:{space}")).await?;
     Ok(())
 }
 
@@ -295,5 +327,8 @@ mod tests {
     #[test]
     fn defaults() {
         assert_eq!(Limits::default().storage_quota_bytes, 100 * 1024 * 1024);
+        let e = Limits::default().email;
+        assert_eq!((e.space_per_hour, e.space_per_day), (20, 100));
+        assert_eq!((e.user_per_hour, e.user_per_day), (20, 100));
     }
 }

@@ -37,7 +37,7 @@ pub async fn seed_space(
     token: Option<&str>,
 ) -> (SpaceId, Uuid) {
     let owner = user(conn, email).await;
-    let space = space_repo::create(conn, slug.into(), format!("Space {slug}"), owner)
+    let space = space_repo::create(conn, slug.into(), format!("Space {slug}"), owner, u32::MAX)
         .await
         .expect("create space");
     let space = SpaceId::from(&space);

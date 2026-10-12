@@ -32,8 +32,12 @@ pub struct AppState {
     pub email: Option<Mailer>,
     /// `INVOICE__PUBLIC_URL`: base host, scheme, port.
     pub public: PublicUrl,
+    /// `INVOICE__EMAIL_DISABLED`: every outbound e-mail is refused / skipped.
+    pub email_disabled: bool,
     /// `INVOICE__REGISTRATION`.
     pub registration: bool,
+    /// `INVOICE__MAX_SPACES_PER_USER`.
+    pub max_spaces_per_user: u32,
     /// `INVOICE__TRUST_FORWARDED`.
     pub trust_forwarded: bool,
     /// `INVOICE__SECRET_KEY`: TOTP secrets at rest, recovery-code HMAC.

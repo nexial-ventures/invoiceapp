@@ -41,6 +41,11 @@ pub enum AppError {
     #[error("space creation disabled")]
     SpaceCreationDisabled,
 
+    /// `POST /api/spaces` by a user who already owns
+    /// `INVOICE__MAX_SPACES_PER_USER` spaces they created.
+    #[error("space limit reached")]
+    SpaceLimit,
+
     /// The space requires TOTP and the user has none (login, invitation
     /// accept). `account_created`: an invitation created the account
     /// without a membership (`detail: "account_created"`).
@@ -166,6 +171,10 @@ pub enum AppError {
     #[error("e-mail is not configured")]
     SmtpNotConfigured,
 
+    /// `INVOICE__EMAIL_DISABLED`: the operator's kill switch.
+    #[error("e-mail is disabled")]
+    EmailDisabled,
+
     /// The SMTP server refused the message or could not be reached; the
     /// server's response / transport error (never credentials) is returned
     /// as `detail`.
@@ -229,6 +238,7 @@ impl AppError {
             Self::Forbidden => (StatusCode::FORBIDDEN, "forbidden"),
             Self::EmailUnverified => (StatusCode::FORBIDDEN, "email_unverified"),
             Self::SpaceCreationDisabled => (StatusCode::FORBIDDEN, "space_creation_disabled"),
+            Self::SpaceLimit => (StatusCode::FORBIDDEN, "space_limit"),
             Self::MfaRequired { .. } => (StatusCode::FORBIDDEN, "mfa_required"),
             Self::MfaInvalid => (StatusCode::UNAUTHORIZED, "mfa_invalid"),
             Self::MfaEnabled => (StatusCode::CONFLICT, "mfa_enabled"),
@@ -264,6 +274,7 @@ impl AppError {
                 (StatusCode::BAD_GATEWAY, "pdf_render_failed")
             }
             Self::SmtpNotConfigured => (StatusCode::SERVICE_UNAVAILABLE, "smtp_not_configured"),
+            Self::EmailDisabled => (StatusCode::SERVICE_UNAVAILABLE, "email_disabled"),
             Self::SmtpFailed(_) => (StatusCode::BAD_GATEWAY, "smtp_failed"),
             Self::TemplateInvalid { .. } => (StatusCode::UNPROCESSABLE_ENTITY, "template_invalid"),
             Self::DesignInvalid(_) => (StatusCode::UNPROCESSABLE_ENTITY, "design_invalid"),

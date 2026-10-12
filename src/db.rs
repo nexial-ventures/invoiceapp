@@ -4,7 +4,7 @@
 
 use std::time::Duration;
 
-use sea_orm::{ConnectOptions, ConnectionTrait, DatabaseTransaction, DbErr};
+use sea_orm::{ConnectOptions, ConnectionTrait, DatabaseTransaction, DbErr, Statement};
 
 /// `INVOICE__DB_MAX_CONNECTIONS` default.
 pub const DEFAULT_MAX_CONNECTIONS: u32 = 20;
@@ -34,6 +34,18 @@ pub async fn allow_idle(txn: &DatabaseTransaction) -> Result<(), DbErr> {
     txn.execute_unprepared("SET LOCAL idle_in_transaction_session_timeout = 0")
         .await
         .map(drop)
+}
+
+/// Serialize on `key` until the transaction ends (a transaction-scoped
+/// Postgres advisory lock).
+pub async fn advisory_xact_lock(txn: &impl ConnectionTrait, key: String) -> Result<(), DbErr> {
+    txn.execute(Statement::from_sql_and_values(
+        txn.get_database_backend(),
+        "SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))",
+        [key.into()],
+    ))
+    .await
+    .map(drop)
 }
 
 #[cfg(test)]
