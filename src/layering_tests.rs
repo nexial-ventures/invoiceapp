@@ -70,15 +70,21 @@ fn has_path(hay: &str, needle: &str) -> bool {
 
 /// Whether a `document::{…}` group names `handlers` at its top level.
 fn grouped_handlers(code: &str) -> bool {
-    code.match_indices("document::{").any(|(i, m)| {
+    grouped(code, "document::{", "handlers")
+}
+
+/// Whether a `{group}` opened by `open` (e.g. `crate::{`) names `item` at
+/// its top level.
+fn grouped(code: &str, open: &str, item: &str) -> bool {
+    code.match_indices(open).any(|(i, m)| {
         let group = &code[i + m.len()..];
         let mut depth = 1;
         let mut item_start = true;
         for (j, c) in group.char_indices() {
             if depth == 1 && item_start {
                 let rest = &group[j..];
-                let next = rest.get("handlers".len()..).and_then(|r| r.chars().next());
-                if rest.starts_with("handlers") && !next.is_some_and(is_ident) {
+                let next = rest.get(item.len()..).and_then(|r| r.chars().next());
+                if rest.starts_with(item) && !next.is_some_and(is_ident) {
                     return true;
                 }
             }
@@ -220,29 +226,73 @@ fn wire_check_ignores_comments_and_fixtures() {
     assert!(!wire_offenders(file("src/document/wire/a.rs", "use sea_orm::Set;")).is_empty());
 }
 
-/// Files under `dir` that name `module`.
-fn uses_of(dir: &str, module: &str) -> Vec<String> {
-    sources(&[dir])
+/// Whether `src` reaches the top-level `module`: `crate::module`, inside a
+/// `crate::{…}` group, or through `super::…` (`super::super::module` too).
+fn names_module(src: &str, module: &str) -> bool {
+    let c = code(src);
+    has_path(&c, &format!("crate::{module}"))
+        || grouped(&c, "crate::{", module)
+        || has_path(&c, &format!("super::{module}"))
+        || grouped(&c, "super::{", module)
+}
+
+/// Files of `files` that reach `module`.
+fn module_users(files: Vec<(String, String)>, module: &str) -> Vec<String> {
+    files
         .into_iter()
-        .filter(|(_, src)| has_path(&code(src), module))
+        .filter(|(_, src)| names_module(src, module))
         .map(|(f, _)| f)
         .collect()
 }
 
+/// Files under `dir` that reach `module`.
+fn uses_of(dir: &str, module: &str) -> Vec<String> {
+    module_users(sources(&[dir]), module)
+}
+
 #[test]
 fn csv_and_accounting_exports_do_not_use_each_other() {
-    let csv = uses_of("src/csvio", "crate::accounting");
+    let csv = uses_of("src/csvio", "accounting");
     assert!(csv.is_empty(), "move the shared part to export/: {csv:?}");
-    let accounting = uses_of("src/accounting", "crate::csvio");
+    let accounting = uses_of("src/accounting", "csvio");
     assert!(
         accounting.is_empty(),
         "move the shared part to export/: {accounting:?}"
     );
-    for shared in ["crate::csvio", "crate::accounting"] {
+    for shared in ["csvio", "accounting"] {
         let neutral: Vec<_> = uses_of("src/export", shared)
             .into_iter()
             .filter(|f| f.ends_with("/load.rs") || f.ends_with("/source.rs"))
             .collect();
         assert!(neutral.is_empty(), "{neutral:?}");
+    }
+}
+
+#[test]
+fn module_check_catches_every_spelling() {
+    let file = |src: &str| vec![("src/csvio/x.rs".to_string(), src.to_string())];
+    for src in [
+        "use crate::accounting::settings::Program;",
+        "use crate::{\n    accounting::export,\n    error::AppError,\n};",
+        "use crate::{error::AppError, accounting};",
+        "let p = crate::accounting::settings::Program::Pohoda;",
+        "use super::super::accounting::export;",
+        "use super::accounting;",
+        "use super::{accounting::doc, write};",
+    ] {
+        assert_eq!(
+            module_users(file(src), "accounting"),
+            ["src/csvio/x.rs"],
+            "{src}"
+        );
+    }
+    for src in [
+        "// see crate::accounting::export",
+        "use crate::{error::AppError, accounting_x::y};",
+        "use crate::{document::{accounting}, error};",
+        "use crate::export::source::Source;",
+        "let accounting = 1;",
+    ] {
+        assert!(module_users(file(src), "accounting").is_empty(), "{src}");
     }
 }

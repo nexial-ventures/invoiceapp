@@ -5,6 +5,7 @@ use sea_orm::{ActiveModelTrait, DatabaseConnection, DatabaseTransaction, Set, Tr
 use uuid::Uuid;
 
 use super::{credit, ddpp_correction, query};
+use crate::document::doc_type::DocType;
 use crate::document::entity::document;
 use crate::document::line::Direction;
 use crate::document::line::Status;
@@ -64,9 +65,9 @@ async fn apply(
 /// A native DDPP is only ever cancelled by deleting its payment (an imported
 /// one has no payment link); a proforma only while nothing is paid on it.
 fn cancellable(doc: &document::Model) -> bool {
-    match doc.doc_type.as_str() {
-        "advance_tax_doc" => doc.imported,
-        "proforma" => doc.paid.is_zero(),
+    match doc.doc_type {
+        DocType::AdvanceTaxDoc => doc.imported,
+        DocType::Proforma => doc.paid.is_zero(),
         _ => true,
     }
 }
@@ -85,10 +86,12 @@ pub async fn cancel(
         .transaction(|txn| {
             Box::pin(async move {
                 let doc = locked(txn, space, id, ISSUED_ONLY, cancellable).await?;
-                match doc.doc_type.as_str() {
-                    "debit_note" => credit::check_debit_cancel(txn, &doc).await?,
-                    "advance_credit_note" => ddpp_correction::check_linked(txn, &doc).await?,
-                    "advance_tax_doc" => ddpp_correction::ensure_uncorrected(txn, doc.id).await?,
+                match doc.doc_type {
+                    DocType::DebitNote => credit::check_debit_cancel(txn, &doc).await?,
+                    DocType::AdvanceCreditNote => ddpp_correction::check_linked(txn, &doc).await?,
+                    DocType::AdvanceTaxDoc => {
+                        ddpp_correction::ensure_uncorrected(txn, doc.id).await?
+                    }
                     _ => {}
                 }
                 apply(txn, doc, move |row| {

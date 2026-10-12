@@ -1,6 +1,6 @@
 import { request, requestBlob } from "@/api/client";
 import type { DocLocale, DocType } from "@/api/types";
-import type { AccountingSettings, BankAccount, BankAccountInput, Category, CategoryInput, Company, CustomField, CustomFieldInput, DesignFileSource, DesignInfo, DesignVersion, NumberSeries, VatRate, VatRateInput } from "./types";
+import type { AccountingResponse, AccountingSettings, BankAccount, BankAccountInput, Category, CategoryInput, Company, CustomField, CustomFieldInput, DesignFileSource, DesignInfo, DesignVersion, NumberSeries, VatRate, VatRateInput } from "./types";
 
 const BASE = "/api/settings";
 
@@ -28,8 +28,8 @@ export const companyApi = {
 };
 
 export const accountingApi = {
-  get: () => request<AccountingSettings>(`${BASE}/accounting`),
-  update: (settings: AccountingSettings) => request<AccountingSettings>(`${BASE}/accounting`, { method: "PUT", body: settings }),
+  get: () => request<AccountingResponse>(`${BASE}/accounting`),
+  update: (settings: AccountingSettings) => request<AccountingResponse>(`${BASE}/accounting`, { method: "PUT", body: settings }),
 };
 
 export const bankAccountsApi = crudApi<BankAccount, BankAccountInput>("bank-accounts");

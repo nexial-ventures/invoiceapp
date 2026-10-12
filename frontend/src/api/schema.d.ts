@@ -1608,6 +1608,18 @@ export interface components {
             /** @default  */
             token: string;
         };
+        /** @description Longest code per program, in characters after trimming. */
+        AccountingLimits: {
+            money: components["schemas"]["CodeLimits"];
+            pohoda: components["schemas"]["CodeLimits"];
+        };
+        /**
+         * @description Both responses: the settings plus the length limits `PUT` enforces, so
+         *     the form need not copy them.
+         */
+        AccountingResponse: components["schemas"]["AccountingSettings"] & {
+            limits: components["schemas"]["AccountingLimits"];
+        };
         /** @description The stored settings and both responses: every section, every row. */
         AccountingSettings: {
             money?: components["schemas"]["ProgramSettings"];
@@ -1832,6 +1844,11 @@ export interface components {
              * @default
              */
             code: string;
+        };
+        CodeLimits: {
+            /** @description `accounting`, `classificationVat`, `classificationVatNonDeductible`. */
+            code: number;
+            numberSeries: number;
         };
         /** @description The codes of one direction × document type; null = not written. */
         CodeRow: {
@@ -7252,13 +7269,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Both sections (`pohoda`, `money`), every direction × exported type row present (missing ones all null) */
+            /** @description Both sections (`pohoda`, `money`), every direction × exported type row present (missing ones all null), and the code length `limits` */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AccountingSettings"];
+                    "application/json": components["schemas"]["AccountingResponse"];
                 };
             };
         };
@@ -7282,7 +7299,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AccountingSettings"];
+                    "application/json": components["schemas"]["AccountingResponse"];
                 };
             };
             /** @description `{pohoda|money}.ico`: `invalid_ico`; `{pohoda|money}.codes.N.direction` / `docType`: `invalid`, `docType`: `duplicate`; `….classificationVatNonDeductible`: `invalid` on an issued row; `pohoda.codes.N.{accounting|classificationVat|classificationVatNonDeductible|numberSeries}`: `too_long` (> 19); `money.codes.N.{accounting|classificationVat|classificationVatNonDeductible}`: `too_long` (> 10), `money.codes.N.numberSeries`: `too_long` (> 5) */

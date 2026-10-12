@@ -3,7 +3,7 @@ import { ref, type Ref } from "vue";
 import type { DocType } from "@/api/types";
 import { loadOnce } from "@/lib/loadOnce";
 import { accountingApi, bankAccountsApi, categoriesApi, companyApi, customFieldsApi, numberSeriesApi, pdfApi, vatRatesApi, type CrudApi } from "./api";
-import type { AccountingSettings, BankAccount, BankAccountInput, Category, CategoryInput, Company, CustomField, CustomFieldInput, DesignInfo, DesignVersion, NumberSeries, VatRate, VatRateInput } from "./types";
+import type { AccountingResponse, AccountingSettings, BankAccount, BankAccountInput, Category, CategoryInput, Company, CustomField, CustomFieldInput, DesignInfo, DesignVersion, NumberSeries, VatRate, VatRateInput } from "./types";
 
 export const useCompanyStore = defineStore("settings/company", () => {
   const company = ref<Company | null>(null);
@@ -22,7 +22,7 @@ export const useCompanyStore = defineStore("settings/company", () => {
 });
 
 export const useAccountingStore = defineStore("settings/accounting", () => {
-  const settings = ref<AccountingSettings | null>(null);
+  const settings = ref<AccountingResponse | null>(null);
 
   async function load(): Promise<void> {
     settings.value = await accountingApi.get();

@@ -10,6 +10,7 @@ use super::format::{self, Locale};
 use super::labels::{self, Labels};
 use super::payload::{Input, PdfLine, Recap, RecapRow, TotalRow};
 use crate::currency::{LOCAL_CURRENCY, is_local};
+use crate::document::doc_type::DocType;
 use crate::document::line::VatMode;
 use crate::document::wire::dto::Line;
 
@@ -217,7 +218,7 @@ fn total_row(label: &str, value: String, strong: bool) -> TotalRow {
 /// amounts before the deduction, the deduction, then the payable.
 fn totals(i: &Input, f: &Fmt, l: &Labels, show_vat: bool) -> anyhow::Result<Vec<TotalRow>> {
     let t = i.totals;
-    if i.doc_type == "advance_tax_doc" {
+    if i.doc_type == DocType::AdvanceTaxDoc.as_str() {
         return Ok(vec![
             total_row(l.total_excl_vat, f.money(t.base), false),
             total_row(l.vat, f.money(t.vat), false),

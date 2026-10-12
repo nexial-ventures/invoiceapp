@@ -9,6 +9,8 @@ use super::amounts;
 use super::format::{self, Locale};
 use super::labels::{self, Labels};
 use super::spayd::{self, Spayd};
+use crate::document::doc_type::DocType;
+use crate::document::line::PaymentMethod;
 use crate::document::line::{Status, VatMode};
 use crate::document::snapshot::{BankSnapshot, PartySnapshot, Totals};
 use crate::document::wire::dto::Line;
@@ -224,11 +226,12 @@ fn row(label: &str, value: String) -> Row {
 fn dates(i: &Input, l: &Labels) -> Vec<Row> {
     let date = |d| format::date(d, i.locale);
     let mut out = vec![row(l.issue_date, date(i.issue_date))];
-    let with_tax_point = i.doc_type != "proforma" && i.vat_mode != VatMode::NonPayer;
+    let with_tax_point =
+        i.doc_type != DocType::Proforma.as_str() && i.vat_mode != VatMode::NonPayer;
     if let Some(d) = i.tax_point_date.filter(|_| with_tax_point) {
         out.push(row(l.tax_point_date, date(d)));
     }
-    if i.doc_type == "advance_tax_doc" {
+    if i.doc_type == DocType::AdvanceTaxDoc.as_str() {
         out.push(row(
             l.payment_date,
             date(i.tax_point_date.unwrap_or(i.issue_date)),
@@ -244,7 +247,10 @@ fn payment(i: &Input, l: &Labels) -> Vec<Row> {
         l.payment_method,
         labels::payment_method(i.payment_method, i.locale).into(),
     )];
-    if let Some(b) = i.bank.filter(|_| i.payment_method == "bank_transfer") {
+    if let Some(b) = i
+        .bank
+        .filter(|_| i.payment_method == PaymentMethod::BankTransfer.as_str())
+    {
         let fields = [
             (l.account_number, b.account_number.clone()),
             (l.iban, b.iban.as_deref().map(format::iban)),
@@ -275,8 +281,8 @@ fn payment(i: &Input, l: &Labels) -> Vec<Row> {
 fn has_customer_block(i: &Input) -> bool {
     i.customer.is_some()
         || (i.status == Status::Draft
-            && i.doc_type != "simplified"
-            && i.parent_doc_type != Some("simplified"))
+            && i.doc_type != DocType::Simplified.as_str()
+            && i.parent_doc_type != Some(DocType::Simplified.as_str()))
 }
 
 fn reference(i: &Input) -> Option<String> {
@@ -367,7 +373,7 @@ pub fn build(i: &Input) -> anyhow::Result<Payload> {
         vat_recap_czk: amounts.vat_recap_czk,
         totals: amounts.totals,
         legal_note: labels::legal_note(i.vat_mode, i.locale).map(str::to_string),
-        paid_note: (i.doc_type == "advance_tax_doc").then(|| l.paid_note.to_string()),
+        paid_note: (i.doc_type == DocType::AdvanceTaxDoc.as_str()).then(|| l.paid_note.to_string()),
         spayd: qr.as_ref().map(|(_, s)| s.clone()),
         qr: qr.map(|(q, _)| q),
         assets: Assets::default(),

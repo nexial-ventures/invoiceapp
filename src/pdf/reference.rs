@@ -2,6 +2,7 @@
 //! and the proforma of a DDPP. Pure.
 
 use super::format::Locale;
+use crate::document::doc_type::DocType;
 
 /// `doc_type` refers to its parent (`parent_type`, `parent` number); `None`
 /// for documents that print no reference.
@@ -13,20 +14,23 @@ pub fn reference(
     locale: Locale,
 ) -> Option<String> {
     let cs = locale == Locale::Cs;
-    let simplified = parent_type == Some("simplified");
+    let simplified = parent_type == Some(DocType::Simplified.as_str());
+    let doc_type = DocType::parse(doc_type);
     let head = match doc_type {
-        "advance_tax_doc" if cs => return Some(format!("K zálohové faktuře {parent}")),
-        "advance_tax_doc" => return Some(format!("For proforma invoice {parent}")),
-        "credit_note" if cs => "Opravný daňový doklad",
-        "credit_note" => "Credit note",
-        "debit_note" if cs => "Opravný daňový doklad – vrubopis",
-        "debit_note" => "Debit note",
-        "advance_credit_note" if cs => "Opravný daňový doklad k daňovému dokladu k přijaté platbě",
-        "advance_credit_note" => "Correction of advance payment tax document",
+        Some(DocType::AdvanceTaxDoc) if cs => return Some(format!("K zálohové faktuře {parent}")),
+        Some(DocType::AdvanceTaxDoc) => return Some(format!("For proforma invoice {parent}")),
+        Some(DocType::CreditNote) if cs => "Opravný daňový doklad",
+        Some(DocType::CreditNote) => "Credit note",
+        Some(DocType::DebitNote) if cs => "Opravný daňový doklad – vrubopis",
+        Some(DocType::DebitNote) => "Debit note",
+        Some(DocType::AdvanceCreditNote) if cs => {
+            "Opravný daňový doklad k daňovému dokladu k přijaté platbě"
+        }
+        Some(DocType::AdvanceCreditNote) => "Correction of advance payment tax document",
         _ => return None,
     };
     let head = match (doc_type, simplified, cs) {
-        ("advance_credit_note", _, _) => format!("{head} {parent}"),
+        (Some(DocType::AdvanceCreditNote), _, _) => format!("{head} {parent}"),
         (_, true, true) => format!("{head} k zjednodušenému daňovému dokladu {parent}"),
         (_, true, false) => format!("{head} to simplified tax document {parent}"),
         (_, false, true) => format!("{head} k faktuře {parent}"),

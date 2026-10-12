@@ -5,6 +5,7 @@ import {
   ACCOUNTING_DOC_TYPES,
   ACCOUNTING_PROGRAMS,
   type AccountingCodes,
+  type AccountingLimits,
   type AccountingProgram,
   type AccountingProgramSettings,
   type AccountingSettings,
@@ -18,11 +19,9 @@ export type CodeField = (typeof CODE_FIELDS)[number];
 export const codeApplies = (field: CodeField, direction: Direction): boolean =>
   field !== "classificationVatNonDeductible" || direction === "received";
 
-/** Server limits per code (after trim): Pohoda `typ:idsType` maxLength 19; Money S3 per element (`Rada` ≤ 5). */
-export const CODE_MAX_LENGTH: Record<AccountingProgram, Record<CodeField, number>> = {
-  pohoda: { accounting: 19, classificationVat: 19, classificationVatNonDeductible: 19, numberSeries: 19 },
-  money: { accounting: 10, classificationVat: 10, classificationVatNonDeductible: 10, numberSeries: 5 },
-};
+/** The server's limit for `field` of `program` (after trim), from the response's `limits`. */
+export const codeMaxLength = (limits: AccountingLimits, program: AccountingProgram, field: CodeField): number =>
+  field === "numberSeries" ? limits[program].numberSeries : limits[program].code;
 
 export type CodeRowDraft = Pick<AccountingCodes, "direction" | "docType"> & Record<CodeField, string>;
 
@@ -79,13 +78,13 @@ export function toAccountingSettings(draft: AccountingDraft): AccountingSettings
   return { pohoda: toProgramSettings(draft.pohoda), money: toProgramSettings(draft.money) };
 }
 
-/** Client mirror of the server's length checks, keyed like its 422 (`<program>.codes.N.<field>`). */
-export function validateAccounting(draft: AccountingDraft): FieldErrors {
+/** Client mirror of the server's length checks (the `limits` it returned), keyed like its 422 (`<program>.codes.N.<field>`). */
+export function validateAccounting(draft: AccountingDraft, limits: AccountingLimits): FieldErrors {
   const errors: FieldErrors = {};
   for (const program of ACCOUNTING_PROGRAMS) {
     draft[program].rows.forEach((row, i) => {
       for (const field of CODE_FIELDS) {
-        const reason = textRule(row[field], { max: CODE_MAX_LENGTH[program][field] });
+        const reason = textRule(row[field], { max: codeMaxLength(limits, program, field) });
         if (reason) errors[`${program}.codes.${i}.${field}`] = reason;
       }
     });
