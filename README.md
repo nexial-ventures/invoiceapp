@@ -114,6 +114,9 @@ PDFs need an mdcast (`INVOICE__MDCAST_URL`, `INVOICE__MDCAST_TOKEN`).
   beyond the request, resource limits) — template isolation is mdcast's, not the app's.
 - **Sign in with Google** (optional): the only redirect URI to register is
   `{INVOICE__PUBLIC_URL}/api/auth/google/callback`.
+- **PgBouncer:** in transaction mode set `INVOICE__DB_PGBOUNCER=true` (otherwise every connection fails with
+  `unsupported startup parameter in options`); the pool then runs without its 30 s statement / idle-in-transaction
+  timeouts.
 - **Storage:** the image's `/data` volume (`INVOICE__STORAGE_KIND=fs`, default) or an S3-compatible bucket
   (`INVOICE__STORAGE_KIND=s3`, `INVOICE__S3__*`).
 - **Space limits:** every space has a hidden storage quota (default 100 MB: originals, archived PDFs, design files;

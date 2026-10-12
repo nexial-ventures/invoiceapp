@@ -104,6 +104,29 @@ fn pdf_settings_are_read() {
 }
 
 #[test]
+fn pgbouncer_switch() {
+    let base = [
+        ("INVOICE__DATABASE_URL", "postgres://x"),
+        ("INVOICE__PUBLIC_URL", "http://localhost:3000"),
+    ];
+    assert!(
+        !Config::from_source(env(&base))
+            .expect("default")
+            .db_pgbouncer
+    );
+    let mut pairs = base.to_vec();
+    pairs.push(("INVOICE__DB_PGBOUNCER", "true"));
+    assert!(Config::from_source(env(&pairs)).expect("set").db_pgbouncer);
+    let mut pairs = base.to_vec();
+    pairs.push(("INVOICE__DB_PGBOUNCER", "maybe"));
+    let err = Config::from_source(env(&pairs)).expect_err("bad");
+    assert!(
+        format!("{err:#}").contains("INVOICE__DB_PGBOUNCER"),
+        "{err:#}"
+    );
+}
+
+#[test]
 fn pool_size() {
     let base = [
         ("INVOICE__DATABASE_URL", "postgres://x"),

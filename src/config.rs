@@ -2,6 +2,7 @@
 
 use anyhow::{Context, Result, bail};
 use config::{Config as RawConfig, Environment};
+use sea_orm::ConnectOptions;
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -68,6 +69,11 @@ pub struct Config {
     raw_db_max_connections: Option<String>,
     #[serde(skip)]
     pub db_max_connections: u32,
+    /// `INVOICE__DB_PGBOUNCER`: behind a transaction-pooling PgBouncer.
+    #[serde(default, rename = "db_pgbouncer")]
+    raw_db_pgbouncer: Option<String>,
+    #[serde(skip)]
+    pub db_pgbouncer: bool,
     /// `INVOICE__DESIGN_CACHE_MB`: design file cache bound (default 128).
     #[serde(default, rename = "design_cache_mb")]
     raw_design_cache_mb: Option<String>,
@@ -126,6 +132,7 @@ impl Config {
             cfg.raw_db_max_connections.as_deref(),
             DEFAULT_MAX_CONNECTIONS,
         )?;
+        cfg.db_pgbouncer = flag("INVOICE__DB_PGBOUNCER", cfg.raw_db_pgbouncer.as_deref())?;
         cfg.design_cache_mb = positive(
             "INVOICE__DESIGN_CACHE_MB",
             cfg.raw_design_cache_mb.as_deref(),
@@ -134,6 +141,15 @@ impl Config {
         let cfg = cfg.normalized();
         cfg.validate()?;
         Ok(cfg)
+    }
+
+    /// The `invoice serve` request pool.
+    pub fn pool_options(&self) -> ConnectOptions {
+        crate::db::pool_options(
+            self.database_url.expose(),
+            self.db_max_connections,
+            self.db_pgbouncer,
+        )
     }
 
     /// CI and container runtimes pass unset variables through as empty

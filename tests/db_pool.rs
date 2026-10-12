@@ -1,4 +1,5 @@
-//! The server pool's connections carry the server-side timeouts.
+//! The server pool's connections carry the server-side timeouts, unless
+//! they go through PgBouncer.
 
 mod common;
 
@@ -19,7 +20,7 @@ async fn show(db: &impl ConnectionTrait, setting: &str) -> String {
 
 #[tokio::test]
 async fn pooled_connections_time_out_statements_and_idle_transactions() {
-    let db = Database::connect(pool_options(&common::test_database_url(), 2))
+    let db = Database::connect(pool_options(&common::test_database_url(), 2, false))
         .await
         .expect("connect");
     assert_eq!(show(&db, "statement_timeout").await, SERVER_TIMEOUT);
@@ -29,4 +30,16 @@ async fn pooled_connections_time_out_statements_and_idle_transactions() {
         SERVER_TIMEOUT
     );
     txn.rollback().await.expect("rollback");
+}
+
+#[tokio::test]
+async fn pgbouncer_pool_sends_no_startup_options() {
+    let db = Database::connect(pool_options(&common::test_database_url(), 2, true))
+        .await
+        .expect("connect");
+    assert_ne!(show(&db, "statement_timeout").await, SERVER_TIMEOUT);
+    assert_ne!(
+        show(&db, "idle_in_transaction_session_timeout").await,
+        SERVER_TIMEOUT
+    );
 }
