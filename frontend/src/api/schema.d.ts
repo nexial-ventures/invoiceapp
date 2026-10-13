@@ -5085,7 +5085,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description `document_locked` (an issued document that is not a draft; received documents can always be deleted); an unlocked draft: `related_in_use` (a non-cancelled document links it), `advance_in_use` (an invoice deducts it) */
+            /** @description `document_locked` (an issued document that is not a draft; received documents can always be deleted); an unlocked draft: `related_in_use` (a non-cancelled document links it), `advance_in_use` (an invoice deducts it); an unlocked debit note / DDPP correction: the guards of its cancel (`exceeds_original`, `advance_settled` / `advance_in_use`) */
             409: {
                 headers: {
                     [name: string]: unknown;

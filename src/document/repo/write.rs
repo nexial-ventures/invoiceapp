@@ -7,8 +7,9 @@ use sea_orm::{
 };
 use uuid::Uuid;
 
-use super::{NewDocument, advance_sources, insert, lines, query};
+use super::{NewDocument, advance_sources, credit, ddpp_correction, insert, lines, query};
 use crate::document::compute::Totals;
+use crate::document::doc_type::DocType;
 use crate::document::entity::document::{ActiveModel, Column, Entity};
 use crate::document::entity::document_line;
 use crate::document::line::Direction;
@@ -168,7 +169,11 @@ async fn update_in(
 ) -> Result<(), AppError> {
     let doc = locked_draft(txn, space, id).await?;
     advance_sources::lock_and_recheck(txn, space, id, &data.lines).await?;
+    let unlocked = doc.unlocked_at.is_some();
     let mut row: ActiveModel = doc.into();
+    if unlocked {
+        row.edited_since_unlock = Set(true);
+    }
     apply(&mut row, &data);
     apply_totals(&mut row, &totals);
     row.updated_at = Set(chrono::Utc::now().into());
@@ -210,6 +215,17 @@ pub async fn delete(
                     .await?;
                 if referenced > 0 {
                     return Err(AppError::RelatedInUse);
+                }
+                // An unlocked correction goes like a cancelled one: only within
+                // the same guards (debit-note cap, DDPP not deducted).
+                if doc.unlocked_at.is_some() {
+                    match doc.doc_type {
+                        DocType::DebitNote => credit::check_debit_cancel(txn, &doc).await?,
+                        DocType::AdvanceCreditNote => {
+                            ddpp_correction::check_linked(txn, &doc).await?
+                        }
+                        _ => {}
+                    }
                 }
                 Entity::delete_by_id(id).exec(txn).await?;
                 Ok(doc.original_path)

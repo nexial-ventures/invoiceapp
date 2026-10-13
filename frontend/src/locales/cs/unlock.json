@@ -14,9 +14,10 @@
   "unknownUser": "smazaný uživatel",
   "keptNumber": "Ponechává si číslo {number}: nové vystavení nové číslo nebere.",
   "confirmDelete": "Tento koncept byl vystaven jako {number}. Smazáním se smažou i jeho platby a historie e-mailů a číslo se znovu nepoužije. Opravdu smazat?",
-  "issueExceeds": "Nelze vystavit: vystavené dobropisy by v některé sazbě DPH přesáhly nové částky. Nejprve je stornujte nebo upravte.",
-  "issueRelated": "Nelze vystavit: opravné doklady byly vystaveny na původního odběratele, měnu a režim DPH. Vraťte je, nebo opravné doklady nejprve stornujte.",
-  "issueAdvance": "Nelze vystavit: konečná faktura odečítá tuto zálohu v původní výši, měně či odběrateli. Vraťte změny, nebo nejprve odpočet zrušte (stornujte fakturu).",
-  "deleteRelated": "Nelze smazat: odkazují na něj jiné doklady (dobropisy, zálohové doklady, konečná faktura). Nejprve je stornujte.",
-  "deleteAdvance": "Nelze smazat: tuto zálohu odečítá faktura (počítá se i stornovaná). Smazat ji lze nejprve jen jako koncept; jinak doklad ponechte."
+  "issueExceeds": "Nelze vystavit: vystavené dobropisy by v některé sazbě DPH přesáhly opravovaný doklad (navýšený o vrubopisy). Nejprve je stornujte nebo upravte.",
+  "issueRelated": "Nelze vystavit: opravné doklady byly vystaveny na původního odběratele, měnu a režim DPH. Vraťte je, nebo opravné doklady nejprve stornujte či smažte.",
+  "issueAdvance": "Nelze vystavit: faktura odečítá tento doklad v podobě, v jaké byl vystaven (částky, měna, odběratel). Vraťte změny, nebo tu fakturu nejprve stornujte či smažte.",
+  "deleteExceeds": "Nelze smazat: bez tohoto vrubopisu by vystavené dobropisy v některé sazbě DPH přesáhly původní doklad. Nejprve je stornujte nebo upravte.",
+  "deleteRelated": "Nelze smazat: odkazují na něj jiné doklady (dobropisy, zálohové doklady, konečná faktura). Nejprve je stornujte či smažte.",
+  "deleteAdvance": "Nelze smazat: tento doklad odečítá faktura (počítá se i stornovaná). Je-li ta faktura koncept, nejprve ji smažte; jinak musí doklad zůstat."
 }

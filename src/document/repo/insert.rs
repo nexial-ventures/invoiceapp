@@ -131,6 +131,7 @@ pub async fn insert(txn: &DatabaseTransaction, n: NewDocument) -> Result<(), DbE
         unlocked_at: Set(None),
         unlocked_by: Set(None),
         unlock_reason: Set(None),
+        edited_since_unlock: Set(false),
         created_at: Set(n.created_at),
         updated_at: Set(n.updated_at),
     }

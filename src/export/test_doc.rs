@@ -92,6 +92,7 @@ pub fn doc() -> document::Model {
         unlocked_at: None,
         unlocked_by: None,
         unlock_reason: None,
+        edited_since_unlock: false,
         created_at: ts(0),
         updated_at: ts(0),
     }

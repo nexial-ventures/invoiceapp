@@ -150,8 +150,8 @@ User decision overriding "issued documents are locked" ([plan.md](../plan.md)).
   editable, as on import.
 - Re-issue (normal `issue`): a draft that already has a number reuses `number`, `numberYear` and the sequence, also
   after a date change — it never allocates a second number; snapshots, rate, totals and the PDF are done as in any
-  issue (imported: no render). An imported draft not edited since the unlock (`updatedAt` = `unlockedAt`; any save,
-  metadata included, counts as an edit) keeps its snapshots, rate and totals as entered. The number stays
+  issue (imported: no render). An imported draft not edited since the unlock (no document `PUT`; metadata, notes and
+  the original do not count) keeps its lines, snapshots, rate and totals as entered. The number stays
   **reserved** while the draft exists: the counter is not moved back, the counter guard counts the draft
   (`below_issued`), and the unique number index still holds it.
 - Re-issue re-checks, in the issue transaction under the row lock, what other documents rely on (409, nothing issued):
@@ -159,15 +159,19 @@ User decision overriding "issued documents are locked" ([plan.md](../plan.md)).
   imported DDPP: its issued corrections exceed the new recap); `related_in_use` — `contactId`, `currency` or `vatMode`
   changed while a non-cancelled native correction (copied from it) exists; `advance_settled` / `advance_in_use` — a
   non-cancelled issued / draft invoice deducts it and would now deduct something else (amounts, VAT recap, currency,
-  customer). An unedited import is not re-checked (nothing changed).
+  customer). An unlocked **debit note** re-issues only while its original's issued credit notes fit the cap with
+  this note at its new amounts (`exceeds_original`); an unlocked **DDPP correction** only while its DDPP is not
+  deducted (`advance_settled` / `advance_in_use`, as for any correction issue). An unedited import is not re-checked
+  (nothing changed).
 - As a draft it takes no payments (409 `invalid_state` on add / delete) and `paymentState` is `null`. E-mail and ISDOC
   export never use a draft render: a document unlocked while one is prepared → 409 `invalid_state`, and a render
   started before the unlock is never archived (`GET …/pdf` → 409; see [pdf.md, Archive](pdf.md#archive)).
 - `DELETE` of an unlocked draft cascades its lines, payments and e-mail log (a DDPP's `paymentId` → `null`). Refused
   with 409 `related_in_use` while a non-cancelled document links it via `relatedDocumentId` (cancelled ones keep
   existing with the link `null`), and with 409 `advance_in_use` while any invoice's `advance` line deducts it —
-  cancelled invoices included, because that FK has no ON DELETE action (the line needs its source). The number is
-  not reused.
+  cancelled invoices included, because that FK has no ON DELETE action (the line needs its source). An unlocked
+  debit note or DDPP correction is deleted only under the guards of its cancel (`exceeds_original`;
+  `advance_settled` / `advance_in_use`). The number is not reused.
 - REST only; MCP has no unlock tool.
 
 ## Clarifications 1b (as implemented)
@@ -255,6 +259,8 @@ Unlock (clarification)
 - Added after 4e on the user's decision: issued documents are no longer strictly immutable — see [Unlock](#unlock).
   `issue` on a numbered draft keeps the number instead of allocating; `PUT` of a native draft accepts its kept number.
   New code `related_in_use` (409).
+- The credit cap counts every issued credit note linked to the original, imported ones included, whatever their
+  currency (as at a credit-note issue): an imported note is not bound to the original's header.
 
 ---
 

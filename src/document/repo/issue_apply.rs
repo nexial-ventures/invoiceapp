@@ -207,14 +207,15 @@ pub(super) async fn apply(
     row.update(txn)
         .await
         .map_err(|e| number_violation(e, || AppError::NumberTaken))?;
-    if !advance::referenced_ids(&p.lines).is_empty() {
-        lines::replace(txn, id, &p.lines).await?;
-    }
     if !keep_entered {
+        if !advance::referenced_ids(&p.lines).is_empty() {
+            lines::replace(txn, id, &p.lines).await?;
+        }
         lines::replace_recap(txn, id, &totals).await?;
     }
     if recheck {
         reissue::check_deductions(txn, space, id).await?;
+        reissue::check_as_debit_note(txn, space, &doc).await?;
     }
     Ok(())
 }

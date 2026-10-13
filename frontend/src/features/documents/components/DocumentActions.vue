@@ -97,7 +97,9 @@ const UNLOCKED_ISSUE_MESSAGES: Record<string, string> = {
   advance_in_use: "unlock.issueAdvance",
 };
 const UNLOCKED_DELETE_MESSAGES: Record<string, string> = {
+  exceeds_original: "unlock.deleteExceeds",
   related_in_use: "unlock.deleteRelated",
+  advance_settled: "unlock.deleteAdvance",
   advance_in_use: "unlock.deleteAdvance",
 };
 const unlockedMessages = (map: Record<string, string>) => (props.doc.unlockedAt ? map : {});

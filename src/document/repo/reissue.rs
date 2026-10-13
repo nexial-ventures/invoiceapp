@@ -129,6 +129,24 @@ pub(super) async fn check_deductions(
     Ok(())
 }
 
+/// After the re-issued row and recap are written: a debit note raises its
+/// original's credit cap, so with this note at its new amounts the original's
+/// issued credit notes must still fit (else 409 `exceeds_original`). (A DDPP
+/// correction is checked by its issue path: refused while its DDPP is
+/// deducted.)
+pub(super) async fn check_as_debit_note(
+    txn: &DatabaseTransaction,
+    space: SpaceId,
+    doc: &document::Model,
+) -> Result<(), AppError> {
+    let (DocType::DebitNote, Some(original)) = (doc.doc_type, doc.related_document_id) else {
+        return Ok(());
+    };
+    // Lock order: correction → its original (the note is locked already).
+    query::lock(txn, space, original).await?;
+    credit::credits_within_cap(txn, original, Uuid::nil()).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -24,7 +24,6 @@ pub struct Unlock {
 /// re-issue; a manual or copied rate is the user's and stays); an imported
 /// one keeps both, as entered. Only the rendered archive (`pdf_*`) is
 /// dropped — an uploaded original (`original_*`) is untouched.
-/// `updated_at` = `unlocked_at` marks the draft as not edited since.
 /// Returns the archive key for the caller to remove once this committed.
 pub async fn unlock(
     db: &DatabaseConnection,
@@ -44,6 +43,7 @@ pub async fn unlock(
                 row.status = Set(Status::Draft);
                 row.unlocked_at = Set(Some(now));
                 row.updated_at = Set(now);
+                row.edited_since_unlock = Set(false);
                 row.unlocked_by = Set(Some(by.user));
                 row.unlock_reason = Set(Some(by.reason));
                 if native {
@@ -71,8 +71,8 @@ fn unlockable(doc: &document::Model) -> bool {
     doc.doc_type != DocType::AdvanceTaxDoc || doc.imported
 }
 
-/// An imported document unlocked and not edited since: its re-issue keeps
-/// the snapshots, rate and totals as they were entered.
+/// An imported document unlocked and not saved (`PUT`) since: its re-issue
+/// keeps the lines, snapshots, rate and totals as they were entered.
 pub fn untouched_import(doc: &document::Model) -> bool {
-    doc.imported && doc.unlocked_at == Some(doc.updated_at)
+    doc.imported && doc.unlocked_at.is_some() && !doc.edited_since_unlock
 }

@@ -14,9 +14,10 @@
   "unknownUser": "a deleted user",
   "keptNumber": "Keeps its number {number}: re-issuing takes no new one.",
   "confirmDelete": "This draft was issued as {number}. Deleting it also deletes its payments and e-mail log, and the number is not reused. Really delete it?",
-  "issueExceeds": "Cannot issue: its issued credit notes would exceed the new amounts for some VAT rate. Cancel or correct them first.",
-  "issueRelated": "Cannot issue: its corrections were made for the original customer, currency and VAT mode. Change these back, or cancel the corrections first.",
-  "issueAdvance": "Cannot issue: a final invoice deducts this advance with the original amounts, currency or customer. Change it back, or remove the deduction (cancel the invoice) first.",
-  "deleteRelated": "Cannot delete: other documents refer to it (credit notes, advance documents, a final invoice). Cancel them first.",
-  "deleteAdvance": "Cannot delete: an invoice deducts this advance (a cancelled one counts too). Only if it is a draft can it be deleted first; otherwise keep this document."
+  "issueExceeds": "Cannot issue: the issued credit notes would exceed the corrected document (plus its debit notes) for some VAT rate. Cancel or correct them first.",
+  "issueRelated": "Cannot issue: its corrections were made for the original customer, currency and VAT mode. Change these back, or cancel or delete those corrections first.",
+  "issueAdvance": "Cannot issue: an invoice deducts this document as it was issued (amounts, currency, customer). Change it back, or cancel or delete that invoice first.",
+  "deleteExceeds": "Cannot delete: without this debit note the issued credit notes would exceed the original document for some VAT rate. Cancel or correct them first.",
+  "deleteRelated": "Cannot delete: other documents refer to it (credit notes, advance documents, a final invoice). Cancel or delete them first.",
+  "deleteAdvance": "Cannot delete: an invoice deducts this document (a cancelled invoice counts too). If that invoice is a draft, delete it first; otherwise this document has to stay."
 }

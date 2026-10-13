@@ -91,6 +91,9 @@ pub struct Model {
     pub unlocked_at: Option<DateTimeWithTimeZone>,
     pub unlocked_by: Option<Uuid>,
     pub unlock_reason: Option<String>,
+    /// A document `PUT` since the latest unlock (metadata, notes and the
+    /// original do not count).
+    pub edited_since_unlock: bool,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }

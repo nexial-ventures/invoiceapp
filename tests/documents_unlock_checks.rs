@@ -187,3 +187,28 @@ async fn an_unedited_import_keeps_what_was_entered() {
         (&json!("FV-2019/0043"), &json!("Nový název s.r.o."))
     );
 }
+
+#[tokio::test]
+async fn metadata_is_no_edit_of_an_import() {
+    let db = TestDb::new().await;
+    let app = router(db.conn.clone());
+    let mut body = issuable(&app).await;
+    body["imported"] = json!(true);
+    body["number"] = json!("FV-2019/0042");
+    let doc = create_issued(&app, body).await;
+    rename_company(&app, "Nový název s.r.o.").await;
+
+    let (status, _) = unlock(&app, &id(&doc), json!("note only")).await;
+    assert_eq!(status, StatusCode::OK);
+    let uri = format!("/api/documents/{}/metadata", id(&doc));
+    let meta = json!({ "categoryId": null, "customFields": {}, "internalNote": "checked" });
+    let (status, saved) = call(&app, Method::PUT, &uri, Some(meta)).await;
+    assert_eq!(status, StatusCode::OK, "{saved}");
+    let (status, again) = issue(&app, &id(&doc)).await;
+    assert_eq!(status, StatusCode::OK, "{again}");
+    assert_eq!(
+        (&again["supplier"]["name"], &again["internalNote"]),
+        (&json!("Dodavatel s.r.o."), &json!("checked"))
+    );
+    assert_eq!(again["lines"], doc["lines"]);
+}
