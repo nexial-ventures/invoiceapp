@@ -12,7 +12,7 @@
   "bannerTitle": "Odemčený vystavený doklad",
   "banner": "Odemčeno {when}, {who}: {reason}",
   "unknownUser": "smazaný uživatel",
-  "keptNumber": "Ponechává si číslo {number}: nové vystavení nové číslo nebere.",
+  "keptNumber": "Ponechává si číslo {number}, pokud ho nezměníte nebo nesmažete: s ponechaným číslem nové vystavení nové číslo nebere.",
   "confirmDelete": "Tento koncept byl vystaven jako {number}. Smazáním se smažou i jeho platby a historie e-mailů a číslo se znovu nepoužije. Opravdu smazat?",
   "issueExceeds": "Nelze vystavit: vystavené dobropisy by v některé sazbě DPH přesáhly opravovaný doklad (navýšený o vrubopisy). Nejprve je stornujte nebo upravte.",
   "issueRelated": "Nelze vystavit: opravné doklady byly vystaveny na původního odběratele, měnu a režim DPH. Vraťte je, nebo opravné doklady nejprve stornujte či smažte.",

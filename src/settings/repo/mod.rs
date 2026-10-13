@@ -3,6 +3,7 @@ pub mod categories;
 pub mod company;
 pub mod custom_fields;
 pub mod number_series;
+pub mod numbering;
 pub mod vat_rates;
 
 use uuid::Uuid;

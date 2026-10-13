@@ -41,6 +41,9 @@ export const numberSeriesApi = {
   list: () => request<NumberSeries[]>(`${BASE}/number-series`),
   updatePattern: (docType: DocType, pattern: string) =>
     request<NumberSeries>(`${BASE}/number-series/${docType}`, { method: "PUT", body: { pattern } }),
+  /** Issued series only; `null` clears it (customers then use the global pattern). */
+  updateClientPattern: (docType: DocType, clientPattern: string | null) =>
+    request<NumberSeries>(`${BASE}/number-series/${docType}/client-pattern`, { method: "PUT", body: { clientPattern } }),
   setCounter: (docType: DocType, year: number, lastNumber: number) =>
     request<NumberSeries>(`${BASE}/number-series/${docType}/counters/${year}`, {
       method: "PUT",

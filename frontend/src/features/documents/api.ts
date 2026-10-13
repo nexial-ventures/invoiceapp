@@ -8,6 +8,7 @@ import type {
   DocumentPage,
   ExchangeRate,
   MetadataInput,
+  NumberPreview,
   Payment,
   PaymentInput,
   ReceivedDocumentInput,
@@ -45,6 +46,12 @@ export const documentsApi = {
   update: (id: string, input: DocumentInput | ReceivedDocumentInput) =>
     request<Document>(item(id), { method: "PUT", body: input }),
   remove: (id: string) => request<void>(item(id), { method: "DELETE" }),
+  /** The number an issue would allocate now; nothing is reserved. */
+  numberPreview: (query: { docType: string; contactId: string | null; issueDate: string }) => {
+    const params = new URLSearchParams({ docType: query.docType, issueDate: query.issueDate });
+    if (query.contactId) params.set("contactId", query.contactId);
+    return request<NumberPreview>(`${BASE}/number-preview?${params.toString()}`);
+  },
   compute: (body: ComputeRequest, signal?: AbortSignal) =>
     request<ComputeResult>(`${BASE}/compute`, { method: "POST", body, signal }),
   issue: (id: string) => request<Document>(`${item(id)}/issue`, { method: "POST" }),

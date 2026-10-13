@@ -34,7 +34,8 @@ describe("reasonKey", () => {
   it("maps known reason codes and falls back to invalid", () => {
     expect(reasonKey("invalid_ico")).toBe("validation.invalid_ico");
     expect(reasonKey("too_long")).toBe("validation.too_long");
-    expect(reasonKey("below_issued")).toBe("validation.below_issued");
+    expect(reasonKey("not_issued")).toBe("validation.not_issued");
+    expect(reasonKey("below_issued")).toBe("validation.invalid");
     expect(reasonKey("not_set")).toBe("validation.not_set");
     expect(reasonKey("something_new")).toBe("validation.invalid");
   });

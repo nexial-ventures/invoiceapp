@@ -34,12 +34,16 @@ describe("InvoiceEditorForm", () => {
   });
 
   it("shows live totals from compute", async () => {
-    const fetch = mockFetchRoutes({ "POST /api/documents/compute": { lines: [], totals: totals("1210.00") } });
+    const fetch = mockFetchRoutes({
+      "POST /api/documents/compute": { lines: [], totals: totals("1210.00") },
+      "GET /api/documents/number-preview": { number: "20260001", source: "global" },
+    });
     const w = mountForm();
     await vi.advanceTimersByTimeAsync(300);
     await flushPromises();
-    expect(fetch).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toMatchObject({ documentId: "d1", docType: "invoice", locale: "cs", contactId: null });
+    const computes = fetch.mock.calls.filter(([url]) => url === "/api/documents/compute");
+    expect(computes).toHaveLength(1);
+    expect(JSON.parse(String(computes[0]?.[1]?.body))).toMatchObject({ documentId: "d1", docType: "invoice", locale: "cs", contactId: null });
     expect(w.find('[data-test="payable"]').text().replace(/\s/g, " ")).toBe("CZK 1,210.00");
   });
 

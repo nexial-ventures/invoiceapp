@@ -66,8 +66,8 @@ error files. Every repo takes the `SpaceId` of the request's role extractor ([ap
 
 | Module | What it is | Contract |
 |---|---|---|
-| `settings/` | company profile + document defaults, bank accounts, VAT rates, number series (`pattern.rs`, `allocate_number`), categories, custom field definitions | [api/settings-contacts.md](api/settings-contacts.md), [api/defaults.md](api/defaults.md), [api/received-import.md](api/received-import.md) |
-| `contact/`, `ares/`, `cnb/` | address book; `AresClient` → `AresSubject`; `CnbClient` + `denni_kurz.txt` parser behind the `exchange_rates` cache | [api/settings-contacts.md](api/settings-contacts.md), [api/documents.md](api/documents.md) |
+| `settings/` | company profile + document defaults, bank accounts, VAT rates, number series (`pattern.rs` incl. `{C}` and the inverse matcher, `repo/numbering.rs` = allocation / preview / manual-number matching, global or per-client), categories, custom field definitions | [api/settings-contacts.md](api/settings-contacts.md), [api/numbering.md](api/numbering.md), [api/defaults.md](api/defaults.md), [api/received-import.md](api/received-import.md) |
+| `contact/`, `ares/`, `cnb/` | address book (+ `numberCode`, per-customer counters `repo/number_counters.rs`); `AresClient` → `AresSubject`; `CnbClient` + `denni_kurz.txt` parser behind the `exchange_rates` cache | [api/settings-contacts.md](api/settings-contacts.md), [api/documents.md](api/documents.md) |
 | `catalog/` | catalog items and groups (ordered members, one VAT rate) | [api/advances-credit-catalog.md](api/advances-credit-catalog.md) |
 | `document/` (pure) | `line.rs` (enums as string `ActiveEnum`s), `doc_type.rs` (`DocType` = series key), `compute.rs`, `rounding.rs`, `advance.rs`, `ddpp.rs`, `credit.rs`, `correction.rs`, `defaults.rs`, `received.rs`, `snapshot.rs`, `model.rs`, `meta.rs` | [api/documents.md](api/documents.md), [api/doc-types.md](api/doc-types.md), [api/defaults.md](api/defaults.md) |
 | `document/` (I/O) | `service.rs` = operations shared by REST and MCP; `wire/` = DTOs + request validation (no DB); `repo/` = DB (insert, issue, lifecycle incl. unlock `issued → draft` (admin+, number kept), payments, DDPP, settle, credit, corrections, query); `handlers/` = axum only | [api/advances-credit-catalog.md](api/advances-credit-catalog.md), [api/received-import.md](api/received-import.md) |
@@ -86,11 +86,13 @@ error files. Every repo takes the `SpaceId` of the request's role extractor ([ap
 
 - DB-enforced as well as in the repos: one company row per space, at most one default bank account per currency and
   one active default VAT rate (partial unique indexes; repos promote a replacement), unique VAT rate value, unique
-  contact IČO when not null, unique `(doc_type, number)` per direction, composite `(space_id, x_id)` FKs between
+  contact IČO when not null, unique contact `number_code` (case-insensitive), unique `(doc_type, number)` per direction, composite `(space_id, x_id)` FKs between
   space tables ([api/spaces.md](api/spaces.md#data-scoping)).
-- Multi-row writes run in `db.transaction(|txn| …)`. `allocate_number` is an atomic upsert on
-  `number_series_counters` and must run inside the transaction that stores the numbered document.
-  An unlocked draft keeps its number; its re-issue reuses it (`issue_apply::numbering`) and never allocates.
+- Multi-row writes run in `db.transaction(|txn| …)`. `numbering::allocate` locks the counter row of
+  `number_series_counters` (global) or `contact_number_counters` (a customer's client sequence), takes the next free
+  number after it (held numbers of the series loaded once) and sets the counter to it; it must run inside the
+  transaction that stores the numbered document. An unlocked draft keeps its number unless renumbered; `document/repo/numbering.rs` decides keep / manual /
+  allocate and `previousNumber` ([api/numbering.md](api/numbering.md)).
 - Totals are recomputed by `compute.rs` on every save and at issue and stored; reads return stored values. Money
   arithmetic is checked; an overflow is a 422.
   Received recaps and DDPP recaps are stored as entered / computed, never recomputed.
@@ -205,8 +207,10 @@ routed to the row).
 ### Features (non-obvious rules)
 
 - **settings**: CRUD stores reload the list after each mutation (the server owns the default flags); categories in use
-  (409) → "deactivate instead"; custom field key / type immutable after create; `numberPattern.ts` mirrors `Pattern`;
-  the design store reloads per visit. Accounting tab: the draft lists issued / received × the six exported types in a
+  (409) → "deactivate instead"; custom field key / type immutable after create; `numberPattern.ts` mirrors `Pattern`
+  (`{C}` only in a client pattern, previewed with the code `ACME`); issued series also edit their client pattern
+  (`ClientPatternForm`, "" → null); `CountersEditor` (counters per year, any value ≥ 0) is shared with the contact's
+  client sequences; the design store reloads per visit. Accounting tab: the draft lists issued / received × the six exported types in a
   fixed order, so row index = the `N` of the 422 keys `<program>.codes.N.<field>`; `""` → null; limits come from the
   GET / PUT response; one Save sends both programs.
 - **documents** (issued, every type): every action stores the server's answer, payments reload the document;
@@ -217,7 +221,13 @@ routed to the row).
   10 000 CZK only warn. Manual import: `?imported=1`, own number, only imports send `relatedDocumentId`;
   `RelatedDocumentPicker` offers issued targets only, first 50. Lists show an "Importovaný" badge and a "bez PDF" hint.
   Unlock (admin+): `UnlockPanel` asks a required reason and warns about sent / paid / referenced documents;
-  `UnlockedBanner` shows when / who / why on the draft and, as a note, after re-issue.
+  `UnlockedBanner` shows when / who / why on the draft and, as a note, after re-issue. Number of a native draft
+  (`DocumentNumberField`, [numbering.md](api/numbering.md)): empty = allocated at issue, with the expected number from
+  `useNumberPreview.ts` (debounced on doc type / customer / issue date, failures show no preview); typed = a manual
+  number; an unlocked draft starts with its kept number. `number` is sent only once touched (`numberTouched`):
+  omitted keeps it, `null` ("Assign new number from sequence") clears it. `previousNumber` shows on the detail.
+- **contacts**: the form always sends `numberCode` (`PUT` replaces every field); the edit view lists the customer's
+  client sequences (`ContactNumberCounters`, `useContactNumberingStore`), counters editable by admins.
 - **received** (no draft): VAT suggested as round2(base × rate) until typed; `receivedDate` follows tax point ?? issue
   date and `payable` follows the total until edited; `vatDeductible` resets on a VAT-mode change. A received document
   opened under `/invoices/…` redirects to `/received/…` and vice versa. `OriginalPdfPanel` (received + imported):

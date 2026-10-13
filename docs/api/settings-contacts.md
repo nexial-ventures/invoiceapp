@@ -53,6 +53,8 @@ Seeded: invoice `{YYYY}{NNNN}`, credit_note `D{YYYY}{NNNN}`, proforma `Z{YYYY}{N
 - `GET /api/settings/number-series` → list of all 5.
 - `PUT /api/settings/number-series/{docType}` body `{pattern}` → saved NumberSeries.
 - `PUT /api/settings/number-series/{docType}/counters/{year}` body `{lastNumber}` (>=0) → saved NumberSeries (upsert).
+- Client patterns (`clientPattern`, `PUT …/{docType}/client-pattern`; another series' client pattern →
+  `clientPattern: duplicate`), per-customer counters and the number preview: [numbering.md](numbering.md).
 Pattern rules: tokens `{YYYY}`, `{YY}`, `{N…}` (1–9 N's = zero-padded width); exactly one `{N…}` token and exactly one year token (`{YYYY}` or `{YY}`) required — counters reset per year; other chars literal `[A-Za-z0-9/_-]`; <=40 chars; else 422 `invalid_pattern`.
 Backend exposes a pure `Pattern::parse(&str)` + `Pattern::format(year, n)` with unit tests. Allocation (next number in a transaction, `SELECT … FOR UPDATE`/upsert) is also implemented now as `allocate_number(txn, doc_type, year)` with an integration test (concurrent allocations yield distinct consecutive numbers), but no route uses it yet.
 
@@ -67,6 +69,8 @@ Contact { id, name: string /* required <=200 */, ico: string|null, dic: string|n
 - `GET /api/contacts?q=<text>&limit=50&offset=0` → `{ items: Contact[], total: number }`; q matches name/ico/dic/city case-insensitively (ILIKE). Ordered by name.
 - `POST`, `GET /{id}`, `PUT /{id}`, `DELETE /{id}` (204).
 - `ico` unique when not null → 422 `{"fields":{"ico":"duplicate"}}`.
+- `numberCode: string|null` (client number sequences, [numbering.md](numbering.md)): `[A-Za-z0-9/_-]{1,10}`, unique
+  case-insensitively → 422 `numberCode: invalid | duplicate`; `GET/PUT /{id}/number-counters…` there too.
 
 ## ARES — `GET /api/ares/{ico}`
 Calls `GET {INVOICEAPP__ARES_URL}/ekonomicke-subjekty/{ico}` (default base `https://ares.gov.cz/ekonomicke-subjekty-v-be/rest`), 10 s timeout. Maps to a contact draft (no id):
@@ -109,11 +113,13 @@ Defaults
 
 Number series
 - `counters` are ordered newest year first. `nextNumberPreview` uses the server's current local year.
-- Counter `PUT`: `year` 1..9999 (else `{"year":"invalid"}`), `lastNumber` 0..2147483647 (else `{"lastNumber":"invalid"}`).
+- Counter `PUT`: `year` 1..9999 (else `{"year":"invalid"}`), `lastNumber` 0..2147483647 (else `{"lastNumber":"invalid"}`);
+  any such value is accepted — allocation takes the next free number after it ([numbering.md](numbering.md)).
 - A pattern without a year token (or with two) is `invalid_pattern`. A pattern equal to another doc type's pattern →
   `{"pattern":"duplicate"}` (both series would issue the same numbers).
 - Rust API: `Pattern::parse(&str) -> Result<Pattern, InvalidPattern>`, `Pattern::format(year, n) -> String`;
-  `allocate_number(&txn, DocType, year) -> Result<String, AppError>`. A sequence wider than its `{N…}` token keeps all digits.
+  `allocate_number(&txn, DocType, year) -> Result<String, AppError>` (global series; `numbering::allocate` picks
+  the client sequence). A sequence wider than its `{N…}` token keeps all digits.
 
 Contacts
 - `limit` defaults to 50 and is clamped to 1..200; `offset` defaults to 0 and is clamped to 0..=i64::MAX (a negative or

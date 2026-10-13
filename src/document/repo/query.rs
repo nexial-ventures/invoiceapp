@@ -245,26 +245,3 @@ pub async fn list(
         .await?;
     Ok((items, total))
 }
-
-/// Highest `number_seq` issued from `doc_type`'s series in `year`
-/// (imported documents keep their own numbers and are ignored).
-pub async fn highest_issued_seq<C: ConnectionTrait>(
-    db: &C,
-    space: SpaceId,
-    doc_type: crate::document::doc_type::DocType,
-    year: i32,
-) -> Result<Option<i32>, AppError> {
-    let (direction, doc_type) = doc_type.numbered();
-    let max: Option<Option<i32>> = Entity::find()
-        .filter(Column::SpaceId.eq(space))
-        .select_only()
-        .column_as(Column::NumberSeq.max(), "max")
-        .filter(Column::Direction.eq(direction))
-        .filter(Column::DocType.eq(doc_type))
-        .filter(Column::NumberYear.eq(year))
-        .filter(Column::Imported.eq(false))
-        .into_tuple()
-        .one(db)
-        .await?;
-    Ok(max.flatten())
-}

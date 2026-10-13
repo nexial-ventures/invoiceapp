@@ -8,7 +8,8 @@ export const REASON_CODES = [
   "duplicate",
   "invalid_ico",
   "invalid_pattern",
-  "below_issued",
+  // A client pattern / counter on a received series key.
+  "not_issued",
   "exceeds_original",
   "mixed_vat",
   "unknown",

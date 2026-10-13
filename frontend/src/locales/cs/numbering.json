@@ -1,0 +1,28 @@
+{
+  "counterHint": "Nižší hodnota je povolená: již vystavená čísla se přeskočí.",
+  "clientPattern": {
+    "label": "Vzor pro zákazníky",
+    "hint": "Např. {example} → {result}, token se nahradí číselným kódem zákazníka. Prázdné = zákazníci používají hlavní řadu.",
+    "preview": "Náhled pro zákazníka {code}",
+    "help": "číselný kód zákazníka (jen ve vzoru pro zákazníky; nastavuje se u kontaktu)"
+  },
+  "contact": {
+    "title": "Číslování",
+    "numberCode": "Číselný kód",
+    "numberCodeHint": "Vyplňte, aby měl zákazník vlastní číselnou řadu v řadách se vzorem pro zákazníky (až 10 znaků: písmena, číslice, / _ -).",
+    "countersTitle": "Číselné řady zákazníka",
+    "nextNumber": "Další číslo",
+    "noClientSeries": "Žádná řada zatím nemá vzor pro zákazníky (Nastavení → Číselné řady).",
+    "noCode": "Bez číselného kódu zákazník používá hlavní řadu."
+  },
+  "document": {
+    "fromSequence": "Přidělit nové číslo z řady",
+    "willIssue": "Bude vystaveno jako {number} ({source}) — předpoklad, konečné číslo se přidělí při vystavení.",
+    "source": {
+      "client": "řada zákazníka",
+      "global": "hlavní řada"
+    },
+    "manualHint": "Doklad se vystaví pod tímto číslem; žádný jiný doklad stejného typu ho mít nesmí.",
+    "emptyHint": "Číslo se přidělí z řady při vystavení."
+  }
+}

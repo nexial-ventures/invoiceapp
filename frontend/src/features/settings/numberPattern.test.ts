@@ -52,3 +52,16 @@ describe("pattern validation", () => {
     ]);
   });
 });
+
+describe("client patterns", () => {
+  it("renders {C} with the code", () => {
+    expect(formatNumber("{C}-{YYYY}{NNN}", 2026, 1, "ACME")).toBe("ACME-2026001");
+  });
+
+  it("needs exactly one {C} in a client pattern and none in a global one", () => {
+    expect(parsePattern("{C}{YY}{N}", true)).not.toBeNull();
+    expect(parsePattern("{YY}{N}", true)).toBeNull();
+    expect(parsePattern("{C}{C}{YY}{N}", true)).toBeNull();
+    expect(isValidPattern("{C}{YY}{N}")).toBe(false);
+  });
+});

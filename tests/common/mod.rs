@@ -46,6 +46,7 @@ pub mod mdcast;
 pub mod members;
 pub mod mfa;
 pub mod money;
+pub mod numbering;
 pub mod oidc;
 pub mod pohoda;
 pub mod received;

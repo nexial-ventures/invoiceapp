@@ -282,13 +282,12 @@ async fn concurrent_allocations_are_distinct_and_consecutive() {
 }
 
 #[tokio::test]
-async fn counter_guard_waits_for_an_issue_in_flight() {
+async fn allocation_skips_numbers_held_below_a_lowered_counter() {
     use sea_orm::ConnectionTrait;
     let db = TestDb::new().await;
     let space = db.space;
     let app = router(db.conn.clone());
 
-    // An issue in flight: number allocated and document written, not committed.
     let txn = db.conn.begin().await.expect("begin");
     let (number, seq) = allocate_number(&txn, space, DocType::Invoice, 2026)
         .await
@@ -301,27 +300,22 @@ async fn counter_guard_waits_for_an_issue_in_flight() {
     ))
     .await
     .expect("insert document");
-
-    let put = tokio::spawn({
-        let app = app.clone();
-        async move {
-            call(
-                &app,
-                Method::PUT,
-                "/api/settings/number-series/invoice/counters/2026",
-                Some(json!({ "lastNumber": 0 })),
-            )
-            .await
-        }
-    });
-    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-    assert!(
-        !put.is_finished(),
-        "the guard must wait for the counter row lock"
-    );
     txn.commit().await.expect("commit");
 
-    let (status, body) = put.await.expect("join");
-    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
-    assert_eq!(body["fields"], json!({ "lastNumber": "below_issued" }));
+    let (status, body) = call(
+        &app,
+        Method::PUT,
+        "/api/settings/number-series/invoice/counters/2026",
+        Some(json!({ "lastNumber": 0 })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["counters"], json!([{ "year": 2026, "lastNumber": 0 }]));
+
+    let txn = db.conn.begin().await.expect("begin");
+    let next = allocate_number(&txn, space, DocType::Invoice, 2026)
+        .await
+        .expect("allocate");
+    txn.commit().await.expect("commit");
+    assert_eq!(next, ("20260002".to_string(), 2));
 }

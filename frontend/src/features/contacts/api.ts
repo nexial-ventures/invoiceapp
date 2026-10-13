@@ -1,5 +1,6 @@
 import { request } from "@/api/client";
-import type { Contact, ContactInput, ContactListQuery, ContactPage } from "./types";
+import type { DocType } from "@/api/types";
+import type { Contact, ContactInput, ContactListQuery, ContactNumberSeries, ContactPage } from "./types";
 
 const BASE = "/api/contacts";
 const item = (id: string) => `${BASE}/${encodeURIComponent(id)}`;
@@ -16,4 +17,7 @@ export const contactsApi = {
   create: (input: ContactInput) => request<Contact>(BASE, { method: "POST", body: input }),
   update: (id: string, input: ContactInput) => request<Contact>(item(id), { method: "PUT", body: input }),
   remove: (id: string) => request<void>(item(id), { method: "DELETE" }),
+  numberCounters: (id: string) => request<ContactNumberSeries[]>(`${item(id)}/number-counters`),
+  setNumberCounter: (id: string, docType: DocType, year: number, lastNumber: number) =>
+    request<ContactNumberSeries>(`${item(id)}/number-counters/${docType}/${year}`, { method: "PUT", body: { lastNumber } }),
 };

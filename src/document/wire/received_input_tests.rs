@@ -22,6 +22,7 @@ fn contact() -> contact::Model {
         default_due_days: None,
         default_locale: None,
         default_currency: None,
+        number_code: None,
         note: None,
         created_at: now,
         updated_at: now,

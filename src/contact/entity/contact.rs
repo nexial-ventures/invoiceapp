@@ -21,6 +21,8 @@ pub struct Model {
     pub default_due_days: Option<i32>,
     pub default_locale: Option<String>,
     pub default_currency: Option<String>,
+    /// The `{C}` of client number patterns; unique per space, case-insensitive.
+    pub number_code: Option<String>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }

@@ -94,6 +94,9 @@ create / edit, imports / exports, settings changes.
   validation body: the first failing field, path in the REST form (`lines.0.unitPrice`), reason `required` (missing)
   or `invalid` (wrong type / format, e.g. a bad UUID or date) — not rmcp's plain-text `failed to deserialize
   parameters`. An argument object that is not an object at all → `fields.arguments`.
+- **No numbering by an AI client.** `create_draft` and `update_draft` never touch a document number: `number` is
+  stripped from their input schema (`mcp::args::draft_input`) and a sent one is ignored — a created draft gets its
+  number at issue, an updated draft (an unlocked one too) keeps the one it has ([numbering.md](numbering.md)).
 - **Decimal inputs take numbers.** Every decimal field (`amount`, `exchangeRate`, line `quantity` / `unitPrice` /
   `discountPct` / `vatRate`) accepts a decimal string or a JSON number; the schema says `"type": ["string",
   "number"]`. A number is taken by its shortest textual form (`0.1` → `"0.1"`, `1234.56` → `"1234.56"`, never via

@@ -44,6 +44,7 @@ const rows = computed(() => {
     ["cancelledAt", d.cancelledAt && date(d.cancelledAt)],
     ["cancelReason", d.cancelReason],
     ["correctionReason", d.correctionReason],
+    ["previousNumber", d.previousNumber],
   ];
   return all.filter((r): r is [string, string] => !!r[1]);
 });

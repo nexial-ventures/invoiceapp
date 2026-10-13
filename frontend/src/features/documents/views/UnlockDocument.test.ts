@@ -127,4 +127,15 @@ describe("unlocking an issued document", () => {
     expect(banner).toContain("Odemčeno");
     expect(banner).toContain("smazaný uživatel");
   });
+
+  it("a re-issued document shows the number it replaced", async () => {
+    mockFetchRoutes(issuedRoutes({ ...issued, number: "ACME-2026001", previousNumber: "20260001" }));
+    const w = (await mountDetail("d1", "member")).w;
+    expect(w.find('[data-test="info-previousNumber"]').text()).toBe("20260001");
+    expect(w.text()).toContain("Replaced number");
+
+    mockFetchRoutes(issuedRoutes());
+    const plain = (await mountDetail("d1", "member")).w;
+    expect(plain.find('[data-test="info-previousNumber"]').exists()).toBe(false);
+  });
 });

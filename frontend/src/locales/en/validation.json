@@ -5,7 +5,6 @@
   "duplicate": "This value already exists.",
   "invalid_ico": "Invalid company ID (IČO).",
   "invalid_pattern": "Invalid number pattern.",
-  "below_issued": "Cannot be lower than the highest number already issued.",
   "exceeds_original": "Credit notes would exceed the original invoice for some VAT rate.",
   "mixed_vat": "All items of a group must share one VAT rate.",
   "unknown": "Unknown field.",
@@ -13,7 +12,7 @@
   "template_invalid": "The template cannot be rendered.",
   "too_short": "The value is too short.",
   "reserved": "This address is reserved.",
-  "taken": "This address is already taken.",
+  "taken": "This value is already taken.",
   "mismatch": "Does not match.",
   "too_high": "Higher than your own role.",
   "wrong_password": "Wrong password.",
@@ -22,5 +21,6 @@
   "wrong_code": "Wrong code.",
   "expired": "Expired.",
   "too_late": "Cannot outlive the token you are signed in with.",
-  "not_set": "The account has no password set."
+  "not_set": "The account has no password set.",
+  "not_issued": "Only issued document series have this."
 }

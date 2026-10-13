@@ -206,7 +206,7 @@ async fn numbers_per_type_and_received_year() {
         .cloned()
         .expect("invoice series");
     assert_eq!(invoice["counters"], json!([]));
-    // Counter guard works per received series.
+    // Any counter value is accepted (allocation skips held numbers).
     let (status, e) = call(
         &app,
         Method::PUT,
@@ -214,10 +214,7 @@ async fn numbers_per_type_and_received_year() {
         Some(json!({ "lastNumber": 0 })),
     )
     .await;
-    assert_eq!(
-        (status, &e["fields"]["lastNumber"]),
-        (StatusCode::UNPROCESSABLE_ENTITY, &json!("below_issued"))
-    );
+    assert_eq!(status, StatusCode::OK, "{e}");
     // A received proforma cannot link anywhere; a credit note only to a received invoice.
     let body = received_body(
         &s,

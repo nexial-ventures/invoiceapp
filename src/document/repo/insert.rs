@@ -25,6 +25,8 @@ pub struct NewDocument {
     pub number: Option<String>,
     pub number_year: Option<i32>,
     pub number_seq: Option<i32>,
+    /// The customer code the number was allocated / matched under.
+    pub number_code: Option<String>,
     pub imported: bool,
     pub contact_id: Option<Uuid>,
     pub issue_date: NaiveDate,
@@ -78,6 +80,9 @@ pub async fn insert(txn: &DatabaseTransaction, n: NewDocument) -> Result<(), DbE
         number: Set(n.number),
         number_year: Set(n.number_year),
         number_seq: Set(n.number_seq),
+        number_code: Set(n.number_code),
+        previous_number: Set(None),
+        unlocked_number: Set(None),
         imported: Set(n.imported),
         contact_id: Set(n.contact_id),
         issue_date: Set(n.issue_date),

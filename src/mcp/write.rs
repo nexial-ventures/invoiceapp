@@ -9,7 +9,7 @@ use rmcp::{tool, tool_router};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use super::args::{input, parse};
+use super::args::{draft_input, input, parse};
 use super::result::{respond, to_value, written};
 use super::{InvoiceMcp, document_value, in_space, params};
 use crate::app::AppState;
@@ -57,7 +57,7 @@ impl InvoiceMcp {
 
     #[tool(
         description = "Create a draft of an issued invoice, proforma or simplified tax document (docType invoice | proforma | simplified). Omitted fields get defaults: issueDate today, dueDate from the contact / company due days, currency and locale from the contact / company, vatMode from the company, the currency's default bank account, paymentMethod from the company, roundingMode (none | half | unit) from the company default for the payment method (cash / other), headerNote / footerNote from the company notes of the locale. Amounts may be decimal strings or numbers. Check the returned totals, then issue_document.",
-        input_schema = input::<DocumentInput>(),
+        input_schema = draft_input::<DocumentInput>(),
         annotations(
             read_only_hint = false,
             destructive_hint = false,
@@ -80,7 +80,7 @@ impl InvoiceMcp {
 
     #[tool(
         description = "Replace every field of a draft invoice / proforma / simplified document (like PUT: send the full document, lines included). Only such drafts can be edited (document_locked once issued, invalid_state for other draft types).",
-        input_schema = input::<params::UpdateDraft>(),
+        input_schema = draft_input::<params::UpdateDraft>(),
         annotations(
             read_only_hint = false,
             destructive_hint = false,
@@ -204,7 +204,9 @@ async fn create_contact(
         .into())
 }
 
-async fn create(state: &AppState, space: SpaceId, args: JsonObject) -> Result<Value, AppError> {
+async fn create(state: &AppState, space: SpaceId, mut args: JsonObject) -> Result<Value, AppError> {
+    // Never numbered by an AI client: a sent `number` is ignored.
+    args.remove("number");
     let input: DocumentInput = parse(args)?;
     // Imported documents (own number, no rendering) are out of the MCP scope.
     if input.imported == Some(true) {
@@ -222,6 +224,8 @@ async fn update(state: &AppState, space: SpaceId, mut args: JsonObject) -> Resul
         .into_iter()
         .collect();
     let params::Id { id } = parse(id_only)?;
+    // Omitted = the draft keeps its number (an unlocked one's too).
+    args.remove("number");
     let input: DocumentInput = parse(args)?;
     let doc = scoped(state, space, id).await?;
     update_draft(state, space, &doc, input).await?;

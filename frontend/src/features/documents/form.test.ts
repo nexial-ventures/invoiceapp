@@ -210,8 +210,27 @@ describe("import mode", () => {
     const input = toInput({ ...draft, number: " Z-1 ", relatedDocumentId: "pf1" });
     expect(input).toMatchObject({ imported: true, number: "Z-1", relatedDocumentId: "pf1" });
     const native = toInput({ ...newDocumentDraft(ctx()), relatedDocumentId: "pf1" });
-    expect(native).toMatchObject({ imported: false, number: null });
+    expect(native).toMatchObject({ imported: false });
+    expect("number" in native).toBe(false);
     expect("relatedDocumentId" in native).toBe(false);
+  });
+});
+
+describe("native number", () => {
+  it("is omitted untouched, sent when typed, null when cleared", () => {
+    const kept = toDraft(document({ number: "20260007" }));
+    expect(kept).toMatchObject({ number: "20260007", numberTouched: false });
+    expect("number" in toInput(kept)).toBe(false);
+    expect(toInput({ ...kept, number: " ACME-2026001 ", numberTouched: true }).number).toBe("ACME-2026001");
+    expect(toInput({ ...kept, number: "", numberTouched: true }).number).toBeNull();
+  });
+
+  it("validates a typed number like the server", () => {
+    const d = { ...newDocumentDraft(ctx()), numberTouched: true };
+    expect(validateDocument({ ...d, number: "FV 1" })).toEqual({ number: "invalid" });
+    expect(validateDocument({ ...d, number: "A".repeat(51) })).toEqual({ number: "invalid" });
+    expect(validateDocument({ ...d, number: "FV-2026/01_a" })).toEqual({});
+    expect(validateDocument({ ...d, number: "" })).toEqual({});
   });
 });
 

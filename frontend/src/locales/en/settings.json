@@ -77,8 +77,8 @@
       "received_advance_credit_note": "Received advance payment corrections"
     },
     "pattern": "Pattern",
-    "preview": "Next number preview",
-    "serverPreview": "Next number (server)",
+    "preview": "Pattern example",
+    "serverPreview": "Next number",
     "counters": "Counters per year",
     "year": "Year",
     "lastNumber": "Last number",

@@ -3,22 +3,29 @@ import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useErrorText } from "@/composables/useAction";
 import { fieldErrorsOf, reasonKey } from "@/lib/formErrors";
-import { useNumberSeriesStore } from "../stores";
 import type { NumberSeries } from "../types";
 
-const props = defineProps<{ series: NumberSeries; currentYear: number }>();
+/**
+ * Counters per year of one sequence: the global series (Settings) or a customer's client sequence.
+ * `saveCounter` upserts one year; `readonly` lists the values without inputs.
+ */
+const props = defineProps<{
+  counters: NumberSeries["counters"];
+  currentYear: number;
+  saveCounter: (year: number, lastNumber: number) => Promise<void>;
+  readonly?: boolean;
+}>();
 
 const { t } = useI18n();
-const store = useNumberSeriesStore();
 const errorText = useErrorText();
 const error = ref<string | null>(null);
 
-const sorted = computed(() => [...props.series.counters].sort((a, b) => b.year - a.year));
+const sorted = computed(() => [...props.counters].sort((a, b) => b.year - a.year));
 /** Edited lastNumber per year, as typed. */
 const drafts = ref<Record<number, string>>({});
 
 function defaultNewYear(): string {
-  const taken = props.series.counters.some((c) => c.year === props.currentYear);
+  const taken = props.counters.some((c) => c.year === props.currentYear);
   return String(taken ? props.currentYear + 1 : props.currentYear);
 }
 
@@ -28,7 +35,7 @@ const newLast = ref("0");
 // Only seed drafts for years that appear; existing drafts (possibly unsaved
 // edits in other rows) are left alone.
 watch(
-  () => props.series.counters,
+  () => props.counters,
   (counters) => {
     for (const c of counters) {
       if (!(c.year in drafts.value)) drafts.value[c.year] = String(c.lastNumber);
@@ -48,9 +55,9 @@ async function save(yearText: string, value: string, isNewRow = false) {
   const lastNumber = Number(value.trim());
   error.value = null;
   try {
-    await store.setCounter(props.series.docType, year, lastNumber);
+    await props.saveCounter(year, lastNumber);
   } catch (err) {
-    // e.g. `lastNumber: below_issued` — the reason is the useful part, not "form has errors".
+    // The field reason is the useful part, not "form has errors".
     const fields = fieldErrorsOf(err);
     error.value = fields ? Object.values(fields).map((r) => t(reasonKey(r))).join(" ") : errorText(err);
     return;
@@ -72,32 +79,35 @@ async function save(yearText: string, value: string, isNewRow = false) {
         <tr>
           <th>{{ t("settings.numberSeries.year") }}</th>
           <th>{{ t("settings.numberSeries.lastNumber") }}</th>
-          <th class="w-0"><span class="sr-only">{{ t("common.actions") }}</span></th>
+          <th v-if="!readonly" class="w-0"><span class="sr-only">{{ t("common.actions") }}</span></th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="c in sorted" :key="c.year">
           <td class="font-mono">{{ c.year }}</td>
-          <td>
-            <input
-              v-model="drafts[c.year]"
-              inputmode="numeric"
-              class="input py-1"
-              :aria-label="t('settings.numberSeries.lastNumberFor', { year: c.year })"
-            />
-          </td>
-          <td>
-            <button
-              type="button"
-              class="btn btn-sm"
-              :disabled="drafts[c.year] === String(c.lastNumber)"
-              @click="save(String(c.year), drafts[c.year] ?? '')"
-            >
-              {{ t("common.save") }}
-            </button>
-          </td>
+          <td v-if="readonly" class="font-mono" data-test="counter-value">{{ c.lastNumber }}</td>
+          <template v-else>
+            <td>
+              <input
+                v-model="drafts[c.year]"
+                inputmode="numeric"
+                class="input py-1"
+                :aria-label="t('settings.numberSeries.lastNumberFor', { year: c.year })"
+              />
+            </td>
+            <td>
+              <button
+                type="button"
+                class="btn btn-sm"
+                :disabled="drafts[c.year] === String(c.lastNumber)"
+                @click="save(String(c.year), drafts[c.year] ?? '')"
+              >
+                {{ t("common.save") }}
+              </button>
+            </td>
+          </template>
         </tr>
-        <tr>
+        <tr v-if="!readonly">
           <td>
             <input v-model="newYear" inputmode="numeric" maxlength="4" class="input py-1" :aria-label="t('settings.numberSeries.year')" />
           </td>
@@ -110,6 +120,7 @@ async function save(yearText: string, value: string, isNewRow = false) {
         </tr>
       </tbody>
     </table>
+    <p v-if="!readonly" class="text-xs text-gray-500 dark:text-gray-400" data-test="counter-hint">{{ t("numbering.counterHint") }}</p>
     <p v-if="error" role="alert" class="alert-error" data-test="counter-error">{{ error }}</p>
   </div>
 </template>

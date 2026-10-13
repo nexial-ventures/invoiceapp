@@ -39,8 +39,13 @@ export interface DocumentDraft {
   relatedDocumentId: string | null;
   /** Manual import of an existing document; fixed for the life of the draft. */
   imported: boolean;
-  /** Imported only: the document's own number. */
+  /**
+   * Imported: the document's own number. Native: the number the draft holds (an unlocked draft's kept one, a
+   * manual one), "" = allocated at issue.
+   */
   number: string;
+  /** Native: the user edited or cleared `number`; an untouched one is not sent (the server keeps it). */
+  numberTouched: boolean;
   /** Category, custom fields, internal note. */
   meta: MetadataDraft;
   lines: LineDraft[];
@@ -112,6 +117,7 @@ export function newDocumentDraft(ctx: DraftContext, docType: EditableDocType = "
     relatedDocumentId: null,
     imported,
     number: "",
+    numberTouched: false,
     meta: toMetadataDraft({ categoryId: null, customFields: {}, internalNote: null }, ctx.fieldDefs),
     lines: [],
   };
@@ -171,13 +177,16 @@ export function toDraft(doc: Document, fieldDefs: CustomField[] = []): DocumentD
     correctionReason: doc.correctionReason ?? "",
     relatedDocumentId: doc.relatedDocumentId,
     imported: doc.imported,
-    number: doc.imported ? (doc.number ?? "") : "",
+    number: doc.number ?? "",
+    numberTouched: false,
     meta: toMetadataDraft(doc, fieldDefs),
     lines: doc.lines.map(toLineDraft),
   };
 }
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+/** A manual number of a native draft, as the server accepts it. */
+const MANUAL_NUMBER = /^[A-Za-z0-9/_-]{1,50}$/;
 const DECIMAL = /^-?\d+([.,]\d+)?$/;
 
 export function validateDocument(d: DocumentDraft, fieldDefs: CustomField[] = []): FieldErrors {
@@ -197,7 +206,9 @@ export function validateDocument(d: DocumentDraft, fieldDefs: CustomField[] = []
     footerNote: textRule(d.footerNote, { max: 2000 }),
     // An imported correction is entered as printed: no reason required.
     correctionReason: isCorrection(d.docType) && textRule(d.correctionReason, { required: !d.imported, max: 500 }),
-    number: d.imported && textRule(d.number, { required: true, max: 40 }),
+    number: d.imported
+      ? textRule(d.number, { required: true, max: 40 })
+      : d.numberTouched && d.number.trim() !== "" && !MANUAL_NUMBER.test(d.number.trim()) && "invalid",
   });
   Object.assign(errors, validateMetadata(d.meta, fieldDefs));
   d.lines.forEach((line, i) => {
@@ -236,7 +247,8 @@ export function toInput(d: DocumentDraft, fieldDefs: CustomField[] = [], create 
     roundingMode: d.roundingMode,
     correctionReason: isCorrection(d.docType) ? nullIfEmpty(d.correctionReason) : null,
     imported: d.imported,
-    number: d.imported ? d.number.trim() : null,
+    // Native: omitted keeps the draft's number, null clears it (docs/api/numbering.md).
+    ...(d.imported ? { number: d.number.trim() } : d.numberTouched ? { number: nullIfEmpty(d.number) } : {}),
     // Natively the link is made by settle / credit note; only an import sets it itself.
     ...(d.imported ? { relatedDocumentId: d.relatedDocumentId } : {}),
     ...toMetadataInput(d.meta, fieldDefs),

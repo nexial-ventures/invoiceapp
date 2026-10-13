@@ -66,7 +66,8 @@
     "sentAt": "Odesláno",
     "cancelledAt": "Stornováno",
     "cancelReason": "Důvod storna",
-    "correctionReason": "Důvod opravy"
+    "correctionReason": "Důvod opravy",
+    "previousNumber": "Nahrazené číslo"
   },
   "list": {
     "title": {

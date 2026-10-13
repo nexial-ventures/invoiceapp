@@ -173,6 +173,7 @@ pub fn document(full: Full, today: NaiveDate) -> Result<Document, AppError> {
         doc_type: d.doc_type,
         direction: d.direction,
         number: d.number,
+        previous_number: d.previous_number,
         contact_id: d.contact_id,
         issue_date: d.issue_date,
         tax_point_date: d.tax_point_date,

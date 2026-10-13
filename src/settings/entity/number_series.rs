@@ -11,6 +11,8 @@ pub struct Model {
     pub space_id: Uuid,
     pub doc_type: DocType,
     pub pattern: String,
+    /// Issued series only: the pattern of customers with a number code.
+    pub client_pattern: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

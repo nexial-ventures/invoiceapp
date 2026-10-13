@@ -274,23 +274,20 @@ async fn compute_document(
 
 async fn get_settings(state: &AppState, space: SpaceId) -> Result<Value, AppError> {
     let db = &state.db;
+    let year = current_year();
     let (company, banks, rates, series) = tokio::try_join!(
         repo::company::get(db, space),
         repo::bank_accounts::list(db, space),
         repo::vat_rates::list(db, space),
-        repo::number_series::list(db, space),
+        repo::number_series::list(db, space, year),
     )?;
-    let year = current_year();
     let banks: Vec<BankAccount> = banks.into_iter().map(Into::into).collect();
     let rates: Vec<VatRate> = rates
         .into_iter()
         .filter(|r| r.active)
         .map(Into::into)
         .collect();
-    let series: Vec<NumberSeries> = series
-        .into_iter()
-        .map(|s| NumberSeries::build(s, year))
-        .collect();
+    let series: Vec<NumberSeries> = series.into_iter().map(NumberSeries::build).collect();
     Ok(json!({
         "company": to_value(&Company::try_from(company).map_err(AppError::from)?)?,
         "bankAccounts": to_value(&banks)?,

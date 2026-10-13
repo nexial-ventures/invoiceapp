@@ -24,6 +24,8 @@ pub struct Contact {
     pub default_due_days: Option<i32>,
     pub default_locale: Option<String>,
     pub default_currency: Option<String>,
+    /// The customer's `{C}` in client number patterns.
+    pub number_code: Option<String>,
     pub created_at: DateTime<FixedOffset>,
     pub updated_at: DateTime<FixedOffset>,
 }
@@ -45,6 +47,7 @@ impl From<contact::Model> for Contact {
             default_due_days: m.default_due_days,
             default_locale: m.default_locale,
             default_currency: m.default_currency,
+            number_code: m.number_code,
             created_at: m.created_at,
             updated_at: m.updated_at,
         }
@@ -70,6 +73,18 @@ pub struct ContactInput {
     /// `cs` | `en` | null.
     pub default_locale: Option<String>,
     pub default_currency: Option<String>,
+    /// `[A-Za-z0-9/_-]{1,10}`, stored as typed, unique per space
+    /// case-insensitively; empty / `null` = none.
+    pub number_code: Option<String>,
+}
+
+/// Trimmed; empty → `None`.
+fn number_code(s: Option<&str>) -> crate::validation::Check<Option<String>> {
+    match s.map(str::trim).filter(|s| !s.is_empty()) {
+        None => Ok(None),
+        Some(c) if crate::settings::pattern::is_valid_code(c) => Ok(Some(c.to_string())),
+        Some(_) => Err("invalid"),
+    }
 }
 
 impl ContactInput {
@@ -118,6 +133,9 @@ impl ContactInput {
                     v::opt_currency(self.default_currency.as_deref()),
                 )
                 .flatten(),
+            number_code: e
+                .check("numberCode", number_code(self.number_code.as_deref()))
+                .flatten(),
         };
         e.into_result()?;
         Ok(out)
@@ -142,6 +160,7 @@ mod tests {
             default_locale: Some("de".into()),
             default_currency: Some("EURO".into()),
             email: Some("nope".into()),
+            number_code: Some("AC ME".into()),
             ..Default::default()
         }
         .validate()
@@ -157,6 +176,7 @@ mod tests {
             ("defaultLocale", "invalid"),
             ("defaultCurrency", "invalid"),
             ("email", "invalid"),
+            ("numberCode", "invalid"),
         ] {
             expected.add(f, r);
         }
@@ -172,10 +192,18 @@ mod tests {
             country: "".into(),
             default_currency: Some("eur".into()),
             note: Some("  ".into()),
+            number_code: Some(" AcMe-1 ".into()),
             ..Default::default()
         }
         .validate()
         .expect("valid");
+        assert_eq!(c.number_code.as_deref(), Some("AcMe-1"));
+        let blank = ContactInput {
+            name: "X".into(),
+            number_code: Some(" ".into()),
+            ..Default::default()
+        };
+        assert_eq!(blank.validate().expect("valid").number_code, None);
         assert_eq!(c.name, "ACME s.r.o.");
         assert_eq!(c.ico.as_deref(), Some("27074358"));
         assert_eq!(c.dic.as_deref(), Some("CZ27074358"));

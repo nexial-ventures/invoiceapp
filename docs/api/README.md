@@ -30,7 +30,8 @@ Later phases add more codes (`document_locked`, `invalid_state`, `cnb_unavailabl
     The profile fields are replaced.
   - `PUT /api/settings/accounting` — the `pohoda` / `money` sections; absent or `null` = keep ([money.md](money.md)).
   - `PUT /api/space` — `name` / `requireMfa`; absent = unchanged ([mfa.md](mfa.md)).
-  - `PUT /api/documents/{id}` — `docType` omitted keeps the draft's type (the rest is replaced).
+  - `PUT /api/documents/{id}` — `docType` omitted keeps the draft's type, `number` omitted keeps the draft's number
+    (explicit `null` clears it, [numbering.md](numbering.md)); the rest is replaced.
 - A new route does not add to this list without a reason recorded in its part.
 
 ### List shape
@@ -72,6 +73,7 @@ Later phases add more codes (`document_locked`, `invalid_state`, `cnb_unavailabl
 | [google.md](google.md) | Sign in with Google (OIDC + PKCE), handoff to space hosts, password-less accounts (4d) |
 | [defaults.md](defaults.md) | document defaults per space (company), rounding modes none / half / unit (4e) |
 | [design.md](design.md) | per-space PDF design: upload, draft, preview, activation, versions (4f) |
+| [numbering.md](numbering.md) | per-client number sequences, manual numbers on drafts, number preview |
 | [overview.md](overview.md) | period overview: income / expenses, VAT per rate, monthly trend, categories, receivables / payables (#54) |
 
 Each part ends with a "Clarifications (as implemented)" section — the authoritative record of behaviour beyond the

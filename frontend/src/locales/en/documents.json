@@ -66,7 +66,8 @@
     "sentAt": "Sent",
     "cancelledAt": "Cancelled",
     "cancelReason": "Cancellation reason",
-    "correctionReason": "Reason for correction"
+    "correctionReason": "Reason for correction",
+    "previousNumber": "Replaced number"
   },
   "list": {
     "title": {

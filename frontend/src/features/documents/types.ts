@@ -108,8 +108,11 @@ export interface DocumentInput {
   correctionReason: string | null;
   /** Manual import of an existing document: keeps its own `number`, issue renders no PDF. Immutable. */
   imported: boolean;
-  /** Required iff imported, else null. */
-  number: string | null;
+  /**
+   * Imported: its own number, required. Native: omitted = keep the draft's number, null = none (allocated at
+   * issue), a string = a manual number (`[A-Za-z0-9/_-]`, ≤ 50; docs/api/numbering.md).
+   */
+  number?: string | null;
   /** Imported only (DDPP / final invoice → proforma, credit / debit note → invoice or simplified, DDPP correction → DDPP); natively set by settle / corrections. */
   relatedDocumentId?: string | null;
   categoryId: string | null;
@@ -244,3 +247,6 @@ export interface PaymentInput {
 
 /** `GET /api/exchange-rates/{currency}?date=` — `date` is the ČNB publication date used. */
 export type ExchangeRate = Wire<"ExchangeRate">;
+
+/** `GET /api/documents/number-preview` — what an issue would allocate now. */
+export type NumberPreview = Schemas["NumberPreview"];

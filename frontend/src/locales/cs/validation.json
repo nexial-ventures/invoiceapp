@@ -5,7 +5,6 @@
   "duplicate": "Tato hodnota už existuje.",
   "invalid_ico": "Neplatné IČO.",
   "invalid_pattern": "Neplatný vzor čísla.",
-  "below_issued": "Nelze nastavit pod nejvyšší již vystavené číslo.",
   "exceeds_original": "Dobropisy by v některé sazbě DPH přesáhly původní fakturu.",
   "mixed_vat": "Všechny položky skupiny musí mít stejnou sazbu DPH.",
   "unknown": "Neznámé pole.",
@@ -13,7 +12,7 @@
   "template_invalid": "Šablonu nelze vykreslit.",
   "too_short": "Hodnota je příliš krátká.",
   "reserved": "Tato adresa je rezervovaná.",
-  "taken": "Tato adresa je už obsazená.",
+  "taken": "Tato hodnota je už obsazená.",
   "mismatch": "Neodpovídá.",
   "too_high": "Vyšší než vaše vlastní role.",
   "wrong_password": "Nesprávné heslo.",
@@ -22,5 +21,6 @@
   "wrong_code": "Nesprávný kód.",
   "expired": "Platnost vypršela.",
   "too_late": "Nesmí platit déle než token, kterým se přihlašujete.",
-  "not_set": "Účet nemá nastavené heslo."
+  "not_set": "Účet nemá nastavené heslo.",
+  "not_issued": "Jen pro řady vystavených dokladů."
 }

@@ -37,11 +37,17 @@ fn search(space: SpaceId, q: Option<&str>) -> Select<Entity> {
         return scoped;
     };
     let pattern = like_pattern(term);
-    let cond = [Column::Name, Column::Ico, Column::Dic, Column::City]
-        .into_iter()
-        .fold(Condition::any(), |c, col| {
-            c.add(Expr::col(col).ilike(pattern.clone()))
-        });
+    let cond = [
+        Column::Name,
+        Column::Ico,
+        Column::Dic,
+        Column::City,
+        Column::NumberCode,
+    ]
+    .into_iter()
+    .fold(Condition::any(), |c, col| {
+        c.add(Expr::col(col).ilike(pattern.clone()))
+    });
     scoped.filter(cond)
 }
 
@@ -115,6 +121,7 @@ fn active(c: ContactInput) -> ActiveModel {
         default_due_days: Set(c.default_due_days),
         default_locale: Set(c.default_locale),
         default_currency: Set(c.default_currency),
+        number_code: Set(c.number_code),
         ..Default::default()
     }
 }
@@ -122,6 +129,9 @@ fn active(c: ContactInput) -> ActiveModel {
 fn map_duplicate(err: DbErr) -> AppError {
     match unique_violation(&err) {
         Some(constraint) if constraint == "contacts_ico_key" => AppError::field("ico", "duplicate"),
+        Some(constraint) if constraint == "contacts_number_code_key" => {
+            AppError::field("numberCode", "duplicate")
+        }
         _ => err.into(),
     }
 }
