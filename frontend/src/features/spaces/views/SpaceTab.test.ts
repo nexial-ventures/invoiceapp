@@ -41,6 +41,13 @@ describe("SpaceTab", () => {
     expect(w.find('[data-test="storage-usage"] input').exists()).toBe(false);
   });
 
+  it("explains the MCP connection with a placeholder token", async () => {
+    mockFetchRoutes({ "GET /api/space": current("admin") });
+    const { w } = await mountTab("admin");
+    expect(w.find('[data-test="mcp-connect"] [data-test="mcp-url"]').text()).toBe(`${window.location.origin}/api/mcp`);
+    expect(w.find('[data-test="mcp-tokens-link"]').attributes("href")).toBe("/tokens");
+  });
+
   it("hides the storage section without limits", async () => {
     mockFetchRoutes({ "GET /api/space": current("admin") });
     const { w } = await mountTab("admin");

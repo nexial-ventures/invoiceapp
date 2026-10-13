@@ -39,6 +39,12 @@ describe("TokensView", () => {
     expect(w.find('[data-test="user-column"]').exists()).toBe(false);
   });
 
+  it("explains the MCP connection with a placeholder token below the list", async () => {
+    mockFetchRoutes({ "GET /api/tokens": [] });
+    const { w } = await mountTokens("accountant");
+    expect(w.find('[data-test="mcp-connect"] [data-test="mcp-value"]').text()).toBe("Bearer <TOKEN>");
+  });
+
   it("shows the owner of every token to an admin", async () => {
     mockFetchRoutes({ "GET /api/tokens": [token("t1", { user: { email: "petr@example.cz", displayName: "Petr" } })] });
     const { w } = await mountTokens("admin");
@@ -69,6 +75,12 @@ describe("TokensView", () => {
     await w.find('[data-test="token-copy"]').trigger("click");
     await flushPromises();
     expect(writeText).toHaveBeenCalledWith("inv_abcd1234_SECRET");
+
+    expect(w.find('[data-test="token-dialog"] [data-test="mcp-connect"]').exists()).toBe(false);
+    await w.find('[data-test="token-mcp-toggle"]').trigger("click");
+    const guide = w.find('[data-test="token-dialog"] [data-test="mcp-connect"]');
+    expect(guide.find('[data-test="mcp-value"]').text()).toBe("Bearer inv_abcd1234_SECRET");
+    expect(guide.find('[data-test="mcp-command"]').text()).toContain("Authorization: Bearer inv_abcd1234_SECRET");
 
     await w.find('[data-test="token-done"]').trigger("click");
     expect(w.find('[data-test="token-dialog"]').exists()).toBe(false);

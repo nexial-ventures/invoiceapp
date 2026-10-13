@@ -6,6 +6,7 @@ import { formatDate } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import CreateTokenDialog from "../components/CreateTokenDialog.vue";
+import McpConnectCard from "../components/McpConnectCard.vue";
 import { useTokensStore } from "../store";
 import type { ApiToken } from "../types";
 
@@ -68,6 +69,7 @@ async function revoke(token: ApiToken) {
         </tbody>
       </table>
     </div>
+    <McpConnectCard />
     <CreateTokenDialog v-if="creating && session.role" :role="session.role" @close="creating = false" />
   </section>
 </template>

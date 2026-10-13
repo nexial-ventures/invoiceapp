@@ -14,6 +14,8 @@ invoices. It is a thin layer over the same services as the REST API — no busin
 - `initialize` answers `serverInfo { name: "invoiceapp", version: <crate version> }`, capabilities `tools` only, and
   `instructions`: a short English description of the domain (directions, document types, statuses, money as decimal
   strings, how to issue an invoice: find / create the contact → create a draft → check totals → issue).
+- UI: `McpConnectCard` (`/tokens`, `/settings/space`, and the token dialog right after creation) shows the URL,
+  header and claude.ai / Claude Code setup steps.
 - Protocol version: whatever `rmcp` negotiates (≥ 2025-03-26).
 
 ## Tool conventions

@@ -10,6 +10,7 @@ import type { Role } from "@/features/spaces/types";
 import { collectErrors, isApiError, nullIfEmpty, textRule } from "@/lib/formErrors";
 import { useSessionStore } from "@/stores/session";
 import { useTokensStore } from "../store";
+import McpConnectCard from "./McpConnectCard.vue";
 
 const props = defineProps<{ role: Role }>();
 const emit = defineEmits<{ close: [] }>();
@@ -24,6 +25,7 @@ const { fieldErrors, error, submitting, submit } = useFormSubmit();
 /** The secret, held only in this dialog; gone when it closes. */
 const secret = ref<string | null>(null);
 const copied = ref(false);
+const showMcp = ref(false);
 /** 403 `mfa_required`: the space requires TOTP the user lacks. */
 const mfaRequired = ref(false);
 const accountUrl = computed(() => `${session.baseUrl.replace(/\/$/, "")}/account`);
@@ -74,7 +76,7 @@ onMounted(() => panel.value?.focus());
 
 <template>
   <div class="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:p-8" @click.self="secret || emit('close')">
-    <div ref="panel" role="dialog" aria-modal="true" aria-labelledby="token-dialog-title" tabindex="-1" class="card w-full max-w-md space-y-4 outline-none" data-test="token-dialog" @keydown.esc="emit('close')">
+    <div ref="panel" role="dialog" aria-modal="true" aria-labelledby="token-dialog-title" tabindex="-1" :class="['card w-full space-y-4 outline-none', showMcp ? 'max-w-2xl' : 'max-w-md']" data-test="token-dialog" @keydown.esc="emit('close')">
       <template v-if="secret">
         <h2 id="token-dialog-title" class="text-lg font-semibold">{{ t("tokens.created.title") }}</h2>
         <p class="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">{{ t("tokens.created.warning") }}</p>
@@ -85,6 +87,10 @@ onMounted(() => panel.value?.focus());
           </div>
         </FormField>
         <p v-if="copied" role="status" class="text-sm text-green-700 dark:text-green-400">{{ t("tokens.created.copied") }}</p>
+        <button type="button" class="btn" :aria-expanded="showMcp" aria-controls="token-mcp" data-test="token-mcp-toggle" @click="showMcp = !showMcp">
+          {{ showMcp ? t("tokens.created.hideMcp") : t("tokens.created.showMcp") }}
+        </button>
+        <McpConnectCard v-if="showMcp" id="token-mcp" :token="secret" bare class="border-t border-gray-200 pt-4 dark:border-gray-700" />
         <div class="flex justify-end">
           <button type="button" class="btn btn-primary" data-test="token-done" @click="emit('close')">{{ t("tokens.created.done") }}</button>
         </div>
