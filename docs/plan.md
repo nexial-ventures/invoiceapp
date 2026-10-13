@@ -20,7 +20,7 @@ no OAuth, no stock/task/cost-center links). Module layout follows the infra
 | Document types | Invoice (tax document), credit note and debit note (reference the original), simplified tax document, proforma; for VAT payers a tax document for a received advance payment (DDPP) after the proforma is paid (and its correction), and "issue final invoice from proforma" deducting the advance and its VAT. |
 | VAT | Rate per line, VAT computed from the per-rate recap (§37 ZDPH) rounded to 0.01. Modes: standard, reverse charge, exempt. Optional rounding of the payable total to whole CZK (rounding line). Foreign-currency invoices also show VAT in CZK. |
 | Exchange rate | ČNB daily rate at the tax point date (received invoices: date of receipt), stored on the invoice, manually overridable; if ČNB is unreachable the user must enter it. |
-| Numbering | Configurable pattern per document type, e.g. `{YYYY}{NNNN}`, yearly reset, number assigned at issue (drafts have none). Counter is manually settable in Settings. Imported invoices keep their own number and do **not** move the counter. |
+| Numbering | Configurable pattern per document type, e.g. `{YYYY}{NNNN}`, yearly reset, number assigned at issue (drafts have none, except an unlocked one: it keeps its number, reserved, and re-issue reuses it). Counter is manually settable in Settings. Imported invoices keep their own number and do **not** move the counter. |
 | Lifecycle | `draft → issued → sent → paid`, `cancelled`; an admin can unlock `issued → draft` (reason required, number kept). On issue the invoice is locked, supplier/customer snapshots are stored and the PDF is rendered and archived; issuing fails if mdcast is down. "Overdue" is derived, never stored. Payments: date + amount. |
 | PDF | mdcast `/v1/render/template` (typst + JSON data). Default design (minimalist, Inter) embedded in the binary; storage keys `design/…` override it file by file (`invoice.typ`, fonts, logo, signature). Preview of a sample invoice in Settings → Design. Invoice language cs/en per document. SPAYD QR payment code. Details: [api/pdf.md](api/pdf.md). |
 | Received invoices | Metadata entered manually + original PDF upload. |
@@ -57,11 +57,12 @@ Document decisions (1b/1c):
 - Lines: `item` (description, quantity, unit, unit price excl. VAT, % discount, VAT rate), `text` (no amounts), `subtotal` (ported from infra: references other lines by position, nested allowed, no cycles, all members share one VAT rate; `collapse` shows only the subtotal on the PDF). Catalog groups (1c) insert their members + a collapsed subtotal.
 - Credit notes are entered with **positive** amounts; the sign comes from the document type (reports/exports negate).
 - Issued documents are locked: only payments, mark-sent, cancel, credit note and the internal note change afterwards. Drafts can be deleted.
-  **Exception (user decision, overrides the lock):** an admin / owner may unlock an issued document back to a draft
-  (`POST …/unlock`, required reason; who / when / why kept). The draft is fully editable and keeps its number (reserved:
-  the counter guard counts it, re-issue reuses it); payments, e-mails, `sentAt` and referencing documents stay; the
-  rendered PDF is deleted and rendered again at re-issue. Deleting such a draft cascades its payments. See
-  [api/documents.md, Unlock](api/documents.md#unlock).
+  **Exception (user decision, overrides the lock):** an admin / owner may unlock an issued document (not a native
+  DDPP) back to a draft (`POST …/unlock`, required reason; who / when / why kept). The draft is editable (not its type)
+  and keeps its number (reserved: the counter guard counts it, re-issue reuses it); payments, e-mails, `sentAt` and
+  referencing documents stay; the rendered PDF is deleted and rendered again at re-issue. The re-issue is refused
+  when it would break its corrections or a deduction of it; deleting such a draft cascades its payments but is refused
+  while live documents refer to it. See [api/documents.md, Unlock](api/documents.md#unlock).
 - ČNB rate is fixed at issue for the tax point date (latest published on or before it) unless entered manually; cached in `exchange_rates`; ČNB down + no manual rate → issue fails with 422.
 - Proforma payments by a VAT payer automatically issue a DDPP (tax point = payment date, VAT from above, split proportionally by the proforma's rates); the final invoice deducts DDPPs per rate (non-payer: deducts the paid amount).
 - Deleting a proforma payment cancels its DDPP (reason recorded); refused once that DDPP is deducted by an issued final invoice.

@@ -231,8 +231,19 @@ pub async fn check_debit_cancel(
         return Ok(());
     };
     query::lock(txn, SpaceId::from_row(debit_note.space_id), original_id).await?;
-    let cap = cap(txn, original_id, debit_note.id).await?;
-    let credited = issued_notes(txn, original_id, DocType::CreditNote, Uuid::nil()).await?;
+    credits_within_cap(txn, original_id, debit_note.id).await
+}
+
+/// The issued credit notes of `original` within its current item bases plus
+/// its issued debit notes other than `except_debit`; else 409
+/// `exceeds_original`. The caller holds the original's row lock.
+pub async fn credits_within_cap<C: ConnectionTrait>(
+    db: &C,
+    original_id: Uuid,
+    except_debit: Uuid,
+) -> Result<(), AppError> {
+    let cap = cap(db, original_id, except_debit).await?;
+    let credited = issued_notes(db, original_id, DocType::CreditNote, Uuid::nil()).await?;
     if exceeds_original(&cap, credited) {
         return Err(AppError::ExceedsOriginal);
     }

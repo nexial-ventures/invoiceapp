@@ -19,7 +19,7 @@ use crate::space::SpaceId;
 
 /// `(referenced document, referencing invoice)` for every non-cancelled
 /// invoice with an advance line on one of `ids`.
-async fn referencing<C: ConnectionTrait>(
+pub(super) async fn referencing<C: ConnectionTrait>(
     db: &C,
     ids: &[Uuid],
 ) -> Result<Vec<(Uuid, Uuid)>, AppError> {

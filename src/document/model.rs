@@ -36,8 +36,6 @@ pub struct Existing {
     pub exchange_rate: Option<Decimal>,
     /// The number an unlocked native draft keeps (`None` for a fresh draft).
     pub number: Option<String>,
-    /// Unlocked from issued at least once: its type may change too.
-    pub unlocked: bool,
 }
 
 impl Existing {

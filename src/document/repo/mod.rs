@@ -17,7 +17,9 @@ pub mod original;
 pub mod payments;
 pub mod query;
 pub mod received;
+mod reissue;
 pub mod settle;
+pub mod unlock;
 pub mod view;
 pub mod write;
 

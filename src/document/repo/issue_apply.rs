@@ -8,7 +8,7 @@ use sea_orm::{ActiveModelTrait, DatabaseConnection, DatabaseTransaction, Set, Tr
 use uuid::Uuid;
 
 use super::issue::{Prepared, customer, json, supplier, variable_symbol};
-use super::{advance_sources, credit, ddpp_correction, lines, query, write};
+use super::{advance_sources, credit, ddpp_correction, lines, query, reissue, unlock, write};
 use crate::document::advance;
 use crate::document::doc_type::DocType;
 use crate::document::entity::document;
@@ -83,7 +83,8 @@ pub(super) async fn commit_planned(
         return Ok(false);
     }
     // The row was a draft under our lock, so it has no archive yet.
-    if !archive::record(txn, id, rel, bytes).await? {
+    let generation = query::find(txn, space, id).await?.unlocked_at;
+    if !archive::record(txn, id, rel, bytes, generation).await? {
         return Err(AppError::Conflict("document archived while issuing".into()));
     }
     Ok(true)
@@ -129,9 +130,8 @@ pub(super) async fn apply(
     advance_sources::lock_and_recheck(txn, space, id, &p.lines).await?;
     // An imported correction documents amounts as they were: no cap.
     if p.doc_type.is_correction() && !doc.imported {
-        let original = doc
-            .related_document_id
-            .context("correction without its original")?;
+        // Its original was deleted (an unlocked draft can be): nothing to correct.
+        let original = doc.related_document_id.ok_or(AppError::InvalidState)?;
         match p.doc_type {
             DocType::CreditNote => credit::check_cap(txn, space, id, original, &totals).await?,
             // No cap, but the original must still be correctable.
@@ -147,6 +147,13 @@ pub(super) async fn apply(
     } else if p.doc_type == DocType::AdvanceCreditNote {
         // An imported correction linked to a DDPP counts in its net too.
         ddpp_correction::check_linked(txn, &doc).await?;
+    }
+    // An unedited unlocked import keeps what was entered: snapshots, rate,
+    // totals — so nothing its dependents rely on changed either.
+    let keep_entered = unlock::untouched_import(&doc);
+    let recheck = doc.unlocked_at.is_some() && !keep_entered;
+    if recheck {
+        reissue::check_corrections(txn, space, &doc, &totals).await?;
     }
     let issue_year = doc.issue_date.year();
     let (number, number_year, seq) = match numbering(
@@ -173,27 +180,29 @@ pub(super) async fn apply(
     row.number = Set(Some(number));
     row.number_year = Set(Some(number_year));
     row.number_seq = Set(seq);
-    row.exchange_rate = Set(p.rate.rate);
-    row.exchange_rate_date = Set(p.rate.date);
-    row.exchange_rate_source = Set(p.rate.source.map(str::to_string));
-    row.supplier_snapshot = Set(Some(json(&supplier(&p.company))?));
-    row.customer_snapshot = Set(p
-        .customer
-        .as_ref()
-        .map(|c| json(&customer(c)))
-        .transpose()?);
-    row.bank_snapshot = Set(p
-        .bank
-        .as_ref()
-        .map(|b| {
-            json(&BankSnapshot {
-                account_number: b.account_number.clone(),
-                iban: b.iban.clone(),
-                bic: b.bic.clone(),
+    if !keep_entered {
+        row.exchange_rate = Set(p.rate.rate);
+        row.exchange_rate_date = Set(p.rate.date);
+        row.exchange_rate_source = Set(p.rate.source.map(str::to_string));
+        row.supplier_snapshot = Set(Some(json(&supplier(&p.company))?));
+        row.customer_snapshot = Set(p
+            .customer
+            .as_ref()
+            .map(|c| json(&customer(c)))
+            .transpose()?);
+        row.bank_snapshot = Set(p
+            .bank
+            .as_ref()
+            .map(|b| {
+                json(&BankSnapshot {
+                    account_number: b.account_number.clone(),
+                    iban: b.iban.clone(),
+                    bic: b.bic.clone(),
+                })
             })
-        })
-        .transpose()?);
-    write::apply_totals(&mut row, &totals);
+            .transpose()?);
+        write::apply_totals(&mut row, &totals);
+    }
     row.updated_at = Set(chrono::Utc::now().into());
     row.update(txn)
         .await
@@ -201,7 +210,12 @@ pub(super) async fn apply(
     if !advance::referenced_ids(&p.lines).is_empty() {
         lines::replace(txn, id, &p.lines).await?;
     }
-    lines::replace_recap(txn, id, &totals).await?;
+    if !keep_entered {
+        lines::replace_recap(txn, id, &totals).await?;
+    }
+    if recheck {
+        reissue::check_deductions(txn, space, id).await?;
+    }
     Ok(())
 }
 

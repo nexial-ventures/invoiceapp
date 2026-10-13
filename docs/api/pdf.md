@@ -120,6 +120,9 @@ snapshot has an IBAN, `payable > 0`. Generated server-side as SVG (crate `qrcode
   pdf_path IS NULL`; the loser of concurrent first downloads removes its object and serves the winner's).
 - The archive is **immutable**: never re-rendered, also not after cancel or a design change. Only an
   [unlock](documents.md#unlock) deletes it (the draft has none); the re-issue archives a new one.
+  Recording an archive requires the row to be non-draft and unlocked no later than when the render loaded it
+  (`unlocked_at` unchanged), so a render overtaken by an unlock is dropped (its object removed; `GET …/pdf` → 409
+  `invalid_state`).
 
 ## Routes
 

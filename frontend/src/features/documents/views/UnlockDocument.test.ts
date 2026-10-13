@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises } from "@vue/test-utils";
 import { i18n } from "@/i18n";
-import { calls, mockFetchRoutes } from "@/test-utils";
+import { calls, mockFetchRoutes, reply } from "@/test-utils";
 import { company, contact, document } from "../testData";
 import { mountDetail } from "./testMount";
 
@@ -34,6 +34,37 @@ describe("unlocking an issued document", () => {
     mockFetchRoutes(issuedRoutes());
     const admin = (await mountDetail("d1", "admin")).w;
     expect(admin.find('[data-test="unlock"]').exists()).toBe(true);
+
+    // A native DDPP belongs to its payment.
+    mockFetchRoutes(issuedRoutes({ ...issued, docType: "advance_tax_doc", paymentState: null }));
+    const ddpp = (await mountDetail("d1", "owner")).w;
+    expect(ddpp.find('[data-test="unlock"]').exists()).toBe(false);
+  });
+
+  it("keeps a note of the unlock on the re-issued document", async () => {
+    mockFetchRoutes(issuedRoutes({ ...issued, unlockedAt: unlocked.unlockedAt, unlockedBy: unlocked.unlockedBy, unlockReason: "Wrong VAT rate" }));
+    const w = (await mountDetail("d1", "accountant")).w;
+    expect(w.find('[data-test="unlocked-banner"]').exists()).toBe(false);
+    const note = w.find('[data-test="unlocked-note"]').text();
+    expect(note).toContain("Alice Admin");
+    expect(note).toContain("Wrong VAT rate");
+  });
+
+  it("explains why an unlocked draft cannot be deleted or re-issued", async () => {
+    vi.stubGlobal("confirm", () => true);
+    mockFetchRoutes({
+      ...issuedRoutes(unlocked),
+      "GET /api/contacts/c1": contact(),
+      "DELETE /api/documents/d1": reply(409, { code: "related_in_use" }),
+      "POST /api/documents/d1/issue": reply(409, { code: "exceeds_original" }),
+    });
+    const w = (await mountDetail("d1", "owner")).w;
+    await w.find('[data-test="delete"]').trigger("click");
+    await flushPromises();
+    expect(w.find('[data-test="action-error"]').text()).toContain("other documents refer to it");
+    await w.find('[data-test="issue"]').trigger("click");
+    await flushPromises();
+    expect(w.find('[data-test="action-error"]').text()).toContain("credit notes would exceed");
   });
 
   it("warns about what stays, requires a reason and shows the draft with its banner", async () => {

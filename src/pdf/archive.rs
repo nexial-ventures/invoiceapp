@@ -2,6 +2,7 @@
 
 use anyhow::Context as _;
 use bytes::Bytes;
+use chrono::{DateTime, FixedOffset};
 use futures_util::TryStreamExt as _;
 use sea_orm::{ConnectionTrait, DatabaseConnection, Statement};
 use uuid::Uuid;
@@ -81,24 +82,30 @@ pub async fn put(
 }
 
 /// Point the row at the written archive unless one is already recorded;
-/// `false` when another writer won.
+/// `false` when another writer won, or the row is no longer what was
+/// rendered: a draft now, or unlocked since (`unlocked_at` ≠ `generation`,
+/// the value the render loaded) — so a render from before an unlock never
+/// lands on the draft or on its re-issue.
 pub async fn record<C: ConnectionTrait>(
     db: &C,
     id: Uuid,
     rel: &str,
     bytes: &Bytes,
+    generation: Option<DateTime<FixedOffset>>,
 ) -> Result<bool, AppError> {
     let updated = db
         .execute(Statement::from_sql_and_values(
             db.get_database_backend(),
             "UPDATE documents SET pdf_path = $2, pdf_sha256 = $3, pdf_size = $4, \
-             pdf_rendered_at = now() WHERE id = $1 AND pdf_path IS NULL",
+             pdf_rendered_at = now() WHERE id = $1 AND pdf_path IS NULL \
+             AND status <> 'draft' AND unlocked_at IS NOT DISTINCT FROM $5",
             [
                 id.into(),
                 rel.to_string().into(),
                 storage::sha256_hex(bytes).into(),
                 // Counted by the space quota, never checked: issuing is not blocked.
                 i64::try_from(bytes.len()).unwrap_or(i64::MAX).into(),
+                generation.into(),
             ],
         ))
         .await?;
@@ -109,7 +116,8 @@ pub async fn record<C: ConnectionTrait>(
 /// after its payment, or on its first download). Render and object write
 /// run without a transaction; concurrent callers then race on `WHERE
 /// pdf_path IS NULL`, and the loser drops its object and serves the
-/// winner's, so every download of a document returns the same bytes.
+/// winner's, so every download of a document returns the same bytes. A
+/// render overtaken by an unlock is dropped: 409 `invalid_state`.
 pub async fn archive_missing(
     db: &DatabaseConnection,
     pdf: &PdfService,
@@ -120,7 +128,7 @@ pub async fn archive_missing(
         .number_year
         .with_context(|| format!("issued document {id} has no number year"))?;
     let rel = put(pdf, year, id, &bytes).await?;
-    match record(db, id, &rel, &bytes).await {
+    match record(db, id, &rel, &bytes, row.unlocked_at).await {
         Ok(true) => return Ok(bytes),
         Ok(false) => original::remove_unreferenced(db, pdf, &rel).await,
         Err(e) => {
@@ -129,10 +137,10 @@ pub async fn archive_missing(
         }
     }
     let row = query::find(db, pdf.space_id(), id).await?;
-    let rel = row
-        .pdf_path
-        .with_context(|| format!("document {id} lost the archive race but has no archive"))?;
-    Ok(pdf.storage().get(&rel).await?)
+    match row.pdf_path {
+        Some(rel) if row.status != Status::Draft => Ok(pdf.storage().get(&rel).await?),
+        _ => Err(AppError::InvalidState),
+    }
 }
 
 /// After an auto-issued DDPP's payment committed: archive it now if mdcast

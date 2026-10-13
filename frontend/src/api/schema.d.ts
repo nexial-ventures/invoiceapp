@@ -5085,7 +5085,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description `document_locked` (an issued document that is not a draft; received documents can always be deleted) */
+            /** @description `document_locked` (an issued document that is not a draft; received documents can always be deleted); an unlocked draft: `related_in_use` (a non-cancelled document links it), `advance_in_use` (an invoice deducts it) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5542,7 +5542,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description `invalid_state` (not a draft) */
+            /** @description `invalid_state` (not a draft, or a correction whose original is gone); re-issue of an unlocked draft: `exceeds_original`, `related_in_use`, `advance_settled` / `advance_in_use` */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6019,7 +6019,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description `invalid_state` (not an issued document of ours) */
+            /** @description `invalid_state` (not an issued document of ours, or a native DDPP) */
             409: {
                 headers: {
                     [name: string]: unknown;

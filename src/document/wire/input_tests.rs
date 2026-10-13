@@ -208,7 +208,6 @@ fn existing(doc_type: DocType) -> Existing {
         locale: "cs".into(),
         exchange_rate: Some("25.5".parse().expect("d")),
         number: None,
-        unlocked: false,
     }
 }
 

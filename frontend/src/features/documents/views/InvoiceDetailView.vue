@@ -63,6 +63,10 @@ watch(
 
 const doc = computed(() => (store.doc?.id === id.value && store.doc.direction === "issued" ? store.doc : null));
 const isDraft = computed(() => doc.value?.status === "draft");
+// A native DDPP belongs to its proforma payment: never unlocked.
+const canUnlock = computed(
+  () => doc.value?.status === "issued" && session.can("unlockDocument") && (doc.value.docType !== "advance_tax_doc" || doc.value.imported),
+);
 // A DDPP has no payments of its own.
 const hasPayments = computed(() => !isDraft.value && doc.value?.docType !== "advance_tax_doc");
 </script>
@@ -93,7 +97,7 @@ const hasPayments = computed(() => !isDraft.value && doc.value?.docType !== "adv
 
       <UnlockedBanner :doc="doc" />
       <DocumentActions v-if="session.can('write')" :doc="doc" />
-      <UnlockPanel v-if="doc.status === 'issued' && session.can('unlockDocument')" :key="doc.id" :doc="doc" />
+      <UnlockPanel v-if="canUnlock" :key="doc.id" :doc="doc" />
       <div v-if="!isDraft" class="flex flex-wrap items-center gap-2">
         <SendEmailButton v-if="session.can('write')" :document-id="doc.id" />
         <IsdocDownloadButton v-if="doc.number" :id="doc.id" :number="doc.number" />

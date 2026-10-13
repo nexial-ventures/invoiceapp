@@ -57,6 +57,7 @@ const KNOWN_CODES: Record<string, string> = {
   cnb_unavailable: "errors.cnbUnavailable",
   advance_settled: "errors.advanceSettled",
   advance_in_use: "errors.advanceInUse",
+  related_in_use: "errors.relatedInUse",
   // 409 on cancelling a debit note (the 422 field reason of the same name is `validation.exceeds_original`).
   exceeds_original: "errors.exceedsOriginal",
   catalog_item_in_use: "errors.catalogItemInUse",

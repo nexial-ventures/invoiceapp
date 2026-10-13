@@ -1,4 +1,4 @@
-//! Changes allowed after issue: cancel, mark-sent, internal note, unlock.
+//! Changes allowed after issue: cancel, mark-sent, internal note (unlock: `unlock.rs`).
 
 use chrono::{DateTime, FixedOffset};
 use sea_orm::{ActiveModelTrait, DatabaseConnection, DatabaseTransaction, Set, TransactionTrait};
@@ -12,7 +12,7 @@ use crate::document::line::Status;
 use crate::error::AppError;
 use crate::space::SpaceId;
 
-const ISSUED_ONLY: &[Status] = &[Status::Issued];
+pub(super) const ISSUED_ONLY: &[Status] = &[Status::Issued];
 
 /// Lock the row, require one of `statuses` and `allowed`, apply `f`.
 /// Anything else is `invalid_state`.
@@ -36,7 +36,7 @@ async fn on_status(
 
 /// Lock the row; received documents are only recorded (no cancel / mark-sent
 /// / e-mail).
-async fn locked(
+pub(super) async fn locked(
     txn: &DatabaseTransaction,
     space: SpaceId,
     id: Uuid,
@@ -100,57 +100,6 @@ pub async fn cancel(
                     row.cancel_reason = Set(reason);
                 })
                 .await
-            })
-        })
-        .await?)
-}
-
-/// Who unlocks a document, and why.
-pub struct Unlock {
-    pub user: Uuid,
-    pub reason: String,
-}
-
-/// `issued → draft`, any issued document of ours (`docs/api/documents.md`,
-/// "Unlock"). Everything else stays: number, `sent_at`, payments, e-mails,
-/// documents referencing it. The snapshots go (a draft shows live data, the
-/// re-issue takes new ones) and so does a ČNB rate (re-resolved at
-/// re-issue; a manual or copied rate is the user's and stays). Only the
-/// rendered archive (`pdf_*`) is dropped — an uploaded original
-/// (`original_*`, imported documents) is untouched. Returns the archive key
-/// for the caller to remove once this committed.
-pub async fn unlock(
-    db: &DatabaseConnection,
-    space: SpaceId,
-    id: Uuid,
-    by: Unlock,
-) -> Result<Option<String>, AppError> {
-    Ok(db
-        .transaction(|txn| {
-            Box::pin(async move {
-                let doc = locked(txn, space, id, ISSUED_ONLY, |_| true).await?;
-                let archive = doc.pdf_path.clone();
-                let cnb_rate = doc.exchange_rate_source.as_deref() == Some("cnb");
-                apply(txn, doc, move |row| {
-                    row.status = Set(Status::Draft);
-                    row.unlocked_at = Set(Some(chrono::Utc::now().into()));
-                    row.unlocked_by = Set(Some(by.user));
-                    row.unlock_reason = Set(Some(by.reason));
-                    row.supplier_snapshot = Set(None);
-                    row.customer_snapshot = Set(None);
-                    row.bank_snapshot = Set(None);
-                    if cnb_rate {
-                        row.exchange_rate = Set(None);
-                        row.exchange_rate_date = Set(None);
-                        row.exchange_rate_source = Set(None);
-                    }
-                    row.pdf_path = Set(None);
-                    row.pdf_sha256 = Set(None);
-                    row.pdf_size = Set(None);
-                    row.pdf_rendered_at = Set(None);
-                })
-                .await?;
-                Ok(archive)
             })
         })
         .await?)

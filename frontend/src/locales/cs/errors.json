@@ -47,5 +47,6 @@
   "emailRateLimited": "Limit e-mailů (za hodinu nebo za den, pro tento space nebo pro vás) je vyčerpán. Zkuste to později.",
   "emailRateLimitedWait": "Limit e-mailů (za hodinu nebo za den, pro tento space nebo pro vás) je vyčerpán. Zkuste to za {wait}.",
   "waitMinutes": "{n} min",
-  "waitHours": "{n} h"
+  "waitHours": "{n} h",
+  "relatedInUse": "Na doklad odkazují jiné doklady (opravné doklady, konečná faktura); tímto by se rozbily."
 }

@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use super::{NewDocument, advance_sources, insert, lines, query};
 use crate::document::compute::Totals;
-use crate::document::entity::document::{ActiveModel, Entity};
+use crate::document::entity::document::{ActiveModel, Column, Entity};
 use crate::document::entity::document_line;
 use crate::document::line::Direction;
 use crate::document::line::Status;
@@ -19,8 +19,6 @@ use crate::space::SpaceId;
 
 /// Header fields an edit sets, shared by create and update.
 fn apply(row: &mut ActiveModel, d: &DocumentData) {
-    // Only an unlocked draft can change its type (`wire::fields::doc_type`).
-    row.doc_type = Set(d.doc_type);
     row.contact_id = Set(d.contact_id);
     row.issue_date = Set(d.issue_date);
     row.tax_point_date = Set(d.tax_point_date);
@@ -191,8 +189,9 @@ pub async fn delete(
         .transaction(|txn| {
             Box::pin(async move {
                 let doc = locked_draft(txn, space, id).await?;
-                // Only an unlocked advance can be deducted: its deducting lines
-                // keep the FK (no ON DELETE action — an advance line needs its source).
+                // Only an unlocked advance can be deducted. Every deducting line
+                // counts, a cancelled invoice's too: the FK has no ON DELETE action
+                // (an advance line needs its source).
                 let deducted = document_line::Entity::find()
                     .filter(document_line::Column::AdvanceDocumentId.eq(id))
                     .filter(document_line::Column::DocumentId.ne(id))
@@ -200,6 +199,17 @@ pub async fn delete(
                     .await?;
                 if deducted > 0 {
                     return Err(AppError::AdvanceInUse);
+                }
+                // An unlocked draft may still be what corrections / a final
+                // invoice point at; a cancelled one may lose its link.
+                let referenced = Entity::find()
+                    .filter(Column::SpaceId.eq(space))
+                    .filter(Column::RelatedDocumentId.eq(id))
+                    .filter(Column::Status.ne(Status::Cancelled))
+                    .count(txn)
+                    .await?;
+                if referenced > 0 {
+                    return Err(AppError::RelatedInUse);
                 }
                 Entity::delete_by_id(id).exec(txn).await?;
                 Ok(doc.original_path)

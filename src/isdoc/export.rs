@@ -151,13 +151,15 @@ async fn visual(
         }
     } else {
         match archive::document_pdf(db, pdf, doc.id).await {
+            // Unlocked meanwhile: never export the draft preview.
+            Ok((now, _)) if now.status == Status::Draft => Err(AppError::InvalidState),
             Ok((_, body)) => body.into_bytes().await,
             Err(e) => Err(e),
         }
     };
     match got {
         Ok(bytes) => Ok(Some(bytes)),
-        Err(e @ AppError::StorageUnavailable(_)) => Err(e),
+        Err(e @ (AppError::StorageUnavailable(_) | AppError::InvalidState)) => Err(e),
         Err(e) => {
             tracing::warn!(document = %doc.id, error = %e, "ISDOC export without PDF");
             Ok(None)

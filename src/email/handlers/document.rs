@@ -184,7 +184,11 @@ async fn files(
         if !input.attach_pdf {
             return Ok(None);
         }
-        let (_, body) = archive::document_pdf(&state.db, pdf_service, row.id).await?;
+        let (now, body) = archive::document_pdf(&state.db, pdf_service, row.id).await?;
+        // Unlocked meanwhile: that would be the draft preview, never sent.
+        if now.status == Status::Draft {
+            return Err(AppError::InvalidState);
+        }
         Ok::<_, AppError>(Some(File {
             filename: format!("{}.pdf", export::stem(row)),
             content_type: "application/pdf",

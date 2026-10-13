@@ -89,9 +89,22 @@ async function act(action: () => Promise<void>, message?: (err: unknown) => stri
   }
 }
 
+// Re-issue / delete of an unlocked draft: the documents relying on it must still hold.
+const UNLOCKED_ISSUE_MESSAGES: Record<string, string> = {
+  exceeds_original: "unlock.issueExceeds",
+  related_in_use: "unlock.issueRelated",
+  advance_settled: "unlock.issueAdvance",
+  advance_in_use: "unlock.issueAdvance",
+};
+const UNLOCKED_DELETE_MESSAGES: Record<string, string> = {
+  related_in_use: "unlock.deleteRelated",
+  advance_in_use: "unlock.deleteAdvance",
+};
+const unlockedMessages = (map: Record<string, string>) => (props.doc.unlockedAt ? map : {});
+
 function issue() {
   if (!window.confirm(t(props.doc.imported ? "documents.import.confirmIssue" : "documents.detail.confirmIssue"))) return;
-  void act(store.issue, messages(ISSUE_PDF_MESSAGES, ddppMessages()));
+  void act(store.issue, messages(unlockedMessages(UNLOCKED_ISSUE_MESSAGES), ISSUE_PDF_MESSAGES, ddppMessages()));
 }
 
 function remove() {
@@ -102,7 +115,7 @@ function remove() {
   void act(async () => {
     await store.remove();
     await router.push(listLocation(docType));
-  });
+  }, messages(unlockedMessages(UNLOCKED_DELETE_MESSAGES)));
 }
 
 function cancel() {

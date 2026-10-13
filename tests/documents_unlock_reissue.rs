@@ -38,23 +38,31 @@ async fn put(app: &Router, doc: &Value) -> Value {
 }
 
 #[tokio::test]
-async fn reissue_keeps_the_number_after_a_type_and_date_change() {
+async fn reissue_keeps_the_number_after_a_date_change() {
     let db = TestDb::new().await;
     let env = PdfEnv::new();
     let app = env.router(db.conn.clone());
     let body = issuable(&app).await;
     let doc = create_issued(&app, body).await;
-    let (_, mut draft) = unlock(&app, &id(&doc), json!("Should have been a proforma")).await;
+    let (_, mut draft) = unlock(&app, &id(&doc), json!("Wrong year")).await;
 
-    draft["docType"] = json!("proforma");
-    draft["taxPointDate"] = Value::Null;
+    // The type stays: an unlocked draft is edited like any other.
+    let mut retyped = draft.clone();
+    retyped["docType"] = json!("proforma");
+    retyped["taxPointDate"] = Value::Null;
+    let uri = format!("/api/documents/{}", id(&draft));
+    let (status, err) = call(&app, Method::PUT, &uri, Some(retyped)).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(err["fields"]["docType"], "invalid");
+
     draft["issueDate"] = json!("2027-01-04");
+    draft["taxPointDate"] = json!("2027-01-04");
     draft["dueDate"] = json!("2027-01-18");
     draft["lines"] = json!([item("2", "300", "21")]);
     let saved = put(&app, &draft).await;
     assert_eq!(
-        (&saved["docType"], &saved["number"], &saved["status"]),
-        (&json!("proforma"), &json!("20260001"), &json!("draft"))
+        (&saved["number"], &saved["status"]),
+        (&json!("20260001"), &json!("draft"))
     );
     // A native number may be sent back unchanged, never altered.
     let mut other = saved.clone();
@@ -73,11 +81,11 @@ async fn reissue_keeps_the_number_after_a_type_and_date_change() {
             &reissued["docType"],
             &reissued["number"]
         ),
-        (&json!("issued"), &json!("proforma"), &json!("20260001"))
+        (&json!("issued"), &json!("invoice"), &json!("20260001"))
     );
     assert_eq!(reissued["totals"]["payable"], "726.00");
     assert_eq!(reissued["supplier"]["name"], "Dodavatel s.r.o.");
-    assert_eq!(reissued["unlockReason"], "Should have been a proforma");
+    assert_eq!(reissued["unlockReason"], "Wrong year");
     let year = scalar(
         &db.conn,
         "SELECT number_year::text FROM documents WHERE id = $1",
@@ -221,20 +229,24 @@ async fn deleting_an_unlocked_draft_cascades_and_unlinks() {
 
     let (status, _) = unlock(&app, &id(&doc), json!("cancel by delete")).await;
     assert_eq!(status, StatusCode::OK);
-    let (status, _) = call(
-        &app,
-        Method::DELETE,
-        &format!("/api/documents/{}", id(&doc)),
-        None,
-    )
-    .await;
+    let uri = format!("/api/documents/{}", id(&doc));
+    // A live credit note still corrects it.
+    let (status, err) = call(&app, Method::DELETE, &uri, None).await;
+    assert_eq!(
+        (status, err),
+        (StatusCode::CONFLICT, json!({ "code": "related_in_use" }))
+    );
+    let (status, _) = post_action(&app, &id(&credit), "cancel").await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, _) = call(&app, Method::DELETE, &uri, None).await;
     assert_eq!(status, StatusCode::NO_CONTENT);
     let payments = "SELECT count(*)::text FROM payments WHERE document_id = $1";
     assert_eq!(scalar(&db.conn, payments, &doc).await.as_deref(), Some("0"));
     let credit = get_doc(&app, &id(&credit)).await;
     assert_eq!(
         (&credit["relatedDocumentId"], &credit["status"]),
-        (&Value::Null, &json!("issued"))
+        (&Value::Null, &json!("cancelled"))
     );
 }
 

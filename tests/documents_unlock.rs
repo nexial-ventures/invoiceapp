@@ -9,11 +9,12 @@ use common::auth::{As, member, on, seed_space};
 use common::documents::{
     archive_rel, create_doc, create_issued, get_doc, id, issuable, post_action, unlock,
 };
-use common::mdcast::PdfEnv;
+use common::mdcast::{PdfEnv, get_raw};
 use common::members::{B_TOKEN, as_beta};
 use common::received::create_received;
 use common::{OWNER_EMAIL, TEST_HOST, TestDb, call, router};
 use invoice::space::Role;
+use sea_orm::ConnectionTrait;
 use serde_json::{Value, json};
 
 #[tokio::test]
@@ -178,4 +179,53 @@ async fn another_space_cannot_unlock() {
         (StatusCode::NOT_FOUND, json!({ "code": "not_found" }))
     );
     assert_eq!(get_doc(&app, &id(&doc)).await["status"], "issued");
+}
+
+#[tokio::test]
+async fn a_render_overtaken_by_an_unlock_is_not_archived() {
+    let db = TestDb::new().await;
+    let env = PdfEnv::new();
+    let app = env.router(db.conn.clone());
+    let body = issuable(&app).await;
+    let doc = create_issued(&app, body).await;
+    // No archive yet (like a DDPP after its payment): the first download renders one.
+    db.conn
+        .execute_unprepared(
+            "UPDATE documents SET pdf_path = NULL, pdf_sha256 = NULL, pdf_size = NULL",
+        )
+        .await
+        .expect("drop the archive");
+    let dir = env.storage.path().join(db.key("documents/2026"));
+    let objects = || std::fs::read_dir(&dir).map(|d| d.count()).unwrap_or(0);
+    let before = objects();
+
+    let started = env.mock.started();
+    env.mock.hold();
+    let uri = format!("/api/documents/{}/pdf", id(&doc));
+    let task = {
+        let (app, uri) = (app.clone(), uri.clone());
+        tokio::spawn(async move { get_raw(&app, &uri).await })
+    };
+    env.mock.wait_started(started + 1).await;
+    let (status, _) = unlock(&app, &id(&doc), json!("while rendering")).await;
+    assert_eq!(status, StatusCode::OK);
+    env.mock.release();
+
+    let (status, _, body) = task.await.expect("download task");
+    let shown = String::from_utf8_lossy(&body);
+    assert_eq!(
+        status,
+        StatusCode::CONFLICT,
+        "never a draft render: {shown}"
+    );
+    let draft = get_doc(&app, &id(&doc)).await;
+    assert_eq!(
+        (&draft["status"], &draft["pdf"]),
+        (&json!("draft"), &Value::Null)
+    );
+    assert_eq!(
+        objects(),
+        before,
+        "the overtaken render's object is removed"
+    );
 }
