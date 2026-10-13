@@ -235,6 +235,10 @@ routed to the row).
   locale re-fetches subject + body (after a confirm when edited), recipients stay; "Bcc to me" = the company e-mail;
   an empty test address → the company e-mail. `recipients.ts` splits on `,` `;` newline, keeps `Name <addr>`
   as one chip, dedupes case-insensitively.
+- **tokens**: the secret exists only in `CreateTokenDialog` right after creation. `McpConnectCard` (on `/tokens`,
+  `/settings/space` and, with the real secret, behind "Set up MCP" in that dialog) explains connecting the space as
+  an MCP server: URL `window.location.origin + /api/mcp`, Bearer header, claude.ai / Claude Code / generic steps;
+  without a `token` prop it shows `<TOKEN>` and links to `/tokens`.
 - **metadata**: unsaved edits survive reloads of the same document; values of fields without an applicable
   definition are sent back unchanged; decimal comma → dot.
 

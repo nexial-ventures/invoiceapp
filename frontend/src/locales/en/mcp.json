@@ -1,0 +1,31 @@
+{
+  "title": "Connect as an MCP server",
+  "intro": "AI assistants such as Claude can read documents and prepare and issue invoices in this space over the Model Context Protocol (MCP), authenticated by a personal API token.",
+  "placeholder": "Replace {placeholder} with a personal API token of this space.",
+  "tokensLink": "Create a token on the API tokens page.",
+  "facts": {
+    "url": "Server URL",
+    "transport": "Transport",
+    "header": "Header name",
+    "value": "Header value"
+  },
+  "copy": "Copy",
+  "copied": "Copied",
+  "roles": "Reading needs a token with at least the accountant role; creating and issuing invoices needs the member role.",
+  "claudeAi": {
+    "title": "claude.ai",
+    "open": "Open Settings → Connectors and choose Add custom connector.",
+    "url": "Enter the server URL above.",
+    "header": "Under Request headers add {header} with the value {value}.",
+    "beta": "The Request headers section is in beta for a limited set of organizations, so it may not be visible to you yet."
+  },
+  "claudeCode": {
+    "title": "Claude Code",
+    "intro": "Run in a terminal:"
+  },
+  "generic": {
+    "title": "Other MCP clients",
+    "text": "Any MCP client that supports the Streamable HTTP transport with custom headers works: use the server URL, transport and header above."
+  },
+  "security": "The token acts with its role in this space. Keep it secret; if it leaks, revoke it on the API tokens page."
+}

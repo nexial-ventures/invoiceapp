@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import FormField from "@/components/form/FormField.vue";
 import { useFormSubmit } from "@/composables/useFormSubmit";
 import { collectErrors, textRule } from "@/lib/formErrors";
+import McpConnectCard from "@/features/tokens/components/McpConnectCard.vue";
 import { useSessionStore } from "@/stores/session";
 import { spacesApi } from "../api";
 import DeleteSpaceSection from "../components/DeleteSpaceSection.vue";
@@ -57,6 +58,7 @@ async function onSubmit() {
       <button type="submit" class="btn btn-primary" :disabled="submitting || !space" data-test="space-save">{{ t("common.save") }}</button>
     </form>
     <StorageUsage v-if="space?.limits" :limits="space.limits" />
+    <McpConnectCard />
     <RequireMfaSection v-if="space && session.can('spacePolicy')" :space="space" @updated="space = $event" />
     <DeleteSpaceSection v-if="space && session.can('deleteSpace')" :slug="space.slug" />
   </div>

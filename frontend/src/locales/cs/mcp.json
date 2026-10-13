@@ -1,0 +1,31 @@
+{
+  "title": "Připojení jako MCP server",
+  "intro": "AI asistenti jako Claude mohou přes Model Context Protocol (MCP) číst doklady a připravovat a vystavovat faktury v tomto space. Přihlašují se osobním API tokenem.",
+  "placeholder": "Nahraďte {placeholder} osobním API tokenem tohoto space.",
+  "tokensLink": "Token vytvoříte na stránce API tokeny.",
+  "facts": {
+    "url": "URL serveru",
+    "transport": "Transport",
+    "header": "Název hlavičky",
+    "value": "Hodnota hlavičky"
+  },
+  "copy": "Kopírovat",
+  "copied": "Zkopírováno",
+  "roles": "Ke čtení stačí token s rolí alespoň účetní; k vytváření a vystavování faktur je potřeba role člen.",
+  "claudeAi": {
+    "title": "claude.ai",
+    "open": "Otevřete Settings → Connectors a zvolte Add custom connector.",
+    "url": "Zadejte URL serveru uvedenou výše.",
+    "header": "V sekci Request headers přidejte {header} s hodnotou {value}.",
+    "beta": "Sekce Request headers je v betě jen pro část organizací, proto ji zatím nemusíte vidět."
+  },
+  "claudeCode": {
+    "title": "Claude Code",
+    "intro": "Spusťte v terminálu:"
+  },
+  "generic": {
+    "title": "Jiní MCP klienti",
+    "text": "Funguje jakýkoli MCP klient, který podporuje transport Streamable HTTP s vlastními hlavičkami: použijte URL serveru, transport a hlavičku výše."
+  },
+  "security": "Token jedná s rolí, kterou má v tomto space. Uchovejte ho v tajnosti; pokud unikne, zneplatněte ho na stránce API tokeny."
+}
