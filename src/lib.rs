@@ -26,6 +26,7 @@ pub mod migration;
 pub mod num_parse;
 pub mod num_text;
 pub mod openapi;
+pub mod overview;
 pub mod paging;
 pub mod pdf;
 pub mod secret;

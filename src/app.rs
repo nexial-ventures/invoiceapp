@@ -73,6 +73,7 @@ pub fn router(state: AppState) -> Router {
         .nest("/import/isdoc", isdoc::router())
         .nest("/import/csv", csvio::router())
         .nest("/export", crate::export::router())
+        .route("/overview", get(crate::overview::handlers::overview))
         .nest("/pdf", pdf::router())
         .route("/exchange-rates/{currency}", get(cnb::handlers::get_rate))
         .nest("/mcp", mcp::router(state.clone()))

@@ -7,6 +7,7 @@
 
 pub mod handlers;
 pub mod load;
+pub mod period;
 pub mod source;
 
 #[cfg(test)]

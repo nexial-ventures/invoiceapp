@@ -76,7 +76,8 @@ error files. Every repo takes the `SpaceId` of the request's role extractor ([ap
 | `import/` | bulk import pipeline shared by ISDOC and CSV / XLSX: `model.rs` (`Plan`), `lookup.rs` / `batch.rs` (per entry / one query per kind over the batch), `check.rs`, `category.rs`, `store.rs` (one entry per transaction), `form.rs`, `wire.rs` | [api/isdoc.md](api/isdoc.md), [api/csv.md](api/csv.md) |
 | `isdoc/` | ISDOC 6.0.2: pure `parse` / `plan` / `upload` (zip limits) / `export_xml`; `analyze.rs`; handlers `import.rs`, `export.rs`, `export_bulk.rs` | [api/isdoc.md](api/isdoc.md) |
 | `csvio/` | CSV / XLSX interchange: pure `format` / `read` / `columns` / `cell` / `amounts` / `row` / `write` / `export_row`; `analyze.rs`, `export_csv.rs`, handlers | [api/csv.md](api/csv.md) |
-| `export/` | what the CSV and accounting exports share: `load.rs` (`Loaded` chunks → `Source`), `source.rs`; `handlers.rs` (the only module using both `csvio` and `accounting`) | [api/csv.md](api/csv.md), [api/accounting.md](api/accounting.md) |
+| `export/` | what the CSV and accounting exports share: `load.rs` (`Loaded` chunks → `Source`), `source.rs` (CZK recap / total / amount conversions), `period.rs` (the tax-date period check and filter, also used by `overview`); `handlers.rs` (the only module using both `csvio` and `accounting`) | [api/csv.md](api/csv.md), [api/accounting.md](api/accounting.md) |
+| `overview/` | `GET /api/overview`: pure `period.rs` (chart months), `aggregate.rs` (totals, VAT per rate, months, categories), `open.rs` (receivables / payables); `repo.rs` (column-only reads in one snapshot), `dto.rs` (`Overview*` schemas), `handlers.rs` | [api/overview.md](api/overview.md) |
 | `accounting/` | accounting settings (`settings.rs`) and the Pohoda (`pohoda*.rs`) and Money S3 (`money*.rs`) XML writers over the shared `doc.rs`; `export.rs` (`Format`), `repo.rs`, `handlers.rs` | [api/accounting.md](api/accounting.md), [api/money.md](api/money.md) |
 | `email/` | `config.rs` (`SmtpConfig`), `sender.rs` (`Mailer`, lettre + rustls), `templates.rs` (MiniJinja), `sandbox.rs` + `template_render.rs` (rendering in a resource-limited child process), `context.rs`, `input.rs`, `limits.rs` (outbound limits), `log.rs`, `handlers/` (settings, document send) | [api/email.md](api/email.md), [api/spaces.md](api/spaces.md#limits) |
 | `mcp/` | `rmcp` Streamable HTTP, stateless; `read.rs` / `write.rs` tool routers calling the REST service functions; `args.rs`, `params.rs`, `result.rs` | [api/mcp.md](api/mcp.md) |
@@ -224,6 +225,10 @@ routed to the row).
 - **isdoc / imports / csvImport**: files ≤ 50 MiB checked client-side; `ok` entries preselected; batch `categoryId` /
   `vatDeductible` only sent while a received entry is selected; ISDOC lines of a received document are read-only (a
   received PUT sends no lines). Unknown error / warning codes fall back to showing the code.
+- **overview** (`/`, route `home`, first nav item): the period lives in the URL query (`period.ts`: `fromQuery` /
+  `toQuery`, presets normalized, anything unusable → the current month); `chart.ts` lays out the hand-rolled SVG bars
+  (shared zero baseline, rounded data ends); the VAT block is hidden when `vatPayer` is false; a slower answer for a
+  period already left is dropped.
 - **csvExport**: `period.ts` `previousMonth()` (January → December of the previous year); Pohoda XML is
   Windows-1250 and saved as raw bytes; 422 `filter` `too_many`, `documents: unexportable` (+ detail), `from: empty`.
 - **email**: the template editor stays mounted (`v-show`) so edits survive tab switches; switching the send dialog's

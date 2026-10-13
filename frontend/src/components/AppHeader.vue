@@ -12,6 +12,7 @@ const route = useRoute();
 const session = useSessionStore();
 
 const LINKS: { to: string; label: string; can: Action }[] = [
+  { to: "/", label: "nav.overview", can: "read" },
   { to: "/invoices", label: "nav.invoices", can: "read" },
   { to: "/received", label: "nav.received", can: "read" },
   { to: "/contacts", label: "nav.contacts", can: "read" },
@@ -22,9 +23,9 @@ const LINKS: { to: string; label: string; can: Action }[] = [
 const links = computed(() => (session.isSpace ? LINKS.filter((link) => session.can(link.can)) : []));
 const title = computed(() => session.context?.space?.name ?? t("app.name"));
 
-// Path prefix match: "/contacts/123" keeps "Contacts" highlighted.
+// Path prefix match: "/contacts/123" keeps "Contacts" highlighted; "/" (the overview) only matches itself.
 function isActive(to: string): boolean {
-  return route.path === to || route.path.startsWith(`${to}/`);
+  return route.path === to || (to !== "/" && route.path.startsWith(`${to}/`));
 }
 
 function onLocaleChange(event: Event) {
@@ -50,7 +51,7 @@ function onLocaleChange(event: Event) {
           :to="link.to"
           class="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
           :class="{ '!text-gray-900 dark:!text-gray-100 font-medium': isActive(link.to) }"
-          :data-test="`nav-${link.to.slice(1)}`"
+          :data-test="`nav-${link.to.slice(1) || 'overview'}`"
         >
           {{ t(link.label) }}
         </RouterLink>

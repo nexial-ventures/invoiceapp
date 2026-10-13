@@ -1,0 +1,71 @@
+{
+  "title": "Overview",
+  "loading": "Loading the overview…",
+  "basis": "By tax date (received documents without one: by the received date); issued tax documents only, no proformas, drafts or cancelled ones. Amounts in CZK.",
+  "period": {
+    "label": "Period",
+    "kinds": {
+      "month": "Month",
+      "quarter": "Quarter",
+      "year": "Year",
+      "custom": "Custom"
+    },
+    "prev": "Previous period",
+    "next": "Next period",
+    "quarterLabel": "Q{quarter} {year}",
+    "from": "From",
+    "to": "To",
+    "apply": "Show"
+  },
+  "tiles": {
+    "income": "Income",
+    "expense": "Expenses",
+    "difference": "Difference",
+    "differenceHint": "Income minus expenses",
+    "basisPayer": "excl. VAT",
+    "basisTotal": "total",
+    "base": "Base",
+    "vat": "VAT",
+    "total": "Total incl. VAT",
+    "count": "Documents"
+  },
+  "vat": {
+    "title": "VAT by rate",
+    "rate": "Rate",
+    "base": "Base",
+    "vat": "VAT",
+    "output": "Output (issued documents)",
+    "input": "Deductible input (received documents)",
+    "outputTotal": "Output VAT total",
+    "inputTotal": "Deductible VAT total",
+    "toPay": "VAT liability",
+    "refund": "VAT refund",
+    "none": "No documents.",
+    "reverseChargeIssued": "Reverse charge, issued (base)",
+    "reverseChargeReceived": "Reverse charge, received (base)",
+    "nonDeductible": "Received without deduction (informative, fully in expenses)"
+  },
+  "open": {
+    "receivables": "Receivables",
+    "payables": "Payables",
+    "asOf": "as of {date}",
+    "unpaid": "Unpaid",
+    "overdue": "Of which overdue",
+    "advances": "Expected advances (unpaid proformas)",
+    "topOverdue": "Longest overdue"
+  },
+  "chart": {
+    "title": "Monthly trend",
+    "aria": "Income and expenses by month",
+    "month": "Month",
+    "income": "Income",
+    "expense": "Expenses",
+    "trailing": "The last 12 months; the selected period is highlighted."
+  },
+  "categories": {
+    "income": "Income by category",
+    "expense": "Expenses by category",
+    "uncategorized": "Uncategorized",
+    "none": "No documents in the period."
+  }
+}

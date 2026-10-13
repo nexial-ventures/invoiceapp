@@ -1,0 +1,71 @@
+{
+  "title": "Přehled",
+  "loading": "Načítám přehled…",
+  "basis": "Podle data zdanitelného plnění (přijaté bez něj podle data přijetí); jen vystavené daňové doklady, bez proforem, konceptů a stornovaných. Částky v Kč.",
+  "period": {
+    "label": "Období",
+    "kinds": {
+      "month": "Měsíc",
+      "quarter": "Čtvrtletí",
+      "year": "Rok",
+      "custom": "Vlastní"
+    },
+    "prev": "Předchozí období",
+    "next": "Další období",
+    "quarterLabel": "{quarter}. čtvrtletí {year}",
+    "from": "Od",
+    "to": "Do",
+    "apply": "Zobrazit"
+  },
+  "tiles": {
+    "income": "Příjmy",
+    "expense": "Výdaje",
+    "difference": "Rozdíl",
+    "differenceHint": "Příjmy minus výdaje",
+    "basisPayer": "bez DPH",
+    "basisTotal": "celkem",
+    "base": "Základ",
+    "vat": "DPH",
+    "total": "Celkem s DPH",
+    "count": "Dokladů"
+  },
+  "vat": {
+    "title": "DPH podle sazeb",
+    "rate": "Sazba",
+    "base": "Základ",
+    "vat": "DPH",
+    "output": "Na výstupu (vydané doklady)",
+    "input": "Na vstupu s nárokem na odpočet (přijaté doklady)",
+    "outputTotal": "DPH na výstupu celkem",
+    "inputTotal": "Odpočet DPH celkem",
+    "toPay": "Vlastní daňová povinnost",
+    "refund": "Nadměrný odpočet",
+    "none": "Žádné doklady.",
+    "reverseChargeIssued": "Přenesená daňová povinnost, vydané (základ)",
+    "reverseChargeReceived": "Přenesená daňová povinnost, přijaté (základ)",
+    "nonDeductible": "Přijaté bez nároku na odpočet (informativně, celé ve výdajích)"
+  },
+  "open": {
+    "receivables": "Pohledávky",
+    "payables": "Závazky",
+    "asOf": "k {date}",
+    "unpaid": "Neuhrazeno",
+    "overdue": "Z toho po splatnosti",
+    "advances": "Očekávané zálohy (neuhrazené proformy)",
+    "topOverdue": "Nejdéle po splatnosti"
+  },
+  "chart": {
+    "title": "Vývoj po měsících",
+    "aria": "Příjmy a výdaje po měsících",
+    "month": "Měsíc",
+    "income": "Příjmy",
+    "expense": "Výdaje",
+    "trailing": "Posledních 12 měsíců; vybrané období je zvýrazněné."
+  },
+  "categories": {
+    "income": "Příjmy podle kategorií",
+    "expense": "Výdaje podle kategorií",
+    "uncategorized": "Bez kategorie",
+    "none": "V období nejsou žádné doklady."
+  }
+}
