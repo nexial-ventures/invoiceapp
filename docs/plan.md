@@ -13,7 +13,8 @@ no OAuth, no stock/task/cost-center links). Module layout follows the infra
 | Topic | Decision |
 |---|---|
 | Users | Single user until Phase 4: one static Bearer token `INVOICE__API_TOKEN`. **Since 4a:** spaces, users, sessions and personal API tokens ([api/spaces.md](api/spaces.md), [api/auth.md](api/auth.md)). |
-| Binary | One crate, one binary: `invoice serve` (runs pending migrations on start), `invoice migrate up\|status\|down`. |
+| Binary | One crate, one binary: `invoiceapp serve` (runs pending migrations on start), `invoiceapp migrate up\|status\|down`. |
+| Name | **InvoiceApp** (invoiceapp.cz, #53): crate/binary `invoiceapp`, env prefix `INVOICEAPP__` (a leftover `INVOICE__*` refuses the start), image `ghcr.io/${{ github.repository }}`. Domain vocabulary, DB/role names, buckets and storage keys keep `invoice`. Older entries below use the names of their time. |
 | Frontend | Vue 3 + TS + Vite + Tailwind + Pinia + vue-i18n (cs/en), embedded via rust-embed. |
 | Scope | Czech OSVČ / s.r.o., one own company per instance, CZK + foreign currencies. |
 | Own company & settings | In DB, edited in the UI: company profile, VAT payer flag, bank accounts per currency, VAT rates (seeded 21/12/0, user-editable), number series. |
@@ -24,7 +25,7 @@ no OAuth, no stock/task/cost-center links). Module layout follows the infra
 | Lifecycle | `draft → issued → sent → paid`, `cancelled`; an admin can unlock `issued → draft` (reason required, number kept). On issue the invoice is locked, supplier/customer snapshots are stored and the PDF is rendered and archived; issuing fails if mdcast is down. "Overdue" is derived, never stored. Payments: date + amount. |
 | PDF | mdcast `/v1/render/template` (typst + JSON data). Default design (minimalist, Inter) embedded in the binary; storage keys `design/…` override it file by file (`invoice.typ`, fonts, logo, signature). Preview of a sample invoice in Settings → Design. Invoice language cs/en per document. SPAYD QR payment code. Details: [api/pdf.md](api/pdf.md). |
 | Received invoices | Metadata entered manually + original PDF upload. |
-| File storage | `Storage` over `object_store`: filesystem (`INVOICE__STORAGE_DIR`, PVC) or S3-compatible bucket (#9); DB keeps key + sha256. |
+| File storage | `Storage` over `object_store`: filesystem (`INVOICEAPP__STORAGE_DIR`, PVC) or S3-compatible bucket (#9); DB keeps key + sha256. |
 | Contacts | One address book for customers and suppliers, ARES lookup by IČO. Invoices store a snapshot, so editing/deleting a contact never changes an invoice. ISDOC import matches contacts by IČO or creates one. |
 | Received invoices numbering | Internal evidence number from its own series (e.g. `P{YYYY}{NNNN}`) assigned on save, plus the supplier's original number and VS. |
 | Payments | Multiple (partial) payments per document (date, amount, note). Status becomes `paid` automatically when payments cover the payable amount. A DDPP is issued per received advance payment. |
@@ -76,7 +77,7 @@ PDF decisions (1d):
 - The PDF archived at issue is immutable — never re-rendered (not after cancel, not after a design change).
 - Issuing fails (nothing changes) when mdcast is unavailable; an auto-issued DDPP does not block the payment — its PDF is rendered right after the payment, or on first download.
 - SPAYD QR only on invoices and proformas paid by bank transfer with an IBAN and a positive payable amount (any currency).
-- `INVOICE__MDCAST_URL` defaults to `https://mdcast.nexial.cz`.
+- `INVOICEAPP__MDCAST_URL` defaults to `https://mdcast.nexial.cz`.
 
 Received & import decisions (1e/1f):
 - Received documents mirror the issued types (invoice, credit note, proforma, DDPP), each with its own internal number series; no draft — saved = recorded, editable and deletable at any time. Links between a received proforma, its DDPP and the final invoice are informational only (amounts as on the supplier's documents).

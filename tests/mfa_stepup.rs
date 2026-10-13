@@ -9,8 +9,8 @@ use common::auth::{As, login, member, on};
 use common::members::session_on;
 use common::mfa::{enrol, finish, fresh, require_mfa, start};
 use common::{BASE_HOST, OWNER_EMAIL, OWNER_PASSWORD, TEST_HOST, TEST_TOKEN, TestDb, router};
-use invoice::auth::users;
-use invoice::space::Role;
+use invoiceapp::auth::users;
+use invoiceapp::space::Role;
 use serde_json::{Value, json};
 
 fn fields(v: Value) -> (StatusCode, Value) {

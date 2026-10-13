@@ -100,7 +100,7 @@ export const useNumberSeriesStore = defineStore("settings/numberSeries", () => {
 });
 
 /**
- * The design is reloaded on each visit (`invoice design push` edits live behind the UI's back) and after
+ * The design is reloaded on each visit (`invoiceapp design push` edits live behind the UI's back) and after
  * every change: the server's answer is not merged, the quota and the version list move with it.
  */
 export const useDesignStore = defineStore("settings/design", () => {

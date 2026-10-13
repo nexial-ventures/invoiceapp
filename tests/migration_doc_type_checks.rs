@@ -3,7 +3,7 @@
 
 mod common;
 
-use invoice::migration::{Migrator, MigratorTrait};
+use invoiceapp::migration::{Migrator, MigratorTrait};
 use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection};
 
 /// Migrations before `m20261025_000001_doc_type_checks`.

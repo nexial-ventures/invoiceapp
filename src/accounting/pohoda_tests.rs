@@ -300,7 +300,7 @@ fn head_and_encoding() {
     );
     for part in [
         "xmlns:inv=\"http://www.stormware.cz/schema/version_2/invoice.xsd\"",
-        "id=\"invoice-2026-03-01-2026-03-31\" ico=\"44444443\" application=\"invoice\" version=\"2.0\"",
+        "id=\"invoice-2026-03-01-2026-03-31\" ico=\"44444443\" application=\"InvoiceApp\" version=\"2.0\"",
         "note=\"Export z Invoice 2026-03-01–2026-03-31\">",
     ] {
         assert!(h.contains(part), "{part}");

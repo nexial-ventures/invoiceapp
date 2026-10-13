@@ -1,5 +1,5 @@
 //! E-mail template limits (email.md, Render limits): templates render in a
-//! child process (`invoice render-template`) with memory / CPU / wall-clock
+//! child process (`invoiceapp render-template`) with memory / CPU / wall-clock
 //! limits plus fuel, recursion and output caps. A runaway template is 422
 //! `template_invalid` with a readable detail, nothing is stored and the
 //! server keeps serving; normal templates and the prefill are unchanged.
@@ -12,9 +12,9 @@ use axum::http::{Method, StatusCode};
 use common::documents::{create_issued, id};
 use common::smtp::{EmailEnv, issuable_with_emails};
 use common::{TestDb, call};
-use invoice::email::sandbox::TemplateSandbox;
-use invoice::email::templates::Template;
-use invoice::error::AppError;
+use invoiceapp::email::sandbox::TemplateSandbox;
+use invoiceapp::email::templates::Template;
+use invoiceapp::error::AppError;
 use serde_json::json;
 
 const SAVE: &str = "/api/settings/email/templates/cs";
@@ -131,7 +131,7 @@ async fn a_slow_child_is_killed() {
         }
         other => panic!("{other:?}"),
     }
-    let sandbox = TemplateSandbox::new(env!("CARGO_BIN_EXE_invoice"));
+    let sandbox = TemplateSandbox::new(env!("CARGO_BIN_EXE_invoiceapp"));
     let r = sandbox.render(&t, &ctx).await.expect("renders");
     assert_eq!((r.subject.as_str(), r.body.as_str()), ("ok", "x"));
 }

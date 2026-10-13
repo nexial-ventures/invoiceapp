@@ -99,9 +99,9 @@ fn encode(s: &str) -> String {
         .collect()
 }
 
-/// `otpauth://totp/Invoice%20({host}):{email}?secret=…&issuer=Invoice%20({host})&digits=6&period=30`.
+/// `otpauth://totp/InvoiceApp%20({host}):{email}?secret=…&issuer=InvoiceApp%20({host})&digits=6&period=30`.
 pub fn otpauth_uri(base_host: &str, email: &str, secret_b32: &str) -> String {
-    let issuer = encode(&format!("Invoice ({base_host})"));
+    let issuer = encode(&format!("InvoiceApp ({base_host})"));
     format!(
         "otpauth://totp/{issuer}:{}?secret={secret_b32}&issuer={issuer}&digits={DIGITS}&period={STEP_SECS}",
         encode(email)
@@ -187,8 +187,8 @@ mod tests {
     fn otpauth_uri_format() {
         assert_eq!(
             otpauth_uri("invoiceapp.cz", "jan+a@example.com", "ABC"),
-            "otpauth://totp/Invoice%20(invoiceapp.cz):jan%2Ba@example.com?secret=ABC\
-             &issuer=Invoice%20(invoiceapp.cz)&digits=6&period=30"
+            "otpauth://totp/InvoiceApp%20(invoiceapp.cz):jan%2Ba@example.com?secret=ABC\
+             &issuer=InvoiceApp%20(invoiceapp.cz)&digits=6&period=30"
         );
     }
 }

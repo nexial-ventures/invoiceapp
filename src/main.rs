@@ -2,19 +2,19 @@ use std::net::SocketAddr;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use invoice::app::{self, AppState};
-use invoice::ares::AresClient;
-use invoice::auth::google::Google;
-use invoice::auth::ratelimit::RateLimiter;
-use invoice::cleanup;
-use invoice::cnb::CnbClient;
-use invoice::config::{Config, DbConfig};
-use invoice::email::Mailer;
-use invoice::email::sandbox::{self, TemplateSandbox};
-use invoice::migration::{Migrator, MigratorTrait};
-use invoice::pdf::PdfRoot;
-use invoice::pdf::limits::RenderLimits;
-use invoice::storage::{Storage, sweep};
+use invoiceapp::app::{self, AppState};
+use invoiceapp::ares::AresClient;
+use invoiceapp::auth::google::Google;
+use invoiceapp::auth::ratelimit::RateLimiter;
+use invoiceapp::cleanup;
+use invoiceapp::cnb::CnbClient;
+use invoiceapp::config::{Config, DbConfig};
+use invoiceapp::email::Mailer;
+use invoiceapp::email::sandbox::{self, TemplateSandbox};
+use invoiceapp::migration::{Migrator, MigratorTrait};
+use invoiceapp::pdf::PdfRoot;
+use invoiceapp::pdf::limits::RenderLimits;
+use invoiceapp::storage::{Storage, sweep};
 use sea_orm::{Database, DatabaseConnection};
 use tracing_subscriber::EnvFilter;
 
@@ -24,9 +24,9 @@ use storage_cli::{DesignAction, StorageAction, design_cmd, storage_cmd};
 
 #[derive(Parser)]
 #[command(
-    name = "invoice",
+    name = "invoiceapp",
     version,
-    about = "Invoice management (spaces, Czech VAT)"
+    about = "InvoiceApp — invoice management (spaces, Czech VAT)"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -42,7 +42,7 @@ enum Command {
         #[command(subcommand)]
         action: MigrateAction,
     },
-    /// File storage maintenance (the configured INVOICE__STORAGE_KIND backend).
+    /// File storage maintenance (the configured INVOICEAPP__STORAGE_KIND backend).
     Storage {
         #[command(subcommand)]
         action: StorageAction,
@@ -93,7 +93,7 @@ fn main() -> Result<()> {
 async fn run(command: Command) -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-            EnvFilter::new("invoice=info,tower_http=info,sea_orm_migration=info")
+            EnvFilter::new("invoiceapp=info,tower_http=info,sea_orm_migration=info")
         }))
         .init();
 
@@ -108,7 +108,7 @@ async fn run(command: Command) -> Result<()> {
 }
 
 fn print_openapi() -> Result<()> {
-    use invoice::openapi::ApiDoc;
+    use invoiceapp::openapi::ApiDoc;
     use utoipa::OpenApi;
     let json = ApiDoc::openapi()
         .to_pretty_json()
@@ -120,7 +120,7 @@ fn print_openapi() -> Result<()> {
 async fn connect(url: &str) -> Result<DatabaseConnection> {
     Database::connect(url)
         .await
-        .context("connect to database (INVOICE__DATABASE_URL)")
+        .context("connect to database (INVOICEAPP__DATABASE_URL)")
 }
 
 async fn serve() -> Result<()> {
@@ -137,7 +137,7 @@ async fn serve() -> Result<()> {
         .context("close migration connection")?;
     let db = Database::connect(cfg.pool_options())
         .await
-        .context("connect to database (INVOICE__DATABASE_URL)")?;
+        .context("connect to database (INVOICEAPP__DATABASE_URL)")?;
 
     let storage = Storage::new(&cfg.storage)?;
     tokio::spawn(storage.clone().probe());

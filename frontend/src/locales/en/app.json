@@ -1,5 +1,5 @@
 {
-  "name": "Invoices",
+  "name": "InvoiceApp",
   "backendVersion": "Server version: {version}",
   "backendUnavailable": "Could not load the server version."
 }

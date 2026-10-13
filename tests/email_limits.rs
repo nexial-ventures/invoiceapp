@@ -10,7 +10,7 @@ use common::email_limits::{age_sends, assert_limited, post, post_on, seed_sends,
 use common::members::{B_HOST, count, join, token};
 use common::smtp::{EmailEnv, issuable_with_emails, send_body};
 use common::{TEST_TOKEN, TestDb};
-use invoice::space::Role;
+use invoiceapp::space::Role;
 use serde_json::json;
 
 use axum::http::StatusCode;

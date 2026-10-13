@@ -9,12 +9,12 @@ use common::auth::seed_space;
 use common::csvio::{HEADER, confirm, doc_id, file, row};
 use common::documents::{create_contact, set_company};
 use common::{TestDb, router};
-use invoice::document::compute::Totals;
-use invoice::document::doc_type::DocType;
-use invoice::document::line::Direction;
-use invoice::document::line::{PaymentMethod, VatMode};
-use invoice::import::model::{ContactRule, IssuedBank, Party, Plan};
-use invoice::import::{batch, lookup};
+use invoiceapp::document::compute::Totals;
+use invoiceapp::document::doc_type::DocType;
+use invoiceapp::document::line::Direction;
+use invoiceapp::document::line::{PaymentMethod, VatMode};
+use invoiceapp::import::model::{ContactRule, IssuedBank, Party, Plan};
+use invoiceapp::import::{batch, lookup};
 use rust_decimal::Decimal;
 use serde_json::json;
 

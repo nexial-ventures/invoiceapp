@@ -85,7 +85,7 @@ Cross-cutting HTTP and runtime behaviour that belongs to no single part.
   `object-src 'none'`, `frame-ancestors 'none'`, `base-uri` / `form-action 'self'`; no `sandbox`, so inline PDFs and
   `blob:` PDF tabs still open in the browser viewer), `X-Content-Type-Options: nosniff`,
   `Referrer-Policy: strict-origin-when-cross-origin` and `X-Frame-Options: DENY`.
-- **HSTS**: `Strict-Transport-Security: max-age=31536000; includeSubDomains` only when `INVOICE__PUBLIC_URL` is https
+- **HSTS**: `Strict-Transport-Security: max-age=31536000; includeSubDomains` only when `INVOICEAPP__PUBLIC_URL` is https
   — read the deployment warning about `includeSubDomains` in the [README](../../README.md) first.
 - A header the handler already set wins (the Google redirects' `no-referrer`). A frontend change that needs an inline
   script / style, `eval` or another origin must change `CSP` too.
@@ -99,11 +99,11 @@ Cross-cutting HTTP and runtime behaviour that belongs to no single part.
   `user_tokens`, `mfa_logins`, `google_flows` / `google_handoffs`, `space_invites` past `expires_at`, `email_sends`
   older than 2 days. Counts logged at debug; a failure is logged and retried the next hour.
 - **Database timeouts** (`src/db.rs`): the serve pool runs with server-side `statement_timeout` and
-  `idle_in_transaction_session_timeout` (30 s, none with `INVOICE__DB_PGBOUNCER`); migrations run first on a separate
+  `idle_in_transaction_session_timeout` (30 s, none with `INVOICEAPP__DB_PGBOUNCER`); migrations run first on a separate
   plain connection. `db::allow_idle` lifts the idle timeout for the design editor's lock transaction, and
   `space::limits::lock` lifts `statement_timeout` for the rest of its transaction, as a design upload may hold the
   quota lock across a storage put.
 - **Health**: `GET /api/health` answers on any host without auth: `{"status":"ok","version"}`, or 503
   `{"status":"degraded"}` when the DB ping fails.
-- **Start-up**: `invoice serve` probes the storage (`Storage::probe`) and only logs a failure; it shuts down
+- **Start-up**: `invoiceapp serve` probes the storage (`Storage::probe`) and only logs a failure; it shuts down
   gracefully on SIGINT / SIGTERM.

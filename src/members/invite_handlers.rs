@@ -66,11 +66,11 @@ pub struct SentInvite {
     pub url: Option<String>,
     /// `true` = the e-mail is queued (failures are logged), no `url`;
     /// `false` = no SMTP, the `url` is returned instead — or e-mail is
-    /// disabled (`INVOICE__EMAIL_DISABLED`, skipped and logged, no `url`:
+    /// disabled (`INVOICEAPP__EMAIL_DISABLED`, skipped and logged, no `url`:
     /// resend once it is enabled again).
     pub email_sent: bool,
     /// The e-mail was skipped because sending is disabled
-    /// (`INVOICE__EMAIL_DISABLED`); resend once it is enabled again.
+    /// (`INVOICEAPP__EMAIL_DISABLED`); resend once it is enabled again.
     pub email_disabled: bool,
 }
 

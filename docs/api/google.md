@@ -4,12 +4,12 @@ OpenID Connect login with Google (#6): authorization code + PKCE. Accounts and s
 and spaces: [spaces.md](spaces.md); invitations: [members.md](members.md); TOTP and step-up: [mfa.md](mfa.md).
 
 ## Config
-- `INVOICE__GOOGLE__CLIENT_ID`, `INVOICE__GOOGLE__CLIENT_SECRET`: both set → Google enabled; neither → disabled
+- `INVOICEAPP__GOOGLE__CLIENT_ID`, `INVOICEAPP__GOOGLE__CLIENT_SECRET`: both set → Google enabled; neither → disabled
   (the routes 404, the buttons are hidden); only one → startup fails.
-- `INVOICE__GOOGLE__ISSUER` (default `https://accounts.google.com`): discovery base, overridable for tests (a mock
+- `INVOICEAPP__GOOGLE__ISSUER` (default `https://accounts.google.com`): discovery base, overridable for tests (a mock
   provider). Discovery and JWKS are fetched lazily and cached (the JWKS for its `Cache-Control: max-age`, default
   1 h, at most 24 h; refetched on an unknown `kid`, at most once a minute; concurrent callers wait for one fetch).
-- **Redirect URI** = `{INVOICE__PUBLIC_URL}/api/auth/google/callback` — the only one to register in Google Cloud
+- **Redirect URI** = `{INVOICEAPP__PUBLIC_URL}/api/auth/google/callback` — the only one to register in Google Cloud
   Console. Google does not allow wildcard redirect URIs, so the callback is always on the **base host**.
 - `GET /api/context` gains `google: boolean`.
 
@@ -51,7 +51,7 @@ redirects with `unavailable` too (logged), never a JSON 500.
 2. Else a user with the same e-mail (lowercased) → **linked automatically** (`sub` stored; Google's verified e-mail is
    the proof). Their password, TOTP and memberships are unchanged.
 3. Else **new account** (verified, no password, display name = the Google `name`, else the e-mail's local part)
-   when `INVOICE__REGISTRATION` is true, or when the purpose is `invite` and the invitation's e-mail equals the Google
+   when `INVOICEAPP__REGISTRATION` is true, or when the purpose is `invite` and the invitation's e-mail equals the Google
    e-mail. Otherwise `not_allowed`.
 - Disabled user → `disabled`. A `sub` already linked to another user (purpose `link`) → `already_linked`.
 - Only a **verified** user may link a Google account. A `sub` linked while the address was unproven is removed when
@@ -143,7 +143,7 @@ redirects with `unavailable` too (logged), never a JSON 500.
   host, without a code exchange. Provider `error=access_denied` → `cancelled`, any other `error` or a missing `code`
   → `invalid`. Flows and handoffs expired are purged when a new flow starts and by the hourly expired-row purge.
 - **Invitation token in the redirects**: rows store the invitation's sha256 (as `space_invites`) plus the token
-  sealed with AES-256-GCM under `INVOICE__SECRET_KEY` (associated data = the space id), only to build
+  sealed with AES-256-GCM under `INVOICEAPP__SECRET_KEY` (associated data = the space id), only to build
   `/invite?token=…&google_error=`.
 - **Handoff**: used up only on its own host (another host → `invalid` without using it up); used → `invalid`;
   expired → `expired`. It carries the verified claims (`sub`, e-mail, name), the invitation hash (invite) and the

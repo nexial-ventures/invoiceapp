@@ -42,7 +42,7 @@ fn is_totp_shape(code: &str) -> bool {
 /// in `buckets` first (429 when used up) and given back on success. A user
 /// without TOTP has no valid code.
 ///
-/// A TOTP secret that does not decrypt (`INVOICE__SECRET_KEY` changed) is
+/// A TOTP secret that does not decrypt (`INVOICEAPP__SECRET_KEY` changed) is
 /// logged and answered as a wrong code **without** a reservation, so
 /// recovery codes — which need no decryption — stay usable.
 pub async fn check(
@@ -61,7 +61,7 @@ pub async fn check(
         let Ok(secret) = seal::open(&v.key, user_id, sealed) else {
             tracing::error!(
                 user = %user_id,
-                "TOTP secret cannot be decrypted (INVOICE__SECRET_KEY changed?); only recovery codes work"
+                "TOTP secret cannot be decrypted (INVOICEAPP__SECRET_KEY changed?); only recovery codes work"
             );
             return Ok(false);
         };

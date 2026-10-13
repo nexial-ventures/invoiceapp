@@ -3,7 +3,7 @@
 
 mod common;
 
-use invoice::db::{SERVER_TIMEOUT, pool_options};
+use invoiceapp::db::{SERVER_TIMEOUT, pool_options};
 use sea_orm::{ConnectionTrait, Database, Statement, TransactionTrait};
 
 async fn show(db: &impl ConnectionTrait, setting: &str) -> String {

@@ -5,8 +5,8 @@ use axum::Router;
 use axum::body::Body;
 use axum::extract::Request;
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
-use invoice::auth::{crypto, session, users};
-use invoice::space::{Role, SpaceId};
+use invoiceapp::auth::{crypto, session, users};
+use invoiceapp::space::{Role, SpaceId};
 use sea_orm::{ActiveModelTrait, ConnectionTrait, DatabaseConnection, Set};
 use serde_json::{Value, json};
 use uuid::Uuid;
@@ -29,7 +29,7 @@ pub async fn user_id(conn: &DatabaseConnection, email: &str) -> Uuid {
 
 /// Add an existing user to `space` with `role`.
 pub async fn join(conn: &DatabaseConnection, space: SpaceId, user: Uuid, role: Role) {
-    invoice::space::entity::member::ActiveModel {
+    invoiceapp::space::entity::member::ActiveModel {
         space_id: Set(space.uuid()),
         user_id: Set(user),
         role: Set(role.as_str().into()),

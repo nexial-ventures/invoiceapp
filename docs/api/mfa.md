@@ -5,7 +5,7 @@ Optional TOTP second factor per **user** (global, like the password), and a per-
 [members.md](members.md).
 
 ## Config
-- `INVOICE__SECRET_KEY` (**required**): 32 bytes, base64. Encrypts TOTP secrets at rest (AES-256-GCM, random
+- `INVOICEAPP__SECRET_KEY` (**required**): 32 bytes, base64. Encrypts TOTP secrets at rest (AES-256-GCM, random
   96-bit nonce per value) and keys the HMAC of recovery codes. Missing / wrong length → startup fails. Losing or
   changing it makes every enrolled TOTP unusable (users recover with a recovery code, then enrol again). No
   rotation in 4c.
@@ -13,7 +13,7 @@ Optional TOTP second factor per **user** (global, like the password), and a per-
 ## TOTP parameters
 RFC 6238: SHA-1, 6 digits, 30 s step, 20-byte random secret (base32 in the URI). Accepted window: the current step
 ±1. **Replay protection:** the user's last accepted step is stored; a code for a step ≤ that one is refused.
-`otpauth://totp/Invoice%20({base host}):{email}?secret=…&issuer=Invoice%20({base host})&digits=6&period=30`.
+`otpauth://totp/InvoiceApp%20({base host}):{email}?secret=…&issuer=InvoiceApp%20({base host})&digits=6&period=30`.
 
 ## Recovery codes
 10 codes `xxxxx-xxxxx` (base32 lowercase, 50 bits), shown **once** at enable / regenerate; stored as
@@ -97,7 +97,7 @@ For a user with TOTP these also require `code` (TOTP or recovery) next to the pa
   accept outcomes, step-up on every listed route.
 
 ## Clarifications (as implemented)
-- **Secret key**: `INVOICE__SECRET_KEY` = standard base64 (padded or not, surrounding whitespace trimmed) of exactly
+- **Secret key**: `INVOICEAPP__SECRET_KEY` = standard base64 (padded or not, surrounding whitespace trimmed) of exactly
   32 bytes; missing, empty, not base64 or another length → the start is refused with a message naming the variable.
   Two subkeys are derived from it (HMAC-SHA256 over fixed labels): one for AES-256-GCM, one for the recovery-code
   HMAC — "keyed by the secret key" in that sense. The sealed value is `nonce (12) ‖ ciphertext ‖ tag` (bytea) with
@@ -105,7 +105,7 @@ For a user with TOTP these also require `code` (TOTP or recovery) next to the pa
   not decrypt (key changed, damaged row) is logged at `error` per attempt and a TOTP code is answered as **wrong
   without a reservation in the code bucket** (no 500, no lockout); recovery codes need no decryption and keep
   working **as long as the key is the same**. **Contract correction:** the recovery-code HMAC is keyed by
-  `INVOICE__SECRET_KEY` too, so *changing* the key also invalidates every recovery code — the Config note "users
+  `INVOICEAPP__SECRET_KEY` too, so *changing* the key also invalidates every recovery code — the Config note "users
   recover with a recovery code" does not hold for a changed key; such users need TOTP cleared in the database
   (`UPDATE users SET totp_secret = NULL …`, `DELETE FROM recovery_codes …`). Treat the key as permanent.
 - **Storage** (migration `m20261018_000001_mfa`): `users.totp_secret` (`NOT NULL` = TOTP on), `totp_pending` +

@@ -7,7 +7,7 @@ use common::auth::{As, login, on};
 use common::members::{B_HOST, count, join, session_on, token};
 use common::mfa::{base32_decode, code_now, enrol, fresh, require_mfa};
 use common::{BASE_HOST, OWNER_EMAIL, OWNER_PASSWORD, TEST_HOST, TEST_TOKEN, TestDb, router};
-use invoice::space::Role;
+use invoiceapp::space::Role;
 use sea_orm::ConnectionTrait;
 use serde_json::{Value, json};
 
@@ -75,8 +75,8 @@ async fn setup_then_enable() {
     assert_eq!(
         j["otpauthUri"],
         json!(format!(
-            "otpauth://totp/Invoice%20(localhost):{OWNER_EMAIL}?secret={b32}\
-             &issuer=Invoice%20(localhost)&digits=6&period=30"
+            "otpauth://totp/InvoiceApp%20(localhost):{OWNER_EMAIL}?secret={b32}\
+             &issuer=InvoiceApp%20(localhost)&digits=6&period=30"
         ))
     );
     // A new setup replaces the pending secret: the first one's codes fail.

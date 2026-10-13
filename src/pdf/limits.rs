@@ -17,7 +17,7 @@ use crate::auth::ratelimit::{PREVIEW_SPACE, RateLimiter};
 use crate::error::AppError;
 use crate::space::SpaceId;
 
-/// `INVOICE__MDCAST_CONCURRENCY` default.
+/// `INVOICEAPP__MDCAST_CONCURRENCY` default.
 pub const DEFAULT_CONCURRENCY: u32 = 4;
 /// Longest wait for a free render slot before 503 `pdf_unavailable` (`busy`).
 pub const QUEUE_WAIT: Duration = Duration::from_secs(10);

@@ -48,7 +48,7 @@ async fn list_export_filters_and_exclusions() {
 
     let (status, headers, _) = get_raw(&app, "/api/export/csv?direction=issued").await;
     assert_eq!(status, StatusCode::OK);
-    let today = invoice::time::today();
+    let today = invoiceapp::time::today();
     assert_eq!(
         headers["content-disposition"],
         format!("attachment; filename=\"doklady-issued-{today}.csv\"")

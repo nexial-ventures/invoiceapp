@@ -6,10 +6,10 @@ mod common;
 use bytes::Bytes;
 use common::storage::TestStorage;
 use futures_util::TryStreamExt as _;
-use invoice::error::AppError;
-use invoice::pdf::design::{self, Cache, MAX_FILE_BYTES, Source};
-use invoice::storage::transfer::{self, Report};
-use invoice::storage::{Error, sha256_hex};
+use invoiceapp::error::AppError;
+use invoiceapp::pdf::design::{self, Cache, MAX_FILE_BYTES, Source};
+use invoiceapp::storage::transfer::{self, Report};
+use invoiceapp::storage::{Error, sha256_hex};
 
 macro_rules! suite {
     ($($case:ident),* $(,)?) => {

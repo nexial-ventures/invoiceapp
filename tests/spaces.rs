@@ -5,7 +5,7 @@ mod common;
 use axum::http::{Method, StatusCode};
 use common::auth::{As, login, member, on, seed_space};
 use common::{BASE_HOST, OWNER_EMAIL, OWNER_PASSWORD, TEST_HOST, TEST_TOKEN, TestDb, router};
-use invoice::space::Role;
+use invoiceapp::space::Role;
 use serde_json::json;
 
 const NOT_FOUND: (StatusCode, &str) = (StatusCode::NOT_FOUND, "not_found");

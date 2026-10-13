@@ -8,7 +8,7 @@ use axum::http::{Method, StatusCode};
 use common::auth::{As, member, on, status, store_token};
 use common::mcp::tool_as;
 use common::{TEST_HOST, TEST_TOKEN, TestDb, router};
-use invoice::space::Role;
+use invoiceapp::space::Role;
 use sea_orm::ConnectionTrait;
 use serde_json::{Value, json};
 
@@ -224,7 +224,7 @@ async fn token_role_is_capped_by_the_membership() {
     let db = TestDb::new().await;
     let app = router(db.conn.clone());
     // An accountant token of the owner: read only.
-    let (low, _) = invoice::auth::crypto::new_api_token().expect("token");
+    let (low, _) = invoiceapp::auth::crypto::new_api_token().expect("token");
     store_token(&db.conn, db.space, db.user_id, Role::Accountant, &low).await;
     assert_eq!(
         status(&app, Method::GET, "/api/contacts", &low, None).await,

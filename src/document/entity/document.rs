@@ -65,7 +65,7 @@ pub struct Model {
     pub payment_id: Option<Uuid>,
     /// Credit notes only.
     pub correction_reason: Option<String>,
-    /// Archived PDF, relative to `INVOICE__STORAGE_DIR`; immutable once set.
+    /// Archived PDF, relative to `INVOICEAPP__STORAGE_DIR`; immutable once set.
     pub pdf_path: Option<String>,
     pub pdf_sha256: Option<String>,
     pub pdf_rendered_at: Option<DateTimeWithTimeZone>,
@@ -81,7 +81,7 @@ pub struct Model {
     /// `{ key: value }` of custom fields (see `document::custom_fields`).
     pub custom_fields: Json,
     /// Uploaded original PDF (received / imported documents), relative to
-    /// `INVOICE__STORAGE_DIR`.
+    /// `INVOICEAPP__STORAGE_DIR`.
     pub original_path: Option<String>,
     pub original_sha256: Option<String>,
     pub original_size: Option<i64>,

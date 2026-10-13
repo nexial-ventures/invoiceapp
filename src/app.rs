@@ -28,24 +28,24 @@ pub struct AppState {
     pub cnb: CnbClient,
     /// mdcast + storage; `pdf.space(id)` is the per-space view every route uses.
     pub pdf: PdfRoot,
-    /// `None` when SMTP is not configured (`INVOICE__SMTP__HOST` unset).
+    /// `None` when SMTP is not configured (`INVOICEAPP__SMTP__HOST` unset).
     pub email: Option<Mailer>,
-    /// `INVOICE__PUBLIC_URL`: base host, scheme, port.
+    /// `INVOICEAPP__PUBLIC_URL`: base host, scheme, port.
     pub public: PublicUrl,
-    /// `INVOICE__EMAIL_DISABLED`: every outbound e-mail is refused / skipped.
+    /// `INVOICEAPP__EMAIL_DISABLED`: every outbound e-mail is refused / skipped.
     pub email_disabled: bool,
-    /// `INVOICE__REGISTRATION`.
+    /// `INVOICEAPP__REGISTRATION`.
     pub registration: bool,
-    /// `INVOICE__MAX_SPACES_PER_USER`.
+    /// `INVOICEAPP__MAX_SPACES_PER_USER`.
     pub max_spaces_per_user: u32,
-    /// `INVOICE__TRUST_FORWARDED`.
+    /// `INVOICEAPP__TRUST_FORWARDED`.
     pub trust_forwarded: bool,
-    /// `INVOICE__SECRET_KEY`: TOTP secrets at rest, recovery-code HMAC.
+    /// `INVOICEAPP__SECRET_KEY`: TOTP secrets at rest, recovery-code HMAC.
     pub secret_key: SecretKey,
     pub limiter: RateLimiter,
     /// Renders e-mail templates in a limited child process.
     pub templates: crate::email::sandbox::TemplateSandbox,
-    /// `INVOICE__GOOGLE__*`; `None` = Sign in with Google disabled.
+    /// `INVOICEAPP__GOOGLE__*`; `None` = Sign in with Google disabled.
     pub google: Option<auth::google::Google>,
 }
 

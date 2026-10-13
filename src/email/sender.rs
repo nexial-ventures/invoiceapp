@@ -90,7 +90,7 @@ impl Mailer {
 }
 
 fn tls_params(host: &str) -> anyhow::Result<TlsParameters> {
-    TlsParameters::new(host.to_string()).context("configure SMTP TLS (INVOICE__SMTP__HOST)")
+    TlsParameters::new(host.to_string()).context("configure SMTP TLS (INVOICEAPP__SMTP__HOST)")
 }
 
 /// The message as sent: `Bcc` goes to the envelope only (lettre drops the

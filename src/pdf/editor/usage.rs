@@ -57,7 +57,7 @@ pub async fn ensure_usage(
     Ok(())
 }
 
-/// Every space, after `invoice storage migrate` copied keys that may hold
+/// Every space, after `invoiceapp storage migrate` copied keys that may hold
 /// their files (`spaces/{id}/design…`); returns how many were recorded.
 pub async fn refresh_all(db: &DatabaseConnection, root: &Storage) -> Result<usize, AppError> {
     let spaces = space::Entity::find().all(db).await?;

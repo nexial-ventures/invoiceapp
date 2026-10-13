@@ -68,7 +68,7 @@ async fn every_type_in_both_directions() {
     has(
         &xml,
         &[
-            "ico=\"44444443\" application=\"invoice\" version=\"2.0\"",
+            "ico=\"44444443\" application=\"InvoiceApp\" version=\"2.0\"",
             "note=\"Export z Invoice 2026-01-01–2026-01-31\"",
         ],
     );

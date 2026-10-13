@@ -1,4 +1,4 @@
-# Invoice — run `make` (or `make help`) for the target list.
+# InvoiceApp — run `make` (or `make help`) for the target list.
 
 SHELL := /usr/bin/env bash
 
@@ -12,7 +12,7 @@ export TEST_S3_ENDPOINT TEST_S3_BUCKET TEST_S3_REGION TEST_S3_ACCESS_KEY_ID TEST
 TEST_DATABASE_URL ?= postgres://invoice:invoice@localhost:5432/invoice_test
 export TEST_DATABASE_URL
 
-IMAGE ?= ghcr.io/xmiksay/invoice:dev
+IMAGE ?= ghcr.io/xmiksay/invoiceapp:dev
 
 .DEFAULT_GOAL := help
 
@@ -24,7 +24,7 @@ help: ## Show this help
 build: frontend-build ## Build the SPA, then the release binary (SPA embedded)
 	cargo build --release
 
-run: ## Run the server (cargo run -- serve; needs INVOICE__* env)
+run: ## Run the server (cargo run -- serve; needs INVOICEAPP__* env)
 	cargo run -- serve
 
 dev-server: ## Run the backend for development (debug build, serves frontend/dist from disk)
@@ -40,7 +40,7 @@ frontend-install: ## Install frontend dependencies (npm ci)
 frontend-build: ## Build the SPA into frontend/dist
 	npm --prefix frontend run build
 
-# The SPA's wire types are generated from the backend's OpenAPI document (`invoice openapi`).
+# The SPA's wire types are generated from the backend's OpenAPI document (`invoiceapp openapi`).
 API_SCHEMA := frontend/src/api/schema.d.ts
 # `openapi-typescript <out>` (paths relative to frontend/); flags after the input, or one eats it.
 OPENAPI_TS = @mkdir -p target && cargo run --quiet -- openapi > target/openapi.json && \
@@ -87,10 +87,10 @@ test-frontend: ## Frontend tests
 test: test-backend test-frontend ## All tests
 
 # ===== Migrations ============================================================
-migrate: ## Apply pending migrations (needs INVOICE__DATABASE_URL)
+migrate: ## Apply pending migrations (needs INVOICEAPP__DATABASE_URL)
 	cargo run -- migrate up
 
-migrate-status: ## Show migration status (needs INVOICE__DATABASE_URL)
+migrate-status: ## Show migration status (needs INVOICEAPP__DATABASE_URL)
 	cargo run -- migrate status
 
 # ===== Docker / housekeeping =================================================

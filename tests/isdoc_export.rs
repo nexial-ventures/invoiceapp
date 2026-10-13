@@ -172,12 +172,12 @@ async fn states_and_plain_isdoc_without_pdf() {
     let issued = create_issued(&app, base).await;
     let down = env.router_at(db.conn.clone(), &common::documents::dead_url());
     // Drop the archive so the export would have to render it.
-    let row = invoice::document::entity::document::Entity::find_by_id(
+    let row = invoiceapp::document::entity::document::Entity::find_by_id(
         id(&issued).parse::<uuid::Uuid>().expect("uuid"),
     );
     use sea_orm::{ActiveModelTrait, EntityTrait, Set};
     let model = row.one(&db.conn).await.expect("query").expect("row");
-    let mut active: invoice::document::entity::document::ActiveModel = model.into();
+    let mut active: invoiceapp::document::entity::document::ActiveModel = model.into();
     active.pdf_path = Set(None);
     active.update(&db.conn).await.expect("update");
     let (status, headers, _) =
@@ -318,14 +318,14 @@ async fn bulk_export_skips_a_failing_document() {
     let good = create_issued(&app, base.clone()).await;
     let bad = create_issued(&app, base).await;
     // A broken row (no supplier snapshot) cannot be exported.
-    let row = invoice::document::entity::document::Entity::find_by_id(
+    let row = invoiceapp::document::entity::document::Entity::find_by_id(
         id(&bad).parse::<uuid::Uuid>().expect("uuid"),
     )
     .one(&db.conn)
     .await
     .expect("query")
     .expect("row");
-    let mut active: invoice::document::entity::document::ActiveModel = row.into();
+    let mut active: invoiceapp::document::entity::document::ActiveModel = row.into();
     active.supplier_snapshot = Set(None);
     active.update(&db.conn).await.expect("update");
 

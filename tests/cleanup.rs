@@ -1,9 +1,9 @@
-//! The hourly purge of expired rows (`invoice::cleanup`).
+//! The hourly purge of expired rows (`invoiceapp::cleanup`).
 
 mod common;
 
 use common::TestDb;
-use invoice::cleanup::{Purged, purge};
+use invoiceapp::cleanup::{Purged, purge};
 use sea_orm::{ConnectionTrait, Statement};
 
 /// One expired and one live row per table (sessions: absolute and idle

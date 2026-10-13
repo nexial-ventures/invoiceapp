@@ -1,4 +1,4 @@
-//! The kill switch `INVOICE__EMAIL_DISABLED` (email.md): e-mails sent on
+//! The kill switch `INVOICEAPP__EMAIL_DISABLED` (email.md): e-mails sent on
 //! behalf of a space are refused with 503 `email_disabled`; account e-mails
 //! (verify, reset, invitations) are skipped and logged.
 

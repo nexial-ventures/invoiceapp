@@ -54,7 +54,7 @@ expires_at; unique (space_id, email)).
   - `accountExists` true → `password` must be that account's password (failures count in the login bucket, 401
     `invalid_credentials` / 429); `displayName` ignored. A disabled account → 401 `invalid_credentials`.
   - `accountExists` false → creates the user with that e-mail (**verified** — the link proved it), `displayName`
-    required (1–100), `password` 12–200. Works even when `INVOICE__REGISTRATION` is false.
+    required (1–100), `password` 12–200. Works even when `INVOICEAPP__REGISTRATION` is false.
   - Creates the membership with the invited role, deletes the invitation, creates the session — one transaction.
     Already a member meanwhile → the invitation is consumed, the role is not changed, the session is created.
   - Invalid / expired / used token → 422 `token: invalid`.
@@ -131,7 +131,7 @@ expires_at; unique (space_id, email)).
 - `POST` / `resend` answer `{ …item, emailSent, url? }`. With SMTP: `url` is **omitted** (the link exists only in
   the e-mail), `emailSent: true` = queued in a background task, a failure is logged at `error` (`false` only when
   the stored address cannot be used as a recipient — logged; resend after fixing it). Without SMTP: `emailSent:
-  false`, nothing is attempted, `url` = `{space url}/invite?token=…`. With SMTP but `INVOICE__EMAIL_DISABLED=true`
+  false`, nothing is attempted, `url` = `{space url}/invite?token=…`. With SMTP but `INVOICEAPP__EMAIL_DISABLED=true`
   ([email.md](email.md)) the invitation is created, the e-mail skipped and logged at `warn`, `emailSent: false` and
   **no `url`** (the link must still only reach the invitee's mailbox), `emailDisabled: true` (the UI says sending is
   disabled) — resend once e-mail is enabled again. `emailDisabled` is `false` otherwise. Subject `{inviter} vás zve do {space}` / `{inviter} invites you to {space}` (inviter = the sender's
@@ -167,10 +167,10 @@ expires_at; unique (space_id, email)).
     (the start is refused), so only admins of existing spaces — people the operator let in — can do this.
   - *No instance-wide e-mail limit*: e-mail is no longer unlimited — invitations count in the per-space and
     per-user e-mail limits (100 / day, 20 / h each, [spaces.md](spaces.md#limits)), a user owns at most
-    `INVOICE__MAX_SPACES_PER_USER` (3) spaces they created, and the operator has the kill switch
-    `INVOICE__EMAIL_DISABLED`. What remains: many registered accounts together (each bounded) can still make the
+    `INVOICEAPP__MAX_SPACES_PER_USER` (3) spaces they created, and the operator has the kill switch
+    `INVOICEAPP__EMAIL_DISABLED`. What remains: many registered accounts together (each bounded) can still make the
     instance send a lot of mail; there is no global total. Mitigation: watch `email_sends`, open registration only
-    to vetted users at first, or keep `INVOICE__REGISTRATION=false` — it disables registration **and** space
+    to vetted users at first, or keep `INVOICEAPP__REGISTRATION=false` — it disables registration **and** space
     creation (403 `space_creation_disabled`, also for invited accounts), so only people invited by an existing
     space's admins can enter, and only into those spaces.
 - New error code: 409 `last_owner` (remove, leave). Migration `m20261017_000001_space_invites` (`space_invites`,

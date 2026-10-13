@@ -8,7 +8,7 @@ use sea_orm_migration::prelude::*;
 pub struct Migration;
 
 const UP: &str = r#"
--- Secrets are AES-256-GCM sealed under INVOICE__SECRET_KEY: nonce (12) || ciphertext || tag.
+-- Secrets are AES-256-GCM sealed under INVOICEAPP__SECRET_KEY: nonce (12) || ciphertext || tag.
 ALTER TABLE users
     ADD COLUMN totp_secret             bytea,
     ADD COLUMN totp_pending            bytea,

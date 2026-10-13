@@ -1,4 +1,4 @@
-//! `INVOICE__GOOGLE__*`: client id + secret (both or neither) and the
+//! `INVOICEAPP__GOOGLE__*`: client id + secret (both or neither) and the
 //! issuer (discovery base, default Google).
 
 use anyhow::{Context, Result, bail};
@@ -54,7 +54,7 @@ impl GoogleConfig {
             (Some(id), Some(secret)) => (id, Secret::new(secret)),
             (None, None) => return Ok(None),
             _ => bail!(
-                "INVOICE__GOOGLE__CLIENT_ID and INVOICE__GOOGLE__CLIENT_SECRET must be set together"
+                "INVOICEAPP__GOOGLE__CLIENT_ID and INVOICEAPP__GOOGLE__CLIENT_SECRET must be set together"
             ),
         };
         let issuer = set(raw.issuer).unwrap_or_else(|| DEFAULT_ISSUER.to_string());
@@ -71,7 +71,7 @@ impl GoogleConfig {
 /// `https://…`, or `http://` to a loopback host (a local mock provider).
 fn check_issuer(issuer: &str) -> Result<()> {
     let url = reqwest::Url::parse(issuer)
-        .with_context(|| format!("INVOICE__GOOGLE__ISSUER is not a URL: {issuer:?}"))?;
+        .with_context(|| format!("INVOICEAPP__GOOGLE__ISSUER is not a URL: {issuer:?}"))?;
     let host = url.host_str().unwrap_or_default();
     let bare = host.trim_start_matches('[').trim_end_matches(']');
     let loopback = bare.eq_ignore_ascii_case("localhost")
@@ -84,7 +84,7 @@ fn check_issuer(issuer: &str) -> Result<()> {
         _ => false,
     };
     if !ok || url.query().is_some() || url.fragment().is_some() {
-        bail!("INVOICE__GOOGLE__ISSUER must be an https URL (http only for a loopback host)");
+        bail!("INVOICEAPP__GOOGLE__ISSUER must be an https URL (http only for a loopback host)");
     }
     Ok(())
 }
@@ -159,8 +159,8 @@ mod tests {
             )
         };
         let raw = crate::config::build(env(&[
-            ("INVOICE__GOOGLE__CLIENT_ID", "cid"),
-            ("INVOICE__GOOGLE__CLIENT_SECRET", "cs"),
+            ("INVOICEAPP__GOOGLE__CLIENT_ID", "cid"),
+            ("INVOICEAPP__GOOGLE__CLIENT_SECRET", "cs"),
         ]))
         .unwrap();
         let cfg = GoogleConfig::from_config(raw).unwrap().expect("enabled");
@@ -168,7 +168,7 @@ mod tests {
             (cfg.client_id.as_str(), cfg.client_secret.expose().as_str()),
             ("cid", "cs")
         );
-        let raw = crate::config::build(env(&[("INVOICE__GOOGLE__CLIENT_ID", "cid")])).unwrap();
+        let raw = crate::config::build(env(&[("INVOICEAPP__GOOGLE__CLIENT_ID", "cid")])).unwrap();
         assert!(GoogleConfig::from_config(raw).is_err());
     }
 }

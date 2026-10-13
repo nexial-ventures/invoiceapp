@@ -54,7 +54,7 @@ pub struct Attachments {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct Prefill {
     pub configured: bool,
-    /// `INVOICE__EMAIL_DISABLED`: sending → 503 `email_disabled`.
+    /// `INVOICEAPP__EMAIL_DISABLED`: sending → 503 `email_disabled`.
     pub disabled: bool,
     pub locale: String,
     pub to: Vec<String>,

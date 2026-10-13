@@ -10,8 +10,8 @@ use common::auth::{As, login, on, seed_space};
 use common::members::{count, join, token};
 use common::mfa::enrol;
 use common::{BASE_HOST, OWNER_EMAIL, OWNER_PASSWORD, TEST_HOST, TEST_TOKEN, TestDb, router};
-use invoice::auth::users::{self, TokenKind};
-use invoice::space::Role;
+use invoiceapp::auth::users::{self, TokenKind};
+use invoiceapp::space::Role;
 use sea_orm::ConnectionTrait;
 use serde_json::{Value, json};
 

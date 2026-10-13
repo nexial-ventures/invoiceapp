@@ -56,7 +56,7 @@ pub fn key(path: &str) -> String {
     format!("{DESIGN_PREFIX}/{path}")
 }
 
-/// Remove the custom file `path` (`invoice design rm`); `false` when none is
+/// Remove the custom file `path` (`invoiceapp design rm`); `false` when none is
 /// stored (a built-in default cannot be removed).
 pub async fn remove(storage: &Storage, path: &str) -> Result<bool, crate::storage::Error> {
     let key = key(path);

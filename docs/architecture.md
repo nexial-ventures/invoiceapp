@@ -1,20 +1,20 @@
 # Architecture
 
-One crate, one binary (`invoice`), one Postgres database, one embedded SPA. This file is the map: what each module
+One crate, one binary (`invoiceapp`), one Postgres database, one embedded SPA. This file is the map: what each module
 is, its key types, and where its contract lives. Behaviour, routes, roles, limits and error codes are specified in
 [`api/`](api/README.md) (one file per area; each ends with "Clarifications (as implemented)").
 
 ```
-invoice serve            → migrations up → Axum server (API + SPA) on INVOICE__BIND
-invoice migrate up|status|down [-n N]
-invoice storage migrate --from-dir <dir> [--design-dir <dir>]   → copy an fs archive (+ old design dir) into the configured storage
-invoice storage sweep [--dry-run] [--force]                       → delete unreferenced document objects older than 1 h (needs the database; guarded)
-invoice design push <dir> | pull <dir> | ls | rm <path>… --space <slug>  → design overrides of a space (`spaces/{id}/design/…`)
-invoice openapi          → print the OpenAPI document (no config needed; `make frontend-api-types`)
+invoiceapp serve            → migrations up → Axum server (API + SPA) on INVOICEAPP__BIND
+invoiceapp migrate up|status|down [-n N]
+invoiceapp storage migrate --from-dir <dir> [--design-dir <dir>]   → copy an fs archive (+ old design dir) into the configured storage
+invoiceapp storage sweep [--dry-run] [--force]                       → delete unreferenced document objects older than 1 h (needs the database; guarded)
+invoiceapp design push <dir> | pull <dir> | ls | rm <path>… --space <slug>  → design overrides of a space (`spaces/{id}/design/…`)
+invoiceapp openapi          → print the OpenAPI document (no config needed; `make frontend-api-types`)
 ```
 
-`storage` needs only the storage settings (with `INVOICE__DATABASE_URL` it also re-records every space's design
-storage usage afterwards); `design` also needs `INVOICE__DATABASE_URL` (slug → space id). There is no CLI user /
+`storage` needs only the storage settings (with `INVOICEAPP__DATABASE_URL` it also re-records every space's design
+storage usage afterwards); `design` also needs `INVOICEAPP__DATABASE_URL` (slug → space id). There is no CLI user /
 space creation: bootstrap = registration.
 
 ## Backend (`src/`)
@@ -31,7 +31,7 @@ error files. Every repo takes the `SpaceId` of the request's role extractor ([ap
 | `main.rs` | clap CLI (`storage …` / `design …` in `main_storage.rs`; the hidden `render-template` child of `email::sandbox`, dispatched before any runtime or logger), tracing init, storage reachability probe at start (logged only), the hourly purge (`cleanup::run`), the daily orphan sweep (`storage::sweep`, first run 1 h after start), serves with `ConnectInfo` (client IP), graceful shutdown on SIGINT / SIGTERM | this file |
 | `lib.rs` | module root; lets integration tests build the router | — |
 | `app.rs` | `AppState` (db, ARES, ČNB, `PdfRoot`, `Option<Mailer>`, `PublicUrl`, switches, `SecretKey`, rate limiter, `TemplateSandbox`, `Option<Google>`); `router(state)`: health / OpenAPI on any host, the rest classified by host, then public auth, account, base-host, invitation-accept and space-host route groups | [api/spaces.md](api/spaces.md), [api/auth.md](api/auth.md) |
-| `config.rs` | `config` crate, prefix `INVOICE`, separator `__`; `DbConfig` (migrate, design) and the full serve config; validation refuses the start (see [Configuration](#configuration)); tests in `config_tests.rs` | [Configuration](#configuration) |
+| `config.rs` | `config` crate, prefix `INVOICEAPP`, separator `__`; `DbConfig` (migrate, design) and the full serve config; validation refuses the start (see [Configuration](#configuration)); tests in `config_tests.rs`, removed/renamed settings in `config_legacy_tests.rs` | [Configuration](#configuration) |
 | `db.rs` | `advisory_xact_lock(key)`, `allow_idle` (lifts the idle-in-transaction timeout for one transaction), `pool_options` (size, acquire timeout, server-side timeouts) | [api/README.md](api/README.md#clarifications-as-implemented) |
 | `cleanup.rs` | hourly purge of expired rows (sessions, tokens, pending logins, Google flows, invitations, old `email_sends`) | [api/README.md](api/README.md#clarifications-as-implemented) |
 | `error.rs` | `AppError` → `{"code"}` (+ `fields` on 422, + `detail` where a contract allows); `log()` / `body()` shared by REST and MCP; DB conversions in `error_convert.rs`, `FieldErrors` in `error_fields.rs`; internal causes logged only | [api/README.md](api/README.md#errors) and each part |
@@ -41,7 +41,7 @@ error files. Every repo takes the `SpaceId` of the request's role extractor ([ap
 | `paging.rs` | `ListQuery` (`q` / `limit` / `offset` → `normalized()`), `like_pattern` (escaped ILIKE) | [api/README.md](api/README.md#list-shape) |
 | `time.rs` | `today()` / `current_year()` in Europe/Prague | [api/documents.md](api/documents.md) |
 | `currency.rs` | `LOCAL_CURRENCY` (`CZK`, the accounting currency) + `is_local` | — |
-| `secret.rs` | `Secret<T>` (redacted `Debug`), `SecretKey` (`INVOICE__SECRET_KEY`) | [api/mfa.md](api/mfa.md) |
+| `secret.rs` | `Secret<T>` (redacted `Debug`), `SecretKey` (`INVOICEAPP__SECRET_KEY`) | [api/mfa.md](api/mfa.md) |
 | `health.rs`, `openapi.rs`, `spa.rs` | `GET /api/health` (DB ping); utoipa document (`cookie` / `bearer` schemes); rust-embed of `frontend/dist` (client routes → `index.html`, `/assets/*` immutable, 503 if not built) | — |
 | `security_headers.rs`, `compression.rs` | outermost middleware: CSP, HSTS (https only) and friends on every response; brotli / gzip of text bodies, `Identity(..)` for fresh secrets | [api/README.md](api/README.md#clarifications-as-implemented) |
 | `layering_tests.rs` | source-text checks: `document::handlers` used only by `document/mod.rs` and `openapi.rs`; `document/wire` names no repo / entity / DB types | this file |
@@ -120,42 +120,43 @@ Every route, its role and its wire format is in [`api/`](api/README.md). Summary
 
 | Env var | Required | Default | Notes |
 |---|---|---|---|
-| `INVOICE__DATABASE_URL` | yes | — | Postgres URL |
-| `INVOICE__DB_MAX_CONNECTIONS` | no | `20` | serve pool size (≥ 1); acquire timeout 5 s; every pooled connection runs with `statement_timeout` and `idle_in_transaction_session_timeout` 30 s (migrations use their own connection without them) |
-| `INVOICE__DB_PGBOUNCER` | no | `false` | `true` behind a transaction-pooling PgBouncer: no startup `options`, so the pool runs **without** the two 30 s timeouts (PgBouncer refuses untracked options and silently drops tracked ones Postgres does not report) |
-| `INVOICE__PUBLIC_URL` | serve | — | `http(s)://host[:port]`: base host (registration, login, "my spaces"); spaces at `{slug}.{host}` |
-| `INVOICE__SECRET_KEY` | serve | — | 32 bytes base64 (`openssl rand -base64 32`): AES-256-GCM of TOTP secrets, HMAC of recovery codes ([api/mfa.md](api/mfa.md)); missing / wrong length → start refused; changing it breaks every enrolled TOTP |
-| `INVOICE__EMAIL_DISABLED` | no | `false` | kill switch: every e-mail sent on behalf of a space (document, test) → 503 `email_disabled`; account e-mails (verify, reset, invitations) skipped and logged |
-| `INVOICE__MAX_SPACES_PER_USER` | no | `3` | spaces a user may create and own (≥ 1; invited memberships do not count) → `POST /api/spaces` 403 `space_limit` |
-| `INVOICE__REGISTRATION` | no | `false` | public registration on the base host and creating spaces (`false` → `POST /api/spaces` 403 `space_creation_disabled`); `true` needs SMTP (start refused otherwise) |
-| `INVOICE__TRUST_FORWARDED` | no | `false` | client IP for the auth rate limits from the **last** `X-Forwarded-For` hop (the proxy must append, not pass the client's header through); must be `true` behind a proxy, with the app port not reachable directly (`false` + an `X-Forwarded-For` request → one warning) |
-| `INVOICE__GOOGLE__CLIENT_ID`, `INVOICE__GOOGLE__CLIENT_SECRET` | no | — | Sign in with Google: both or neither (one only → start refused); redirect URI `{INVOICE__PUBLIC_URL}/api/auth/google/callback` |
-| `INVOICE__GOOGLE__ISSUER` | no | `https://accounts.google.com` | OpenID discovery base (https; http only for a loopback host, e.g. a test mock) |
-| ~~`INVOICE__API_TOKEN`~~ | — | — | removed in 4a (ignored) |
-| `INVOICE__BIND` | no | `0.0.0.0:3000` | listen address |
-| `INVOICE__ARES_URL` | no | `https://ares.gov.cz/ekonomicke-subjekty-v-be/rest` | ARES REST root; tests point it at a local mock |
-| `INVOICE__CNB_URL` | no | `https://www.cnb.cz/cs/financni-trhy/devizovy-trh/kurzy-devizoveho-trhu/kurzy-devizoveho-trhu/denni_kurz.txt` | ČNB daily rates (`?date=DD.MM.YYYY` appended); tests point it at a local mock |
-| `INVOICE__MDCAST_URL` | no | `https://mdcast.nexial.cz` | mdcast root (empty → default); tests point it at a local mock |
-| `INVOICE__MDCAST_TOKEN` | no | — | Bearer for mdcast |
-| `INVOICE__MDCAST_CONCURRENCY` | no | `4` | concurrent mdcast renders of the instance (≥ 1); a render waits ≤ 10 s for a slot, then 503 `pdf_unavailable` `busy` |
-| `INVOICE__DESIGN_CACHE_MB` | no | `128` | in-memory cache of downloaded design files, all spaces together (≥ 1 MiB; least recently used evicted first, a file larger than the whole cache is not cached) |
-| `INVOICE__STORAGE_KIND` | no | `fs` | `fs` or `s3`; every key is under `spaces/{space id}/` (archives, originals, e-mail templates, design overrides / draft / versions — layout in [api/pdf.md](api/pdf.md), [api/design.md](api/design.md)); the DB stores the space-relative key |
-| `INVOICE__STORAGE_DIR` | no | `./data` | `fs` root, created at start; image: `/data` volume |
-| `INVOICE__S3__ENDPOINT` | no | — (AWS) | `s3`: `http(s)://` endpoint (Garage, MinIO, R2…); without path-style the bucket is prefixed to its host (`https://s3.example` → `https://{bucket}.s3.example`, unchanged when the host already starts with `{bucket}.`) |
-| `INVOICE__S3__BUCKET` | `s3` | — | bucket |
-| `INVOICE__S3__REGION` | no | `us-east-1` | Garage: `garage` |
-| `INVOICE__S3__ACCESS_KEY_ID`, `INVOICE__S3__SECRET_ACCESS_KEY` | `s3` | — | credentials (never logged) |
-| `INVOICE__S3__PATH_STYLE` | no | `false` | `true` for path-style requests (Garage, MinIO) |
-| ~~`INVOICE__DESIGN_DIR`~~ | — | — | removed; a non-empty value refuses the start and points to `invoice storage migrate --design-dir` / `invoice design push` (a silent fallback to the default design would end up in immutable archives) |
-| `INVOICE__SMTP__HOST` | no | — | SMTP server; unset → e-mail not configured (sending → 503 `smtp_not_configured`) |
-| `INVOICE__SMTP__PORT` | no | by TLS mode | `starttls` 587, `tls` 465, `none` 25 |
-| `INVOICE__SMTP__TLS` | no | `starttls` | `starttls` \| `tls` (implicit) \| `none` (plain; tests / local relay) |
-| `INVOICE__SMTP__USERNAME`, `INVOICE__SMTP__PASSWORD` | no | — | both or neither (password never logged); with `TLS=none` only to a loopback host (`localhost`, `127.0.0.0/8`, `::1`) |
-| `INVOICE__SMTP__FROM` | with HOST | — | `addr@x` or `Name <addr@x>`; its domain is the `Message-ID` domain |
-| `RUST_LOG` | no | `invoice=info,tower_http=info,sea_orm_migration=info` | |
+| `INVOICEAPP__DATABASE_URL` | yes | — | Postgres URL |
+| `INVOICEAPP__DB_MAX_CONNECTIONS` | no | `20` | serve pool size (≥ 1); acquire timeout 5 s; every pooled connection runs with `statement_timeout` and `idle_in_transaction_session_timeout` 30 s (migrations use their own connection without them) |
+| `INVOICEAPP__DB_PGBOUNCER` | no | `false` | `true` behind a transaction-pooling PgBouncer: no startup `options`, so the pool runs **without** the two 30 s timeouts (PgBouncer refuses untracked options and silently drops tracked ones Postgres does not report) |
+| `INVOICEAPP__PUBLIC_URL` | serve | — | `http(s)://host[:port]`: base host (registration, login, "my spaces"); spaces at `{slug}.{host}` |
+| `INVOICEAPP__SECRET_KEY` | serve | — | 32 bytes base64 (`openssl rand -base64 32`): AES-256-GCM of TOTP secrets, HMAC of recovery codes ([api/mfa.md](api/mfa.md)); missing / wrong length → start refused; changing it breaks every enrolled TOTP |
+| `INVOICEAPP__EMAIL_DISABLED` | no | `false` | kill switch: every e-mail sent on behalf of a space (document, test) → 503 `email_disabled`; account e-mails (verify, reset, invitations) skipped and logged |
+| `INVOICEAPP__MAX_SPACES_PER_USER` | no | `3` | spaces a user may create and own (≥ 1; invited memberships do not count) → `POST /api/spaces` 403 `space_limit` |
+| `INVOICEAPP__REGISTRATION` | no | `false` | public registration on the base host and creating spaces (`false` → `POST /api/spaces` 403 `space_creation_disabled`); `true` needs SMTP (start refused otherwise) |
+| `INVOICEAPP__TRUST_FORWARDED` | no | `false` | client IP for the auth rate limits from the **last** `X-Forwarded-For` hop (the proxy must append, not pass the client's header through); must be `true` behind a proxy, with the app port not reachable directly (`false` + an `X-Forwarded-For` request → one warning) |
+| `INVOICEAPP__GOOGLE__CLIENT_ID`, `INVOICEAPP__GOOGLE__CLIENT_SECRET` | no | — | Sign in with Google: both or neither (one only → start refused); redirect URI `{INVOICEAPP__PUBLIC_URL}/api/auth/google/callback` |
+| `INVOICEAPP__GOOGLE__ISSUER` | no | `https://accounts.google.com` | OpenID discovery base (https; http only for a loopback host, e.g. a test mock) |
+| ~~`INVOICEAPP__API_TOKEN`~~ | — | — | removed in 4a (ignored) |
+| `INVOICEAPP__BIND` | no | `0.0.0.0:3000` | listen address |
+| `INVOICEAPP__ARES_URL` | no | `https://ares.gov.cz/ekonomicke-subjekty-v-be/rest` | ARES REST root; tests point it at a local mock |
+| `INVOICEAPP__CNB_URL` | no | `https://www.cnb.cz/cs/financni-trhy/devizovy-trh/kurzy-devizoveho-trhu/kurzy-devizoveho-trhu/denni_kurz.txt` | ČNB daily rates (`?date=DD.MM.YYYY` appended); tests point it at a local mock |
+| `INVOICEAPP__MDCAST_URL` | no | `https://mdcast.nexial.cz` | mdcast root (empty → default); tests point it at a local mock |
+| `INVOICEAPP__MDCAST_TOKEN` | no | — | Bearer for mdcast |
+| `INVOICEAPP__MDCAST_CONCURRENCY` | no | `4` | concurrent mdcast renders of the instance (≥ 1); a render waits ≤ 10 s for a slot, then 503 `pdf_unavailable` `busy` |
+| `INVOICEAPP__DESIGN_CACHE_MB` | no | `128` | in-memory cache of downloaded design files, all spaces together (≥ 1 MiB; least recently used evicted first, a file larger than the whole cache is not cached) |
+| `INVOICEAPP__STORAGE_KIND` | no | `fs` | `fs` or `s3`; every key is under `spaces/{space id}/` (archives, originals, e-mail templates, design overrides / draft / versions — layout in [api/pdf.md](api/pdf.md), [api/design.md](api/design.md)); the DB stores the space-relative key |
+| `INVOICEAPP__STORAGE_DIR` | no | `./data` | `fs` root, created at start; image: `/data` volume |
+| `INVOICEAPP__S3__ENDPOINT` | no | — (AWS) | `s3`: `http(s)://` endpoint (Garage, MinIO, R2…); without path-style the bucket is prefixed to its host (`https://s3.example` → `https://{bucket}.s3.example`, unchanged when the host already starts with `{bucket}.`) |
+| `INVOICEAPP__S3__BUCKET` | `s3` | — | bucket |
+| `INVOICEAPP__S3__REGION` | no | `us-east-1` | Garage: `garage` |
+| `INVOICEAPP__S3__ACCESS_KEY_ID`, `INVOICEAPP__S3__SECRET_ACCESS_KEY` | `s3` | — | credentials (never logged) |
+| `INVOICEAPP__S3__PATH_STYLE` | no | `false` | `true` for path-style requests (Garage, MinIO) |
+| ~~`INVOICEAPP__DESIGN_DIR`~~ | — | — | removed; a non-empty value refuses the start and points to `invoiceapp storage migrate --design-dir` / `invoiceapp design push` (a silent fallback to the default design would end up in immutable archives) |
+| ~~`INVOICE__*`~~ | — | — | the prefix before the InvoiceApp rename (#53): any such variable refuses every command that reads the configuration, naming each one and its `INVOICEAPP__*` replacement (`INVOICE__DESIGN_DIR` as removed) |
+| `INVOICEAPP__SMTP__HOST` | no | — | SMTP server; unset → e-mail not configured (sending → 503 `smtp_not_configured`) |
+| `INVOICEAPP__SMTP__PORT` | no | by TLS mode | `starttls` 587, `tls` 465, `none` 25 |
+| `INVOICEAPP__SMTP__TLS` | no | `starttls` | `starttls` \| `tls` (implicit) \| `none` (plain; tests / local relay) |
+| `INVOICEAPP__SMTP__USERNAME`, `INVOICEAPP__SMTP__PASSWORD` | no | — | both or neither (password never logged); with `TLS=none` only to a loopback host (`localhost`, `127.0.0.0/8`, `::1`) |
+| `INVOICEAPP__SMTP__FROM` | with HOST | — | `addr@x` or `Name <addr@x>`; its domain is the `Message-ID` domain |
+| `RUST_LOG` | no | `invoiceapp=info,tower_http=info,sea_orm_migration=info` | |
 | `TEST_DATABASE_URL` | tests | `…@localhost:5432/invoice_test` | integration tests (they also need `xmllint` from `libxml2-utils` for the vendored ISDOC, Pohoda and Money S3 schemas in `tests/fixtures/{isdoc,pohoda,money}/schema/`) |
 | `TEST_S3_ENDPOINT`, `TEST_S3_BUCKET`, `TEST_S3_REGION`, `TEST_S3_ACCESS_KEY_ID`, `TEST_S3_SECRET_ACCESS_KEY` | tests | — | S3 test bucket (path-style) for `tests/storage.rs` (every case on fs and S3) and the app-on-S3 tests; random prefix per test, deleted after; fail, not skip, without them. Makefile: from `.env`; CI: secrets of the same names |
-| `TEST_SECRET_KEY` | no | fixed test key | `INVOICE__SECRET_KEY` of the test apps (`tests/common/mod.rs`) |
+| `TEST_SECRET_KEY` | no | fixed test key | `INVOICEAPP__SECRET_KEY` of the test apps (`tests/common/mod.rs`) |
 
 Empty values mean the default for the optional settings ([api/pdf.md](api/pdf.md) lists the storage / mdcast ones).
 
@@ -187,7 +188,7 @@ routed to the row).
 |---|---|
 | `src/api/client.ts` | fetch wrapper: same-origin cookie (the browser adds `Origin` for the CSRF check), `ApiError{status, code, fields, detail}` (status 0 = network); 401 → session cleared + `/login?return=` unless `quiet401` (the session probe, the login itself); 403 `email_unverified` → `/verify` (handlers set in `main.ts`) |
 | `src/api/client.ts` (bodies) | `request()` for JSON; a `FormData` body goes out without a Content-Type so the browser sets the multipart boundary; `requestBlob()` → `{blob, filename}` (`filename*` wins) |
-| `src/api/schema.d.ts` | **generated**: `make frontend-api-types` runs `invoice openapi` → `openapi-typescript`; committed; `make lint` (`api-types-check`) regenerates it into `target/` and fails on a diff |
+| `src/api/schema.d.ts` | **generated**: `make frontend-api-types` runs `invoiceapp openapi` → `openapi-typescript`; committed; `make lint` (`api-types-check`) regenerates it into `target/` and fails on a diff |
 | `src/api/wire.ts`, `src/api/types.ts` | `Wire<"Name">` (every field present, serde writes `null`), `Narrow<T, {…}>` (backend drift fails the type-check), `allOf<T>()`; shared wire types and document enums (from the schema) |
 | `src/lib/money.ts` | exact BigInt cents — never `Number(x) * 100`; credit notes are stored positive and shown negated (`negate` / `signed`) |
 | `src/lib/pdf.ts` | `openPdf` opens the tab synchronously **before** the fetch (a `window.open` after a slow render loses the user activation and is popup-blocked), then points it at the blob; blocked → current tab; failure → closes the blank tab; object URLs revoked after 5 min. `downloadPdf` clicks an `<a download>` |
@@ -233,17 +234,17 @@ routed to the row).
   definition are sent back unchanged; decimal comma → dot.
 
 Dev: Vite proxies `/api` → `http://localhost:3000` and keeps the `Host` header (`changeOrigin: false`), because the
-backend picks the base app or a space by host. Run the server with `INVOICE__PUBLIC_URL=http://localhost:5173`, open
+backend picks the base app or a space by host. Run the server with `INVOICEAPP__PUBLIC_URL=http://localhost:5173`, open
 `http://localhost:5173` (base host) and `http://<slug>.localhost:5173` (a space); `*.localhost` resolves to loopback
 without `/etc/hosts`.
 
 ## Build, CI, image
 
 - `Dockerfile`: node:22 builds the SPA → `rust:1.97.0-bookworm` builds the release binary with the SPA and `design/`
-  embedded (`--locked`) → `debian:bookworm-slim`, non-root uid 10001, `INVOICE__STORAGE_DIR=/data` (`VOLUME /data`,
-  owned by 10001; unused with `INVOICE__STORAGE_KIND=s3`), `EXPOSE 3000`, `invoice serve`.
+  embedded (`--locked`) → `debian:bookworm-slim`, non-root uid 10001, `INVOICEAPP__STORAGE_DIR=/data` (`VOLUME /data`,
+  owned by 10001; unused with `INVOICEAPP__STORAGE_KIND=s3`), `EXPOSE 3000`, `invoiceapp serve`.
 - `.github/workflows/ci.yml`: PR + push to `master`; backend job (Postgres service, `TEST_S3_*` secrets,
   `libxml2-utils`, `make lint-backend test-backend`, toolchain pin check, `make frontend-install api-types-check`),
   frontend job (`make frontend-install lint-frontend test-frontend frontend-build`).
-- `.github/workflows/docker.yml`: `v*` tag → `ghcr.io/xmiksay/invoice:<version>` + `latest`.
+- `.github/workflows/docker.yml`: `v*` tag → `ghcr.io/${{ github.repository }}:<version>` + `latest`.
 - Deployment manifests are out of scope for now.

@@ -6,7 +6,7 @@
 //! younger one may belong to an issue or upload still on its way to the
 //! commit. Runs daily in `serve` (first [`FIRST_DELAY`] after the start) and
 //! on demand as
-//! `invoice storage sweep [--dry-run] [--force]`.
+//! `invoiceapp storage sweep [--dry-run] [--force]`.
 //!
 //! Guard: a sweep that would delete with an empty reference set (a wrong
 //! database or schema) or more than [`MAX_ORPHANS`] / 10 % of the examined

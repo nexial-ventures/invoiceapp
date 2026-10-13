@@ -1,5 +1,5 @@
-//! Storage backend settings: `INVOICE__STORAGE_KIND` (`fs` | `s3`),
-//! `INVOICE__STORAGE_DIR` for `fs`, `INVOICE__S3__*` for `s3`.
+//! Storage backend settings: `INVOICEAPP__STORAGE_KIND` (`fs` | `s3`),
+//! `INVOICEAPP__STORAGE_DIR` for `fs`, `INVOICEAPP__S3__*` for `s3`.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -110,7 +110,7 @@ impl StorageConfig {
                 ),
             }),
             "s3" => Ok(Self::S3(S3Config::from_raw(raw.s3)?)),
-            other => bail!("INVOICE__STORAGE_KIND must be fs or s3, not {other:?}"),
+            other => bail!("INVOICEAPP__STORAGE_KIND must be fs or s3, not {other:?}"),
         }
     }
 }
@@ -138,17 +138,17 @@ impl S3Config {
         if let Some(e) = &endpoint
             && !(e.starts_with("http://") || e.starts_with("https://"))
         {
-            bail!("INVOICE__S3__ENDPOINT must start with http:// or https://");
+            bail!("INVOICEAPP__S3__ENDPOINT must start with http:// or https://");
         }
         Ok(Self {
             endpoint,
-            bucket: set(raw.bucket).context("INVOICE__S3__BUCKET is required for s3 storage")?,
+            bucket: set(raw.bucket).context("INVOICEAPP__S3__BUCKET is required for s3 storage")?,
             region: set(raw.region).unwrap_or_else(|| DEFAULT_S3_REGION.to_string()),
             access_key_id: set_secret(raw.access_key_id)
-                .context("INVOICE__S3__ACCESS_KEY_ID is required for s3 storage")?,
+                .context("INVOICEAPP__S3__ACCESS_KEY_ID is required for s3 storage")?,
             secret_access_key: set_secret(raw.secret_access_key)
-                .context("INVOICE__S3__SECRET_ACCESS_KEY is required for s3 storage")?,
-            path_style: parse_bool("INVOICE__S3__PATH_STYLE", raw.path_style)?,
+                .context("INVOICEAPP__S3__SECRET_ACCESS_KEY is required for s3 storage")?,
+            path_style: parse_bool("INVOICEAPP__S3__PATH_STYLE", raw.path_style)?,
         })
     }
 }
@@ -167,26 +167,29 @@ mod tests {
     }
 
     const S3: [(&str, &str); 6] = [
-        ("INVOICE__STORAGE_KIND", "s3"),
-        ("INVOICE__S3__ENDPOINT", "https://s3.example.test"),
-        ("INVOICE__S3__BUCKET", "invoice"),
-        ("INVOICE__S3__REGION", "garage"),
-        ("INVOICE__S3__ACCESS_KEY_ID", "GKkey"),
-        ("INVOICE__S3__SECRET_ACCESS_KEY", "s3cret"),
+        ("INVOICEAPP__STORAGE_KIND", "s3"),
+        ("INVOICEAPP__S3__ENDPOINT", "https://s3.example.test"),
+        ("INVOICEAPP__S3__BUCKET", "invoice"),
+        ("INVOICEAPP__S3__REGION", "garage"),
+        ("INVOICEAPP__S3__ACCESS_KEY_ID", "GKkey"),
+        ("INVOICEAPP__S3__SECRET_ACCESS_KEY", "s3cret"),
     ];
 
     #[test]
     fn fs_is_the_default() {
         let dir = PathBuf::from(DEFAULT_STORAGE_DIR);
         assert_eq!(cfg(&[]).expect("default"), StorageConfig::Fs { dir });
-        let empty = cfg(&[("INVOICE__STORAGE_KIND", ""), ("INVOICE__STORAGE_DIR", " ")]);
+        let empty = cfg(&[
+            ("INVOICEAPP__STORAGE_KIND", ""),
+            ("INVOICEAPP__STORAGE_DIR", " "),
+        ]);
         assert_eq!(
             empty.expect("empty values"),
             StorageConfig::Fs {
                 dir: PathBuf::from(DEFAULT_STORAGE_DIR)
             }
         );
-        let custom = cfg(&[("INVOICE__STORAGE_DIR", "/srv/data")]).expect("dir");
+        let custom = cfg(&[("INVOICEAPP__STORAGE_DIR", "/srv/data")]).expect("dir");
         assert_eq!(
             custom,
             StorageConfig::Fs {
@@ -198,7 +201,7 @@ mod tests {
     #[test]
     fn s3_settings_are_read() {
         let mut pairs = S3.to_vec();
-        pairs.push(("INVOICE__S3__PATH_STYLE", "true"));
+        pairs.push(("INVOICEAPP__S3__PATH_STYLE", "true"));
         let StorageConfig::S3(s3) = cfg(&pairs).expect("s3") else {
             panic!("expected s3");
         };
@@ -218,7 +221,10 @@ mod tests {
             .iter()
             .copied()
             .filter(|(k, _)| !k.ends_with("ENDPOINT") && !k.ends_with("REGION"))
-            .chain([("INVOICE__S3__REGION", ""), ("INVOICE__S3__PATH_STYLE", "")])
+            .chain([
+                ("INVOICEAPP__S3__REGION", ""),
+                ("INVOICEAPP__S3__PATH_STYLE", ""),
+            ])
             .collect();
         let StorageConfig::S3(s3) = cfg(&pairs).expect("s3") else {
             panic!("expected s3");
@@ -254,8 +260,11 @@ mod tests {
 
     #[test]
     fn invalid_settings_are_rejected() {
-        let err = cfg(&[("INVOICE__STORAGE_KIND", "ftp")]).expect_err("kind");
-        assert!(err.to_string().contains("INVOICE__STORAGE_KIND"), "{err}");
+        let err = cfg(&[("INVOICEAPP__STORAGE_KIND", "ftp")]).expect_err("kind");
+        assert!(
+            err.to_string().contains("INVOICEAPP__STORAGE_KIND"),
+            "{err}"
+        );
         for missing in ["BUCKET", "ACCESS_KEY_ID", "SECRET_ACCESS_KEY"] {
             let pairs: Vec<_> = S3
                 .iter()
@@ -266,11 +275,14 @@ mod tests {
             assert!(format!("{err:#}").contains(missing), "{err:#}");
         }
         let mut pairs = S3.to_vec();
-        pairs.push(("INVOICE__S3__PATH_STYLE", "maybe"));
+        pairs.push(("INVOICEAPP__S3__PATH_STYLE", "maybe"));
         assert!(cfg(&pairs).is_err());
         let mut pairs = S3.to_vec();
-        pairs[1] = ("INVOICE__S3__ENDPOINT", "s3.example.test");
+        pairs[1] = ("INVOICEAPP__S3__ENDPOINT", "s3.example.test");
         let err = cfg(&pairs).expect_err("endpoint scheme");
-        assert!(err.to_string().contains("INVOICE__S3__ENDPOINT"), "{err}");
+        assert!(
+            err.to_string().contains("INVOICEAPP__S3__ENDPOINT"),
+            "{err}"
+        );
     }
 }

@@ -8,7 +8,7 @@ use axum::http::{Method, StatusCode};
 use common::auth::{As, on, user};
 use common::members::{accept, count, invited, join, show};
 use common::{BASE_HOST, OWNER_PASSWORD, TEST_HOST, TestDb, router};
-use invoice::space::Role;
+use invoiceapp::space::Role;
 use serde_json::{Value, json};
 
 const NEW_PASSWORD: &str = "a brand new password";

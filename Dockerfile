@@ -18,23 +18,23 @@ COPY src/ ./src/
 COPY design/ ./design/
 # rust-embed reads frontend/dist at compile time (release embeds the files).
 COPY --from=frontend /app/frontend/dist ./frontend/dist
-RUN cargo build --release --locked --bin invoice
+RUN cargo build --release --locked --bin invoiceapp
 
 # ---------- Runtime ----------
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates \
  && rm -rf /var/lib/apt/lists/* \
- && useradd --system --uid 10001 --no-create-home --shell /usr/sbin/nologin invoice \
+ && useradd --system --uid 10001 --no-create-home --shell /usr/sbin/nologin invoiceapp \
  && mkdir -p /data \
- && chown invoice:invoice /data
-COPY --from=builder /app/target/release/invoice /usr/local/bin/invoice
-USER invoice
-ENV INVOICE__BIND=0.0.0.0:3000
+ && chown invoiceapp:invoiceapp /data
+COPY --from=builder /app/target/release/invoiceapp /usr/local/bin/invoiceapp
+USER invoiceapp
+ENV INVOICEAPP__BIND=0.0.0.0:3000
 # fs storage: archived PDFs, originals, design overrides (keep on a persistent
-# volume). With INVOICE__STORAGE_KIND=s3 the volume stays unused.
-ENV INVOICE__STORAGE_DIR=/data
+# volume). With INVOICEAPP__STORAGE_KIND=s3 the volume stays unused.
+ENV INVOICEAPP__STORAGE_DIR=/data
 VOLUME /data
 EXPOSE 3000
-ENTRYPOINT ["invoice"]
+ENTRYPOINT ["invoiceapp"]
 CMD ["serve"]

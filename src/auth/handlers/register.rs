@@ -1,4 +1,4 @@
-//! Public registration (base host, `INVOICE__REGISTRATION`), e-mail
+//! Public registration (base host, `INVOICEAPP__REGISTRATION`), e-mail
 //! verification and its resend. Answers never reveal whether an e-mail has
 //! an account.
 

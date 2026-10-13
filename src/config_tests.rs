@@ -2,13 +2,13 @@ use super::*;
 
 const KEY: &str = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=";
 
-/// `pairs` plus a valid `INVOICE__SECRET_KEY` unless `pairs` sets one.
-fn env(pairs: &[(&str, &str)]) -> Option<HashMap<String, String>> {
+/// `pairs` plus a valid `INVOICEAPP__SECRET_KEY` unless `pairs` sets one.
+pub(super) fn env(pairs: &[(&str, &str)]) -> Option<HashMap<String, String>> {
     let mut map: HashMap<String, String> = pairs
         .iter()
         .map(|(k, v)| (k.to_string(), v.to_string()))
         .collect();
-    map.entry("INVOICE__SECRET_KEY".into())
+    map.entry("INVOICEAPP__SECRET_KEY".into())
         .or_insert_with(|| KEY.into());
     Some(map)
 }
@@ -16,8 +16,8 @@ fn env(pairs: &[(&str, &str)]) -> Option<HashMap<String, String>> {
 #[test]
 fn secret_key_is_required_and_checked() {
     let base = [
-        ("INVOICE__DATABASE_URL", "postgres://x"),
-        ("INVOICE__PUBLIC_URL", "http://localhost:3000"),
+        ("INVOICEAPP__DATABASE_URL", "postgres://x"),
+        ("INVOICEAPP__PUBLIC_URL", "http://localhost:3000"),
     ];
     let cfg = Config::from_source(env(&base)).expect("valid config");
     assert_eq!(cfg.secret_key.bytes()[1], 1);
@@ -29,18 +29,18 @@ fn secret_key_is_required_and_checked() {
         "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHg==",
     ] {
         let mut pairs = base.to_vec();
-        pairs.push(("INVOICE__SECRET_KEY", bad));
+        pairs.push(("INVOICEAPP__SECRET_KEY", bad));
         let err = Config::from_source(env(&pairs)).expect_err(bad);
         assert!(
-            format!("{err:#}").contains("INVOICE__SECRET_KEY"),
+            format!("{err:#}").contains("INVOICEAPP__SECRET_KEY"),
             "{err:#}"
         );
     }
     let mut map = env(&base).unwrap_or_default();
-    map.remove("INVOICE__SECRET_KEY");
+    map.remove("INVOICEAPP__SECRET_KEY");
     let err = Config::from_source(Some(map)).expect_err("missing key");
     assert!(
-        format!("{err:#}").contains("INVOICE__SECRET_KEY"),
+        format!("{err:#}").contains("INVOICEAPP__SECRET_KEY"),
         "{err:#}"
     );
 }
@@ -48,8 +48,8 @@ fn secret_key_is_required_and_checked() {
 #[test]
 fn loads_with_default_bind() {
     let cfg = Config::from_source(env(&[
-        ("INVOICE__DATABASE_URL", "postgres://x"),
-        ("INVOICE__PUBLIC_URL", "http://localhost:3000"),
+        ("INVOICEAPP__DATABASE_URL", "postgres://x"),
+        ("INVOICEAPP__PUBLIC_URL", "http://localhost:3000"),
     ]))
     .expect("valid config");
     assert_eq!(cfg.bind, DEFAULT_BIND);
@@ -67,11 +67,11 @@ fn loads_with_default_bind() {
 #[test]
 fn bind_is_overridable() {
     let cfg = Config::from_source(env(&[
-        ("INVOICE__DATABASE_URL", "postgres://x"),
-        ("INVOICE__PUBLIC_URL", "http://localhost:3000"),
-        ("INVOICE__BIND", "127.0.0.1:9000"),
-        ("INVOICE__ARES_URL", "http://127.0.0.1:9001/rest"),
-        ("INVOICE__CNB_URL", "http://127.0.0.1:9002/kurz.txt"),
+        ("INVOICEAPP__DATABASE_URL", "postgres://x"),
+        ("INVOICEAPP__PUBLIC_URL", "http://localhost:3000"),
+        ("INVOICEAPP__BIND", "127.0.0.1:9000"),
+        ("INVOICEAPP__ARES_URL", "http://127.0.0.1:9001/rest"),
+        ("INVOICEAPP__CNB_URL", "http://127.0.0.1:9002/kurz.txt"),
     ]))
     .expect("valid config");
     assert_eq!(cfg.bind, "127.0.0.1:9000");
@@ -82,11 +82,11 @@ fn bind_is_overridable() {
 #[test]
 fn pdf_settings_are_read() {
     let cfg = Config::from_source(env(&[
-        ("INVOICE__DATABASE_URL", "postgres://x"),
-        ("INVOICE__PUBLIC_URL", "http://localhost:3000"),
-        ("INVOICE__MDCAST_URL", "http://127.0.0.1:9003"),
-        ("INVOICE__MDCAST_TOKEN", "mdtok"),
-        ("INVOICE__STORAGE_DIR", "/srv/data"),
+        ("INVOICEAPP__DATABASE_URL", "postgres://x"),
+        ("INVOICEAPP__PUBLIC_URL", "http://localhost:3000"),
+        ("INVOICEAPP__MDCAST_URL", "http://127.0.0.1:9003"),
+        ("INVOICEAPP__MDCAST_TOKEN", "mdtok"),
+        ("INVOICEAPP__STORAGE_DIR", "/srv/data"),
     ]))
     .expect("valid config");
     assert_eq!(cfg.mdcast_url, "http://127.0.0.1:9003");
@@ -106,8 +106,8 @@ fn pdf_settings_are_read() {
 #[test]
 fn pgbouncer_switch() {
     let base = [
-        ("INVOICE__DATABASE_URL", "postgres://x"),
-        ("INVOICE__PUBLIC_URL", "http://localhost:3000"),
+        ("INVOICEAPP__DATABASE_URL", "postgres://x"),
+        ("INVOICEAPP__PUBLIC_URL", "http://localhost:3000"),
     ];
     assert!(
         !Config::from_source(env(&base))
@@ -115,13 +115,13 @@ fn pgbouncer_switch() {
             .db_pgbouncer
     );
     let mut pairs = base.to_vec();
-    pairs.push(("INVOICE__DB_PGBOUNCER", "true"));
+    pairs.push(("INVOICEAPP__DB_PGBOUNCER", "true"));
     assert!(Config::from_source(env(&pairs)).expect("set").db_pgbouncer);
     let mut pairs = base.to_vec();
-    pairs.push(("INVOICE__DB_PGBOUNCER", "maybe"));
+    pairs.push(("INVOICEAPP__DB_PGBOUNCER", "maybe"));
     let err = Config::from_source(env(&pairs)).expect_err("bad");
     assert!(
-        format!("{err:#}").contains("INVOICE__DB_PGBOUNCER"),
+        format!("{err:#}").contains("INVOICEAPP__DB_PGBOUNCER"),
         "{err:#}"
     );
 }
@@ -129,25 +129,25 @@ fn pgbouncer_switch() {
 #[test]
 fn pool_size() {
     let base = [
-        ("INVOICE__DATABASE_URL", "postgres://x"),
-        ("INVOICE__PUBLIC_URL", "http://localhost:3000"),
+        ("INVOICEAPP__DATABASE_URL", "postgres://x"),
+        ("INVOICEAPP__PUBLIC_URL", "http://localhost:3000"),
     ];
     let cfg = Config::from_source(env(&base)).expect("defaults");
     assert_eq!(cfg.db_max_connections, DEFAULT_MAX_CONNECTIONS);
     let mut pairs = base.to_vec();
-    pairs.push(("INVOICE__DB_MAX_CONNECTIONS", " 50 "));
+    pairs.push(("INVOICEAPP__DB_MAX_CONNECTIONS", " 50 "));
     let cfg = Config::from_source(env(&pairs)).expect("set");
     assert_eq!(cfg.db_max_connections, 50);
     let mut pairs = base.to_vec();
-    pairs.push(("INVOICE__DB_MAX_CONNECTIONS", ""));
+    pairs.push(("INVOICEAPP__DB_MAX_CONNECTIONS", ""));
     let cfg = Config::from_source(env(&pairs)).expect("empty");
     assert_eq!(cfg.db_max_connections, DEFAULT_MAX_CONNECTIONS);
     for bad in ["0", "-1", "lots"] {
         let mut pairs = base.to_vec();
-        pairs.push(("INVOICE__DB_MAX_CONNECTIONS", bad));
+        pairs.push(("INVOICEAPP__DB_MAX_CONNECTIONS", bad));
         let err = Config::from_source(env(&pairs)).expect_err(bad);
         assert!(
-            format!("{err:#}").contains("INVOICE__DB_MAX_CONNECTIONS"),
+            format!("{err:#}").contains("INVOICEAPP__DB_MAX_CONNECTIONS"),
             "{err:#}"
         );
     }
@@ -156,21 +156,21 @@ fn pool_size() {
 #[test]
 fn design_cache_size() {
     let base = [
-        ("INVOICE__DATABASE_URL", "postgres://x"),
-        ("INVOICE__PUBLIC_URL", "http://localhost:3000"),
+        ("INVOICEAPP__DATABASE_URL", "postgres://x"),
+        ("INVOICEAPP__PUBLIC_URL", "http://localhost:3000"),
     ];
     let cfg = Config::from_source(env(&base)).expect("defaults");
     assert_eq!(cfg.design_cache_mb, 128);
     let mut pairs = base.to_vec();
-    pairs.push(("INVOICE__DESIGN_CACHE_MB", "16"));
+    pairs.push(("INVOICEAPP__DESIGN_CACHE_MB", "16"));
     let cfg = Config::from_source(env(&pairs)).expect("set");
     assert_eq!(cfg.design_cache_mb, 16);
     for bad in ["0", "big"] {
         let mut pairs = base.to_vec();
-        pairs.push(("INVOICE__DESIGN_CACHE_MB", bad));
+        pairs.push(("INVOICEAPP__DESIGN_CACHE_MB", bad));
         let err = Config::from_source(env(&pairs)).expect_err(bad);
         assert!(
-            format!("{err:#}").contains("INVOICE__DESIGN_CACHE_MB"),
+            format!("{err:#}").contains("INVOICEAPP__DESIGN_CACHE_MB"),
             "{err:#}"
         );
     }
@@ -179,13 +179,13 @@ fn design_cache_size() {
 #[test]
 fn mdcast_concurrency() {
     let base = [
-        ("INVOICE__DATABASE_URL", "postgres://x"),
-        ("INVOICE__PUBLIC_URL", "http://localhost:3000"),
+        ("INVOICEAPP__DATABASE_URL", "postgres://x"),
+        ("INVOICEAPP__PUBLIC_URL", "http://localhost:3000"),
     ];
     let cfg = Config::from_source(env(&base)).expect("defaults");
     assert_eq!(cfg.mdcast_concurrency, 4);
     let mut pairs = base.to_vec();
-    pairs.push(("INVOICE__MDCAST_CONCURRENCY", "8"));
+    pairs.push(("INVOICEAPP__MDCAST_CONCURRENCY", "8"));
     assert_eq!(
         Config::from_source(env(&pairs))
             .expect("set")
@@ -194,10 +194,10 @@ fn mdcast_concurrency() {
     );
     for bad in ["0", "-1", "many"] {
         let mut pairs = base.to_vec();
-        pairs.push(("INVOICE__MDCAST_CONCURRENCY", bad));
+        pairs.push(("INVOICEAPP__MDCAST_CONCURRENCY", bad));
         let err = Config::from_source(env(&pairs)).expect_err(bad);
         assert!(
-            format!("{err:#}").contains("INVOICE__MDCAST_CONCURRENCY"),
+            format!("{err:#}").contains("INVOICEAPP__MDCAST_CONCURRENCY"),
             "{err:#}"
         );
     }
@@ -206,11 +206,11 @@ fn mdcast_concurrency() {
 #[test]
 fn empty_pdf_settings_mean_defaults() {
     let cfg = Config::from_source(env(&[
-        ("INVOICE__DATABASE_URL", "postgres://x"),
-        ("INVOICE__PUBLIC_URL", "http://localhost:3000"),
-        ("INVOICE__MDCAST_URL", " "),
-        ("INVOICE__MDCAST_TOKEN", ""),
-        ("INVOICE__STORAGE_DIR", ""),
+        ("INVOICEAPP__DATABASE_URL", "postgres://x"),
+        ("INVOICEAPP__PUBLIC_URL", "http://localhost:3000"),
+        ("INVOICEAPP__MDCAST_URL", " "),
+        ("INVOICEAPP__MDCAST_TOKEN", ""),
+        ("INVOICEAPP__STORAGE_DIR", ""),
     ]))
     .expect("valid config");
     assert_eq!(cfg.storage, StorageConfig::default());
@@ -219,34 +219,15 @@ fn empty_pdf_settings_mean_defaults() {
 }
 
 #[test]
-fn leftover_design_dir_is_rejected() {
-    let err = Config::from_source(env(&[
-        ("INVOICE__DATABASE_URL", "postgres://x"),
-        ("INVOICE__PUBLIC_URL", "http://localhost:3000"),
-        ("INVOICE__DESIGN_DIR", "/srv/design"),
-    ]))
-    .expect_err("removed setting");
-    let msg = err.to_string();
-    assert!(msg.contains("INVOICE__DESIGN_DIR"), "{msg}");
-    assert!(msg.contains("invoice storage migrate"), "{msg}");
-    Config::from_source(env(&[
-        ("INVOICE__DATABASE_URL", "postgres://x"),
-        ("INVOICE__PUBLIC_URL", "http://localhost:3000"),
-        ("INVOICE__DESIGN_DIR", ""),
-    ]))
-    .expect("an empty leftover is unset");
-}
-
-#[test]
 fn invalid_storage_is_rejected() {
     let err = Config::from_source(env(&[
-        ("INVOICE__DATABASE_URL", "postgres://x"),
-        ("INVOICE__PUBLIC_URL", "http://localhost:3000"),
-        ("INVOICE__STORAGE_KIND", "s3"),
+        ("INVOICEAPP__DATABASE_URL", "postgres://x"),
+        ("INVOICEAPP__PUBLIC_URL", "http://localhost:3000"),
+        ("INVOICEAPP__STORAGE_KIND", "s3"),
     ]))
     .expect_err("s3 without a bucket");
     assert!(
-        format!("{err:#}").contains("INVOICE__S3__BUCKET"),
+        format!("{err:#}").contains("INVOICEAPP__S3__BUCKET"),
         "{err:#}"
     );
 }
@@ -254,8 +235,8 @@ fn invalid_storage_is_rejected() {
 #[test]
 fn smtp_is_optional_and_validated() {
     let base = [
-        ("INVOICE__DATABASE_URL", "postgres://x"),
-        ("INVOICE__PUBLIC_URL", "http://localhost:3000"),
+        ("INVOICEAPP__DATABASE_URL", "postgres://x"),
+        ("INVOICEAPP__PUBLIC_URL", "http://localhost:3000"),
     ];
     assert!(
         Config::from_source(env(&base))
@@ -264,27 +245,27 @@ fn smtp_is_optional_and_validated() {
             .is_none()
     );
     let mut with_host = base.to_vec();
-    with_host.push(("INVOICE__SMTP__HOST", "smtp.example.com"));
+    with_host.push(("INVOICEAPP__SMTP__HOST", "smtp.example.com"));
     let err = Config::from_source(env(&with_host)).expect_err("HOST without FROM");
     assert!(
-        format!("{err:#}").contains("INVOICE__SMTP__FROM"),
+        format!("{err:#}").contains("INVOICEAPP__SMTP__FROM"),
         "{err:#}"
     );
-    with_host.push(("INVOICE__SMTP__FROM", "faktury@example.com"));
+    with_host.push(("INVOICEAPP__SMTP__FROM", "faktury@example.com"));
     let cfg = Config::from_source(env(&with_host)).expect("valid");
     assert_eq!(cfg.smtp.map(|s| s.port), Some(587));
 }
 
 #[test]
 fn public_url_is_required_and_validated() {
-    assert!(Config::from_source(env(&[("INVOICE__DATABASE_URL", "postgres://x")])).is_err());
+    assert!(Config::from_source(env(&[("INVOICEAPP__DATABASE_URL", "postgres://x")])).is_err());
     let err = Config::from_source(env(&[
-        ("INVOICE__DATABASE_URL", "postgres://x"),
-        ("INVOICE__PUBLIC_URL", "invoiceapp.cz"),
+        ("INVOICEAPP__DATABASE_URL", "postgres://x"),
+        ("INVOICEAPP__PUBLIC_URL", "invoiceapp.cz"),
     ]))
     .expect_err("no scheme");
     assert!(
-        format!("{err:#}").contains("INVOICE__PUBLIC_URL"),
+        format!("{err:#}").contains("INVOICEAPP__PUBLIC_URL"),
         "{err:#}"
     );
 }
@@ -292,9 +273,9 @@ fn public_url_is_required_and_validated() {
 #[test]
 fn leftover_api_token_is_ignored() {
     Config::from_source(env(&[
-        ("INVOICE__DATABASE_URL", "postgres://x"),
-        ("INVOICE__PUBLIC_URL", "https://invoiceapp.cz"),
-        ("INVOICE__API_TOKEN", "old"),
+        ("INVOICEAPP__DATABASE_URL", "postgres://x"),
+        ("INVOICEAPP__PUBLIC_URL", "https://invoiceapp.cz"),
+        ("INVOICEAPP__API_TOKEN", "old"),
     ]))
     .expect("ignored");
 }
@@ -302,43 +283,45 @@ fn leftover_api_token_is_ignored() {
 #[test]
 fn switches_are_parsed() {
     let base = [
-        ("INVOICE__DATABASE_URL", "postgres://x"),
-        ("INVOICE__PUBLIC_URL", "https://invoiceapp.cz"),
+        ("INVOICEAPP__DATABASE_URL", "postgres://x"),
+        ("INVOICEAPP__PUBLIC_URL", "https://invoiceapp.cz"),
     ];
     let mut with = base.to_vec();
-    with.push(("INVOICE__TRUST_FORWARDED", "true"));
-    with.push(("INVOICE__REGISTRATION", ""));
+    with.push(("INVOICEAPP__TRUST_FORWARDED", "true"));
+    with.push(("INVOICEAPP__REGISTRATION", ""));
     let cfg = Config::from_source(env(&with)).expect("valid");
     assert!(cfg.trust_forwarded);
     assert!(!cfg.registration);
     let mut bad = base.to_vec();
-    bad.push(("INVOICE__TRUST_FORWARDED", "yes"));
+    bad.push(("INVOICEAPP__TRUST_FORWARDED", "yes"));
     assert!(Config::from_source(env(&bad)).is_err());
 }
 
 #[test]
 fn registration_needs_smtp() {
     let mut with = vec![
-        ("INVOICE__DATABASE_URL", "postgres://x"),
-        ("INVOICE__PUBLIC_URL", "https://invoiceapp.cz"),
-        ("INVOICE__REGISTRATION", "true"),
+        ("INVOICEAPP__DATABASE_URL", "postgres://x"),
+        ("INVOICEAPP__PUBLIC_URL", "https://invoiceapp.cz"),
+        ("INVOICEAPP__REGISTRATION", "true"),
     ];
     let err = Config::from_source(env(&with)).expect_err("no SMTP");
     assert!(format!("{err:#}").contains("SMTP"), "{err:#}");
-    with.push(("INVOICE__SMTP__HOST", "smtp.example.com"));
-    with.push(("INVOICE__SMTP__FROM", "faktury@example.com"));
+    with.push(("INVOICEAPP__SMTP__HOST", "smtp.example.com"));
+    with.push(("INVOICEAPP__SMTP__FROM", "faktury@example.com"));
     assert!(Config::from_source(env(&with)).expect("valid").registration);
 }
 
 #[test]
 fn missing_database_url_is_rejected() {
-    assert!(Config::from_source(env(&[("INVOICE__PUBLIC_URL", "http://localhost:3000")])).is_err());
+    assert!(
+        Config::from_source(env(&[("INVOICEAPP__PUBLIC_URL", "http://localhost:3000")])).is_err()
+    );
     assert!(DbConfig::from_source(env(&[])).is_err());
 }
 
 #[test]
 fn db_config_needs_only_the_database() {
-    let cfg = DbConfig::from_source(env(&[("INVOICE__DATABASE_URL", "postgres://x")]))
+    let cfg = DbConfig::from_source(env(&[("INVOICEAPP__DATABASE_URL", "postgres://x")]))
         .expect("valid db config");
     assert_eq!(cfg.database_url.expose(), "postgres://x");
 }
@@ -346,9 +329,9 @@ fn db_config_needs_only_the_database() {
 #[test]
 fn debug_never_prints_secrets() {
     let cfg = Config::from_source(env(&[
-        ("INVOICE__DATABASE_URL", "postgres://u:pw@h/db"),
-        ("INVOICE__PUBLIC_URL", "http://localhost:3000"),
-        ("INVOICE__MDCAST_TOKEN", "supersecret"),
+        ("INVOICEAPP__DATABASE_URL", "postgres://u:pw@h/db"),
+        ("INVOICEAPP__PUBLIC_URL", "http://localhost:3000"),
+        ("INVOICEAPP__MDCAST_TOKEN", "supersecret"),
     ]))
     .expect("valid config");
     let dbg = format!("{cfg:?}");
@@ -359,21 +342,21 @@ fn debug_never_prints_secrets() {
 #[test]
 fn abuse_limit_settings() {
     let base = [
-        ("INVOICE__DATABASE_URL", "postgres://x"),
-        ("INVOICE__PUBLIC_URL", "https://invoiceapp.cz"),
+        ("INVOICEAPP__DATABASE_URL", "postgres://x"),
+        ("INVOICEAPP__PUBLIC_URL", "https://invoiceapp.cz"),
     ];
     let cfg = Config::from_source(env(&base)).expect("defaults");
     assert!(!cfg.email_disabled);
     assert_eq!(cfg.max_spaces_per_user, DEFAULT_MAX_SPACES_PER_USER);
     let mut with = base.to_vec();
-    with.push(("INVOICE__EMAIL_DISABLED", "true"));
-    with.push(("INVOICE__MAX_SPACES_PER_USER", "10"));
+    with.push(("INVOICEAPP__EMAIL_DISABLED", "true"));
+    with.push(("INVOICEAPP__MAX_SPACES_PER_USER", "10"));
     let cfg = Config::from_source(env(&with)).expect("set");
     assert!(cfg.email_disabled);
     assert_eq!(cfg.max_spaces_per_user, 10);
     for (key, bad) in [
-        ("INVOICE__EMAIL_DISABLED", "yes"),
-        ("INVOICE__MAX_SPACES_PER_USER", "0"),
+        ("INVOICEAPP__EMAIL_DISABLED", "yes"),
+        ("INVOICEAPP__MAX_SPACES_PER_USER", "0"),
     ] {
         let mut pairs = base.to_vec();
         pairs.push((key, bad));

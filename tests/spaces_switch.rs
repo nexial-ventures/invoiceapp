@@ -1,4 +1,4 @@
-//! `INVOICE__REGISTRATION` also gates `POST /api/spaces`: with it off only
+//! `INVOICEAPP__REGISTRATION` also gates `POST /api/spaces`: with it off only
 //! invited people enter the instance (spaces.md, members.md "Accepted risks").
 
 mod common;

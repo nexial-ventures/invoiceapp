@@ -11,7 +11,7 @@ use common::auth::seed_space;
 use common::documents::{create_bank, create_contact, create_doc, id, item, set_company};
 use common::members::{B_TOKEN, as_beta};
 use common::{TestDb, call, router};
-use invoice::migration::{Migrator, MigratorTrait};
+use invoiceapp::migration::{Migrator, MigratorTrait};
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, Statement};
 use serde_json::json;
 use uuid::Uuid;

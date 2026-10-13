@@ -1,4 +1,4 @@
-# Invoice — project brief
+# InvoiceApp — project brief
 
 Single-user invoice management (issued + received invoices, Czech VAT, PDF via the
 mdcast service with a per-instance design). Rust/Axum + SeaORM/Postgres backend,
@@ -31,7 +31,7 @@ Everything goes through `make` (`make help` lists targets). `CARGO_BUILD_JOBS=4`
 - E-mail tests (`tests/email*.rs`) send through an in-process mock SMTP server (`tests/common/smtp.rs`, plain SMTP, can be told to reject) — never a real SMTP server.
 - Errors to clients are `{"code": "..."}`, plus a `fields` map on 422 (`{"code":"validation","fields":{"<camelCaseField>":"<reason>"}}`) and, where a contract says so, a human-oriented `detail` string (e.g. the missing CSV column, a template line, an SMTP reply) — internal/DB detail is logged, never returned (`src/error.rs`).
 - Wire format and every route are specified in [`docs/api/`](../docs/api/README.md) (one file per area, each < 400 lines) — update it with any API change.
-- Requests are classified by `Host` (`src/auth/host.rs`): the base host of `INVOICE__PUBLIC_URL`, a space host
+- Requests are classified by `Host` (`src/auth/host.rs`): the base host of `INVOICEAPP__PUBLIC_URL`, a space host
   `{slug}.{base host}`, or unknown (404). All `/api/*` except `/api/health`, `/api/openapi.json`, `/api/context` and
   the public auth routes need the session cookie or a personal API token (`src/auth/ctx.rs`); handlers take a role
   extractor (`Read` / `Write` / `Manage` / `Own`) and pass its `SpaceId` to every repo — space data is never

@@ -1,7 +1,7 @@
 //! Sign in with Google (4d): OpenID Connect, authorization code + PKCE.
 //! Contract: `docs/api/google.md`.
 //!
-//! `config` (`INVOICE__GOOGLE__*`), `provider` (discovery, JWKS cache, code
+//! `config` (`INVOICEAPP__GOOGLE__*`), `provider` (discovery, JWKS cache, code
 //! exchange), `idtoken` (ID token checks, pure), `flow` (flow + handoff rows,
 //! PKCE, the `return` rule), `account` (resolving / linking users, unlink),
 //! `handlers` (`start`, `callback`), `finish` (the origin host's half).

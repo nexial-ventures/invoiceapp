@@ -1,11 +1,11 @@
 # Spaces, roles, data scoping and API tokens (4a)
 
 The instance moves from one static Bearer token to **spaces** (one space = one own company = one accounting unit),
-**users** with memberships and **personal API tokens**. `INVOICE__API_TOKEN` is removed. Login, registration and
+**users** with memberships and **personal API tokens**. `INVOICEAPP__API_TOKEN` is removed. Login, registration and
 sessions are in [auth.md](auth.md).
 
 ## Hosts
-- `INVOICE__PUBLIC_URL` (required, e.g. `https://invoiceapp.cz`; dev `http://localhost:3000`) gives the scheme, the
+- `INVOICEAPP__PUBLIC_URL` (required, e.g. `https://invoiceapp.cz`; dev `http://localhost:3000`) gives the scheme, the
   **base host** and an optional port. A space lives at `{scheme}://{slug}.{base host}{:port}`
   (`https://firma.invoiceapp.cz`; dev `http://firma.localhost:3000`). DNS / wildcard TLS / the reverse proxy are
   deployment concerns; the proxy must pass the original `Host`.
@@ -20,7 +20,7 @@ sessions are in [auth.md](auth.md).
 
 `GET /api/context` (no auth) → `200 { kind: "base" | "space", space: { slug, name } | null,
 registration: boolean, baseUrl: string }` — `registration` = the instance switch ([auth.md](auth.md)); `baseUrl` =
-`INVOICE__PUBLIC_URL`. Unknown host → 404.
+`INVOICEAPP__PUBLIC_URL`. Unknown host → 404.
 
 ## Spaces
 Table `spaces` (id uuid, slug unique, name, created_at, `created_by` → users `ON DELETE SET NULL`). Slug:
@@ -37,9 +37,9 @@ only, so an existing space whose slug was reserved later keeps resolving.
 Base context (session of a verified user, [auth.md](auth.md)):
 - `GET /api/spaces` → `[ { slug, name, role, url } ]` — the user's memberships, by name.
 - `POST /api/spaces { slug, name }` → `201 { slug, name, role: "owner", url }`. 422: `slug: required | invalid |
-  reserved | taken`, `name: required | too_long`; 403 `space_creation_disabled` while `INVOICE__REGISTRATION` is off
+  reserved | taken`, `name: required | too_long`; 403 `space_creation_disabled` while `INVOICEAPP__REGISTRATION` is off
   (only invited people enter such an instance, [members.md](members.md)); **403 `space_limit`** when the caller
-  already owns `INVOICE__MAX_SPACES_PER_USER` (default 3) spaces they created ([Limits](#limits)). Order: 403
+  already owns `INVOICEAPP__MAX_SPACES_PER_USER` (default 3) spaces they created ([Limits](#limits)). Order: 403
   `space_creation_disabled` → 403 `email_unverified` → 422 → 403 `space_limit` → 422 `slug: taken`.
   Creation also creates
   everything a fresh instance used to get from migrations (company profile row, default VAT rates, number series,
@@ -101,9 +101,9 @@ count.
 - Checked and recorded in one transaction under the space's advisory lock (the user's count is part of the
   space's rows), so parallel sends cannot both take the last slot. The check runs right before the SMTP exchange (after validation and attachment
   preparation); a send the SMTP server then refuses (502 `smtp_failed`) still counts.
-- The kill switch `INVOICE__EMAIL_DISABLED=true` refuses them all with 503 `email_disabled` ([email.md](email.md)).
+- The kill switch `INVOICEAPP__EMAIL_DISABLED=true` refuses them all with 503 `email_disabled` ([email.md](email.md)).
 
-**Space cap.** A user may **own** at most `INVOICE__MAX_SPACES_PER_USER` (default 3, ≥ 1) spaces **they created**:
+**Space cap.** A user may **own** at most `INVOICEAPP__MAX_SPACES_PER_USER` (default 3, ≥ 1) spaces **they created**:
 `spaces.created_by` = the user and they are still its owner. Memberships from invitations — also as owner — do not
 count; a created space handed over (the creator no longer an owner) or deleted frees a slot. Over the cap →
 `POST /api/spaces` 403 `{"code":"space_limit"}`. Checked under a per-user advisory lock in the creating transaction
@@ -112,7 +112,7 @@ owner.
 - **Accepted limitation** (product owner's decision): the cap is per account. Someone who registers further accounts
   (each needs its own verified e-mail address) gets 3 more spaces each, and with them more e-mail budget (each space
   and each user-in-space has its own). The bounds are per account and per space, not per person; the operator's
-  remedies are the kill switch, disabling the accounts, or `INVOICE__REGISTRATION=false`.
+  remedies are the kill switch, disabling the accounts, or `INVOICEAPP__REGISTRATION=false`.
 
 **Storage quota.** The usage counts every stored object of the space: originals of received / imported documents
 (`documents.original_size`), the issued-PDF archive (`documents.pdf_size`) and the PDF design files — live, draft and
@@ -126,8 +126,8 @@ are recorded in `space_storage_usage.design_bytes` (a row created with the space
   activation and restore (the live + version listing after the copies). Every design listing (`GET /api/pdf/design`
   and the mutation answers) records a fresh listing in a transaction of its own; discarding / deleting draft files,
   reset and the applied-draft cleanup after an activation record after their commit — until then the recorded value
-  is only ever too high, never too low. `invoice design push|rm --space` record after the copy, `invoice storage
-  migrate` for every space when `INVOICE__DATABASE_URL` is set (otherwise the next design listing does).
+  is only ever too high, never too low. `invoiceapp design push|rm --space` record after the copy, `invoiceapp storage
+  migrate` for every space when `INVOICEAPP__DATABASE_URL` is set (otherwise the next design listing does).
 - A space without a usage row (created before the limits migration) gets its design bytes listed and recorded on its
   first `GET` / `PUT /api/space` (best effort: a storage outage leaves the value out) or its first quota check.
 
@@ -197,7 +197,7 @@ member management: [members.md](members.md) (4b).
 All keys move under `spaces/{space_id}/`: `…/documents/{year}/…` (issued-PDF archive, received originals) and
 `…/design/…`. **The mdcast design overlay is per space:** a render reads `spaces/{id}/design/` over the embedded
 default, file by file, exactly as 1d / #17 did instance-wide (Settings → Design works per space unchanged).
-`invoice design push|pull|ls` gain a required `--space <slug>`. 4f adds `…/design-draft/…` and
+`invoiceapp design push|pull|ls` gain a required `--space <slug>`. 4f adds `…/design-draft/…` and
 `…/design-versions/{id}/…` ([design.md](design.md)). No file migration (no existing data).
 
 ## Personal API tokens
@@ -279,11 +279,11 @@ For MCP and scripts. A token belongs to **one user in one space** and works only
   categories, custom fields or counters exist, or the company row was filled in (name or IČO); the untouched seed
   rows are deleted. Its `down` refuses (restore a backup instead).
 - **Storage**: `PdfRoot::space(id)` gives a storage scoped to `spaces/{id}/`; the DB keeps the space-relative key
-  (`documents/2026/….pdf`). The shared design cache is namespaced by the space prefix, bounded by `INVOICE__DESIGN_CACHE_MB`
+  (`documents/2026/….pdf`). The shared design cache is namespaced by the space prefix, bounded by `INVOICEAPP__DESIGN_CACHE_MB`
   (LRU), and a deleted space's entries are dropped (one re-added by a render still in flight is never read
-  again and goes by LRU eviction). `invoice storage migrate`
-  is unchanged (copies keys as they are; no single-tenant archive is mapped into a space). `invoice design …
-  --space <slug>` resolves the slug in the database, so it also needs `INVOICE__DATABASE_URL`.
+  again and goes by LRU eviction). `invoiceapp storage migrate`
+  is unchanged (copies keys as they are; no single-tenant archive is mapped into a space). `invoiceapp design …
+  --space <slug>` resolves the slug in the database, so it also needs `INVOICEAPP__DATABASE_URL`.
 - **Tokens**: `inv_{prefix}_{secret}`, prefix 8 lowercase hex chars, secret 32 bytes base64url (43 chars); anything
   else in `Authorization: Bearer` → 401 without a lookup. The DB keeps sha256 (hex) of the whole token. `expiresAt`
   on `POST` is a date `YYYY-MM-DD` (or null = no expiry): the token is valid through the end of that day UTC

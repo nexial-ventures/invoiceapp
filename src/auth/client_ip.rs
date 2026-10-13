@@ -1,4 +1,4 @@
-//! The client address rate limits are keyed by (`INVOICE__TRUST_FORWARDED`,
+//! The client address rate limits are keyed by (`INVOICEAPP__TRUST_FORWARDED`,
 //! `docs/api/auth.md`).
 
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
@@ -88,7 +88,7 @@ pub async fn warn_untrusted_forwarded(
         && !WARNED.swap(true, Ordering::Relaxed)
     {
         tracing::warn!(
-            "requests carry X-Forwarded-For but INVOICE__TRUST_FORWARDED is false: rate limits \
+            "requests carry X-Forwarded-For but INVOICEAPP__TRUST_FORWARDED is false: rate limits \
              key every client by the proxy's address; set it to true behind a reverse proxy \
              (and keep the app port unreachable directly)"
         );

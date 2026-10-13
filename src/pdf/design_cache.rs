@@ -1,9 +1,9 @@
 //! The downloaded design overrides of every space, by storage key: bounded
-//! by their total size (`INVOICE__DESIGN_CACHE_MB`), least recently used
+//! by their total size (`INVOICEAPP__DESIGN_CACHE_MB`), least recently used
 //! evicted first. Also each space's live listing, for [`LISTING_TTL`]: a
 //! render does not list the storage again until it expires or the editor
 //! invalidates the space (activation, restore, reset); a change made
-//! outside the editor (`invoice design push`) shows within the TTL.
+//! outside the editor (`invoiceapp design push`) shows within the TTL.
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -14,7 +14,7 @@ use bytes::Bytes;
 use crate::error::AppError;
 use crate::storage::{Object, Storage, Version};
 
-/// `INVOICE__DESIGN_CACHE_MB` default.
+/// `INVOICEAPP__DESIGN_CACHE_MB` default.
 pub const DEFAULT_LIMIT_MB: u32 = 128;
 
 /// How long a space's live design listing is reused.

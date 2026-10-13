@@ -9,7 +9,7 @@ import { fileURLToPath, URL } from "node:url";
 //
 // Multi-tenancy in dev: the backend picks the app (base hub vs. a space) from the
 // `Host` header, so the proxy must forward the browser's host unchanged
-// (`changeOrigin: false`). Run the backend with `INVOICE__PUBLIC_URL=http://localhost:5173`
+// (`changeOrigin: false`). Run the backend with `INVOICEAPP__PUBLIC_URL=http://localhost:5173`
 // (the Vite origin: CSRF compares `Origin` with it, and e-mail / "Moje spaces" links
 // point there), then open http://localhost:5173 for the base host and
 // http://<slug>.localhost:5173 for a space. Browsers resolve `*.localhost` to

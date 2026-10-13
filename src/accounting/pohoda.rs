@@ -46,7 +46,7 @@ pub fn head(ctx: &Ctx) -> String {
         attrs.push(("ico", ico));
     }
     attrs.extend([
-        ("application", "invoice"),
+        ("application", "InvoiceApp"),
         ("version", "2.0"),
         ("note", note.as_str()),
     ]);

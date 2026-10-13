@@ -12,7 +12,7 @@ use common::mdcast::PdfEnv;
 use common::members::{B_HOST, B_TOKEN, count};
 use common::received::{create_received, upload};
 use common::{TestDb, call};
-use invoice::migration::{Migrator, MigratorTrait};
+use invoiceapp::migration::{Migrator, MigratorTrait};
 use sea_orm::{ConnectOptions, ConnectionTrait, Database};
 use serde_json::json;
 

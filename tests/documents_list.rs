@@ -6,7 +6,7 @@ use axum::http::{Method, StatusCode};
 use chrono::{Days, NaiveDate};
 use common::documents::{create_contact, create_doc, id, issuable, issue};
 use common::{TestDb, call, router};
-use invoice::time::today;
+use invoiceapp::time::today;
 use serde_json::{Value, json};
 
 fn ago(days: u64) -> NaiveDate {

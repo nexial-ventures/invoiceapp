@@ -1,6 +1,6 @@
 //! E-mail templates are member input, and MiniJinja's fuel bounds work, not
 //! memory (`'x' * 100000000 ~ …` doubles into gigabytes). So the server never
-//! renders one itself: it runs its own binary as `invoice render-template`
+//! renders one itself: it runs its own binary as `invoiceapp render-template`
 //! (hidden), sends the job as JSON on stdin and reads the result from
 //! stdout. The child runs with `RLIMIT_DATA` [`MEMORY_LIMIT`] and
 //! `RLIMIT_CPU` [`CPU_LIMIT_SECS`] and no core dumps (Linux; elsewhere only
@@ -85,7 +85,7 @@ impl TemplateSandbox {
             return Ok(Self::new("/proc/self/exe"));
         }
         Ok(Self::new(
-            std::env::current_exe().context("locate the invoice binary")?,
+            std::env::current_exe().context("locate the invoiceapp binary")?,
         ))
     }
 
@@ -243,7 +243,7 @@ fn limit(cmd: &mut tokio::process::Command) {
 #[cfg(not(target_os = "linux"))]
 fn limit(_: &mut tokio::process::Command) {}
 
-/// `invoice render-template`: one job from stdin, progress and the outcome
+/// `invoiceapp render-template`: one job from stdin, progress and the outcome
 /// on stdout. Single-threaded and without a runtime, so the memory limit is
 /// not spent on thread stacks and allocator arenas.
 pub fn child_main() -> anyhow::Result<()> {

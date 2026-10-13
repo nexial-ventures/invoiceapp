@@ -11,7 +11,7 @@ use common::documents::{
     mock_cnb_published, set_company,
 };
 use common::{TestDb, call, router_with_cnb};
-use invoice::time::today;
+use invoiceapp::time::today;
 use sea_orm::{ConnectionTrait, Statement};
 use serde_json::{Value, json};
 

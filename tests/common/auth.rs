@@ -5,9 +5,9 @@
 use axum::Router;
 use axum::body::Body;
 use axum::http::{HeaderMap, Method, Request, StatusCode, header};
-use invoice::auth::entity::api_token;
-use invoice::auth::{crypto, users};
-use invoice::space::{Role, SpaceId, repo as space_repo};
+use invoiceapp::auth::entity::api_token;
+use invoiceapp::auth::{crypto, users};
+use invoiceapp::space::{Role, SpaceId, repo as space_repo};
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 use serde_json::Value;
 use uuid::Uuid;
@@ -77,7 +77,7 @@ pub async fn store_token(
 /// token of that role; returns the token.
 pub async fn member(conn: &DatabaseConnection, space: SpaceId, email: &str, role: Role) -> String {
     let id = user(conn, email).await;
-    invoice::space::entity::member::ActiveModel {
+    invoiceapp::space::entity::member::ActiveModel {
         space_id: Set(space.uuid()),
         user_id: Set(id),
         role: Set(role.as_str().into()),

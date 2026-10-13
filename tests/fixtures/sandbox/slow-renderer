@@ -1,3 +1,3 @@
 #!/bin/sh
-# Stand-in for `invoice render-template` that never answers in time.
+# Stand-in for `invoiceapp render-template` that never answers in time.
 exec sleep 30

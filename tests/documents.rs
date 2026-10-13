@@ -20,7 +20,7 @@ async fn create_applies_company_defaults() {
     let bank = create_bank(&app, "CZK").await;
 
     let doc = create_doc(&app, json!({ "lines": [item("2", "100", "21")] })).await;
-    let today = invoice::time::today();
+    let today = invoiceapp::time::today();
     assert_eq!(doc["status"], "draft");
     assert_eq!(doc["docType"], "invoice");
     assert_eq!(doc["direction"], "issued");

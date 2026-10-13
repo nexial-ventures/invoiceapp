@@ -17,7 +17,7 @@ pub fn app(db: &DatabaseConnection, registration: bool) -> (Router, OidcMock) {
     app_with(
         db,
         registration,
-        invoice::auth::google::provider::JWKS_REFRESH,
+        invoiceapp::auth::google::provider::JWKS_REFRESH,
     )
 }
 

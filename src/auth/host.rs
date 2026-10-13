@@ -1,4 +1,4 @@
-//! Request host → context: the base host of `INVOICE__PUBLIC_URL`, the host
+//! Request host → context: the base host of `INVOICEAPP__PUBLIC_URL`, the host
 //! of an existing space (`{slug}.{base host}`), or unknown (404 for every
 //! `/api` route). Also `GET /api/context`.
 
@@ -16,7 +16,7 @@ use crate::error::{AppError, ErrorBody};
 use crate::space::entity::space;
 use crate::space::{SpaceId, repo, slug};
 
-/// `INVOICE__PUBLIC_URL`, parsed: scheme, base host, optional port.
+/// `INVOICEAPP__PUBLIC_URL`, parsed: scheme, base host, optional port.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PublicUrl {
     pub https: bool,
@@ -35,16 +35,16 @@ impl PublicUrl {
         } else if let Some(r) = raw.strip_prefix("http://") {
             (false, r)
         } else {
-            bail!("INVOICE__PUBLIC_URL must start with http:// or https://");
+            bail!("INVOICEAPP__PUBLIC_URL must start with http:// or https://");
         };
         let authority = rest.strip_suffix('/').unwrap_or(rest);
         if authority.is_empty() || authority.contains(['/', '?', '#', '@', '[']) {
-            bail!("INVOICE__PUBLIC_URL must be scheme://host[:port] without a path");
+            bail!("INVOICEAPP__PUBLIC_URL must be scheme://host[:port] without a path");
         }
         let (host, port) = match authority.rsplit_once(':') {
             Some((h, p)) => match p.parse::<u16>() {
                 Ok(port) => (h, Some(port)),
-                Err(_) => bail!("INVOICE__PUBLIC_URL has an invalid port"),
+                Err(_) => bail!("INVOICEAPP__PUBLIC_URL has an invalid port"),
             },
             None => (authority, None),
         };
@@ -52,7 +52,7 @@ impl PublicUrl {
         let label_ok =
             |l: &str| !l.is_empty() && l.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-');
         if !host.split('.').all(label_ok) {
-            bail!("INVOICE__PUBLIC_URL has an invalid host");
+            bail!("INVOICEAPP__PUBLIC_URL has an invalid host");
         }
         Ok(Self { https, host, port })
     }

@@ -10,7 +10,7 @@ use common::TestDb;
 use common::design::{activate_ok, template, upload_ok};
 use common::mdcast::{PdfEnv, Rendered, get_raw};
 use common::storage::TestStorage;
-use invoice::pdf::design::{self, Cache};
+use invoiceapp::pdf::design::{self, Cache};
 
 async fn preview(app: &axum::Router, env: &PdfEnv) -> Rendered {
     let (status, _, _) = get_raw(app, "/api/pdf/preview").await;
@@ -32,7 +32,7 @@ async fn activation_drops_the_cached_listing() {
         .map(|(_, d)| d.clone())
         .expect("an embedded font");
 
-    // Written behind the editor's back (as `invoice design push` does):
+    // Written behind the editor's back (as `invoiceapp design push` does):
     // the cached listing does not show it yet.
     env.storage
         .storage

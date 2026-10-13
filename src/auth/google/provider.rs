@@ -66,7 +66,7 @@ impl Google {
     pub fn with_jwks_refresh(cfg: GoogleConfig, jwks_refresh: Duration) -> anyhow::Result<Self> {
         let http = reqwest::Client::builder()
             .timeout(TIMEOUT)
-            .user_agent(concat!("invoice/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("invoiceapp/", env!("CARGO_PKG_VERSION")))
             .build()
             .context("build Google HTTP client")?;
         Ok(Self(Arc::new(Inner {
@@ -108,7 +108,7 @@ impl Google {
         let d: Discovery = self.get_json(&url).await.map_err(unavailable)?;
         if d.issuer.trim_end_matches('/') != self.0.cfg.issuer {
             return Err(unavailable(anyhow::anyhow!(
-                "discovery issuer {:?} differs from INVOICE__GOOGLE__ISSUER",
+                "discovery issuer {:?} differs from INVOICEAPP__GOOGLE__ISSUER",
                 d.issuer
             )));
         }

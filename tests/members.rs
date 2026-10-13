@@ -7,7 +7,7 @@ use axum::http::{Method, StatusCode};
 use common::auth::{As, member, on, seed_space};
 use common::members::{session_on, token, user_id};
 use common::{OWNER_EMAIL, TEST_HOST, TEST_TOKEN, TestDb, router};
-use invoice::space::Role;
+use invoiceapp::space::Role;
 use serde_json::{Value, json};
 
 async fn put_role(

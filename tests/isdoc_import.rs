@@ -334,10 +334,10 @@ async fn foreign_currency_rates() {
 
 #[tokio::test]
 async fn confirm_rechecks_duplicates_under_a_lock() {
-    use invoice::document::repo::issue::Rate;
-    use invoice::error::AppError;
-    use invoice::import::store::{self, Options};
-    use invoice::isdoc::{parse, plan};
+    use invoiceapp::document::repo::issue::Rate;
+    use invoiceapp::error::AppError;
+    use invoiceapp::import::store::{self, Options};
+    use invoiceapp::isdoc::{parse, plan};
 
     let db = TestDb::new().await;
     let app = router(db.conn.clone());

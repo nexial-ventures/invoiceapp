@@ -28,7 +28,7 @@
     "download": "Stáhnout .txt",
     "saved": "Uložil(a) jsem je.",
     "close": "Hotovo",
-    "fileHeader": "Záchranné kódy Invoice pro {email}. Každý lze použít jen jednou."
+    "fileHeader": "Záchranné kódy InvoiceApp pro {email}. Každý lze použít jen jednou."
   },
   "regenerate": {
     "open": "Nové záchranné kódy",

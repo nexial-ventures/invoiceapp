@@ -3,7 +3,7 @@
 
 use axum::Router;
 use axum::http::{Method, StatusCode};
-use invoice::space::SpaceId;
+use invoiceapp::space::SpaceId;
 use sea_orm::{ConnectionTrait, DatabaseConnection};
 use serde_json::Value;
 

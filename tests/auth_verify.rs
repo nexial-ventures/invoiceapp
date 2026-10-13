@@ -26,11 +26,11 @@ async fn unverified_user_cannot_log_in_on_a_space_host_and_resend_works() {
     let first = mail_token(&mail(&env.smtp, 1).await, "verify");
 
     // Even a membership would not help an unverified user on a space host.
-    let user = invoice::auth::users::find_by_email(&db.conn, "late@example.com")
+    let user = invoiceapp::auth::users::find_by_email(&db.conn, "late@example.com")
         .await
         .expect("query")
         .expect("user");
-    invoice::space::entity::member::ActiveModel {
+    invoiceapp::space::entity::member::ActiveModel {
         space_id: sea_orm::Set(db.space.uuid()),
         user_id: sea_orm::Set(user.id),
         role: sea_orm::Set("member".into()),

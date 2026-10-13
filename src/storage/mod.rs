@@ -137,9 +137,9 @@ impl Storage {
     /// and its directory.
     pub fn local(dir: &FsPath) -> anyhow::Result<Self> {
         std::fs::create_dir_all(dir)
-            .with_context(|| format!("create INVOICE__STORAGE_DIR {}", dir.display()))?;
+            .with_context(|| format!("create INVOICEAPP__STORAGE_DIR {}", dir.display()))?;
         let store = LocalFileSystem::new_with_prefix(dir)
-            .with_context(|| format!("open INVOICE__STORAGE_DIR {}", dir.display()))?
+            .with_context(|| format!("open INVOICEAPP__STORAGE_DIR {}", dir.display()))?
             .with_fsync(true);
         Ok(Self {
             store: Arc::new(store),

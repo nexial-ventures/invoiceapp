@@ -37,7 +37,7 @@ CREATE TABLE google_flows (
     nonce         text        NOT NULL,
     return_path   text        NOT NULL,
     -- invite: sha256 (hex) of the invitation token, and the token sealed under
-    -- INVOICE__SECRET_KEY (associated data = the space id) for the error redirect.
+    -- INVOICEAPP__SECRET_KEY (associated data = the space id) for the error redirect.
     invite_hash   text,
     invite_sealed bytea,
     -- link: the signed-in user.

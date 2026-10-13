@@ -11,7 +11,7 @@ type Wrapper = Awaited<ReturnType<typeof mountView>>["w"];
 
 const CODES = Array.from({ length: 10 }, (_, i) => `aaaa${i}-bbbbb`);
 const ON: MfaStatus = { enabled: true, recoveryCodesLeft: 7, requiredBy: [] };
-const SETUP = { secret: "JBSWY3DPEHPK3PXP", otpauthUri: "otpauth://totp/Invoice%20(localhost):jana%40example.cz?secret=JBSWY3DPEHPK3PXP" };
+const SETUP = { secret: "JBSWY3DPEHPK3PXP", otpauthUri: "otpauth://totp/InvoiceApp%20(localhost):jana%40example.cz?secret=JBSWY3DPEHPK3PXP" };
 
 describe("Account → two-factor authentication", () => {
   beforeEach(() => {

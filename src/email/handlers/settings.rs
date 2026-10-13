@@ -24,11 +24,11 @@ use crate::space::SpaceId;
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct EmailStatus {
-    /// SMTP is configured (`INVOICE__SMTP__HOST`).
+    /// SMTP is configured (`INVOICEAPP__SMTP__HOST`).
     pub configured: bool,
-    /// `INVOICE__EMAIL_DISABLED`: sending is switched off by the operator.
+    /// `INVOICEAPP__EMAIL_DISABLED`: sending is switched off by the operator.
     pub disabled: bool,
-    /// `INVOICE__SMTP__FROM` as configured.
+    /// `INVOICEAPP__SMTP__FROM` as configured.
     pub from: Option<String>,
     /// The company e-mail (`Reply-To`).
     pub reply_to: Option<String>,

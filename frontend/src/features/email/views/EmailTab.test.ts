@@ -47,7 +47,7 @@ describe("EmailTab", () => {
 
   it("shows the kill switch and blocks the test e-mail", async () => {
     const { w } = await mountTab({ "GET /api/settings/email": emailSettings({ disabled: true }) });
-    expect(w.find('[data-test="email-disabled"]').text()).toContain("INVOICE__EMAIL_DISABLED");
+    expect(w.find('[data-test="email-disabled"]').text()).toContain("INVOICEAPP__EMAIL_DISABLED");
     expect(w.find('[data-test="email-test-send"]').attributes("disabled")).toBeDefined();
   });
 

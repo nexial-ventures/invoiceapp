@@ -4,8 +4,8 @@ mod common;
 
 use axum::http::{Method, StatusCode};
 use common::{TestDb, call, router};
-use invoice::document::doc_type::DocType;
-use invoice::settings::repo::number_series::allocate_number;
+use invoiceapp::document::doc_type::DocType;
+use invoiceapp::settings::repo::number_series::allocate_number;
 use sea_orm::TransactionTrait;
 use serde_json::{Value, json};
 
@@ -19,7 +19,7 @@ fn find<'a>(list: &'a Value, doc_type: &str) -> &'a Value {
 async fn series_are_seeded_with_preview() {
     let db = TestDb::new().await;
     let app = router(db.conn.clone());
-    let year = invoice::time::current_year();
+    let year = invoiceapp::time::current_year();
 
     let (status, list) = call(&app, Method::GET, "/api/settings/number-series", None).await;
     assert_eq!(status, StatusCode::OK);
@@ -92,7 +92,7 @@ async fn series_are_seeded_with_preview() {
 async fn pattern_update_and_validation() {
     let db = TestDb::new().await;
     let app = router(db.conn.clone());
-    let yy = invoice::time::current_year() % 100;
+    let yy = invoiceapp::time::current_year() % 100;
 
     let (status, s) = call(
         &app,
@@ -159,7 +159,7 @@ async fn pattern_update_and_validation() {
 async fn counter_upsert() {
     let db = TestDb::new().await;
     let app = router(db.conn.clone());
-    let year = invoice::time::current_year();
+    let year = invoiceapp::time::current_year();
 
     let uri = format!("/api/settings/number-series/invoice/counters/{year}");
     let (status, s) = call(&app, Method::PUT, &uri, Some(json!({ "lastNumber": 41 }))).await;
