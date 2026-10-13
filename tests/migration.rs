@@ -2,7 +2,7 @@
 
 mod common;
 
-use invoice::migration::{Migrator, MigratorTrait};
+use invoiceapp::migration::{Migrator, MigratorTrait};
 use sea_orm::{ConnectOptions, ConnectionTrait, Database};
 
 #[tokio::test]

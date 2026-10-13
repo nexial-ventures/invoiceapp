@@ -50,14 +50,14 @@ pub fn render(mail: &Mail, locale: Locale) -> (String, String) {
         (Mail::Verify(url), Locale::Cs) => (
             "Potvrďte svůj e-mail".into(),
             format!(
-                "Dobrý den,\n\npro dokončení registrace v aplikaci Invoice potvrďte svůj e-mail:\n\n{url}\n\n\
+                "Dobrý den,\n\npro dokončení registrace v aplikaci InvoiceApp potvrďte svůj e-mail:\n\n{url}\n\n\
                  Odkaz platí 24 hodin. Pokud jste se neregistrovali, tento e-mail ignorujte.\n"
             ),
         ),
         (Mail::Verify(url), Locale::En) => (
             "Confirm your e-mail".into(),
             format!(
-                "Hello,\n\nto finish your Invoice registration, confirm your e-mail address:\n\n{url}\n\n\
+                "Hello,\n\nto finish your InvoiceApp registration, confirm your e-mail address:\n\n{url}\n\n\
                  The link is valid for 24 hours. If you did not register, ignore this e-mail.\n"
             ),
         ),
@@ -80,14 +80,14 @@ pub fn render(mail: &Mail, locale: Locale) -> (String, String) {
         (Mail::Reset(url), Locale::Cs) => (
             "Obnovení hesla".into(),
             format!(
-                "Dobrý den,\n\nnové heslo k aplikaci Invoice si nastavíte zde:\n\n{url}\n\n\
+                "Dobrý den,\n\nnové heslo k aplikaci InvoiceApp si nastavíte zde:\n\n{url}\n\n\
                  Odkaz platí 1 hodinu. Pokud jste o obnovení nežádali, tento e-mail ignorujte.\n"
             ),
         ),
         (Mail::Reset(url), Locale::En) => (
             "Password reset".into(),
             format!(
-                "Hello,\n\nset a new Invoice password here:\n\n{url}\n\n\
+                "Hello,\n\nset a new InvoiceApp password here:\n\n{url}\n\n\
                  The link is valid for 1 hour. If you did not ask for a reset, ignore this e-mail.\n"
             ),
         ),
@@ -102,7 +102,7 @@ pub fn render(mail: &Mail, locale: Locale) -> (String, String) {
         ) => (
             format!("{inviter} vás zve do {space}"),
             format!(
-                "Dobrý den,\n\n{inviter} vás zve do {space} v aplikaci Invoice s rolí {}.\n\
+                "Dobrý den,\n\n{inviter} vás zve do {space} v aplikaci InvoiceApp s rolí {}.\n\
                  Pozvánku přijmete zde:\n\n{url}\n\n\
                  Odkaz platí 7 dní. Pokud pozvánku nečekáte, tento e-mail ignorujte.\n",
                 role_cs(*role)
@@ -119,7 +119,7 @@ pub fn render(mail: &Mail, locale: Locale) -> (String, String) {
         ) => (
             format!("{inviter} invites you to {space}"),
             format!(
-                "Hello,\n\n{inviter} invites you to {space} in Invoice as {}.\n\
+                "Hello,\n\n{inviter} invites you to {space} in InvoiceApp as {}.\n\
                  Accept the invitation here:\n\n{url}\n\n\
                  The link is valid for 7 days. If you did not expect it, ignore this e-mail.\n",
                 role.as_str()
@@ -144,7 +144,7 @@ pub fn send(state: &AppState, to: &str, mail: Mail, locale: Locale) -> bool {
     if state.email_disabled {
         tracing::warn!(
             kind = mail.kind(),
-            "account e-mail skipped: INVOICE__EMAIL_DISABLED"
+            "account e-mail skipped: INVOICEAPP__EMAIL_DISABLED"
         );
         return false;
     }

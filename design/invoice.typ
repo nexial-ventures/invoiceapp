@@ -1,6 +1,6 @@
 // Default invoice design. Reads everything from /data.json (built by
 // src/pdf/payload.rs): every value is pre-formatted and every label resolved,
-// so this file holds layout only. Override any file via INVOICE__DESIGN_DIR.
+// so this file holds layout only. A space overrides any file via its design (`invoiceapp design push`, Settings).
 
 #let d = json("/data.json")
 

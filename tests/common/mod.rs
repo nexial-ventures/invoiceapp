@@ -18,14 +18,14 @@ use axum::Router;
 use axum::body::Body;
 use axum::extract::Request;
 use axum::http::{HeaderValue, Method, Response, StatusCode, header};
-use invoice::app::{self, AppState};
-use invoice::ares::{AresClient, DEFAULT_ARES_URL};
-use invoice::auth::host::PublicUrl;
-use invoice::auth::ratelimit::RateLimiter;
-use invoice::cnb::{CnbClient, DEFAULT_CNB_URL};
-use invoice::migration::{Migrator, MigratorTrait};
-use invoice::pdf::PdfRoot;
-use invoice::space::SpaceId;
+use invoiceapp::app::{self, AppState};
+use invoiceapp::ares::{AresClient, DEFAULT_ARES_URL};
+use invoiceapp::auth::host::PublicUrl;
+use invoiceapp::auth::ratelimit::RateLimiter;
+use invoiceapp::cnb::{CnbClient, DEFAULT_CNB_URL};
+use invoiceapp::migration::{Migrator, MigratorTrait};
+use invoiceapp::pdf::PdfRoot;
+use invoiceapp::space::SpaceId;
 use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection};
 use tower::ServiceExt;
 
@@ -54,7 +54,7 @@ pub mod storage;
 
 /// Owner token of the default space (API token format `inv_{prefix}_{secret}`).
 pub const TEST_TOKEN: &str = "inv_7e57c0de_dGVzdC10b2tlbi1zZWNyZXQtMDEyMzQ1Njc4OWFiY2RlZg";
-/// `INVOICE__PUBLIC_URL` of every test app.
+/// `INVOICEAPP__PUBLIC_URL` of every test app.
 pub const PUBLIC_URL: &str = "http://localhost:3000";
 pub const BASE_HOST: &str = "localhost:3000";
 pub const TEST_SLUG: &str = "acme";
@@ -168,7 +168,7 @@ pub fn router(db: DatabaseConnection) -> Router {
     router_with_ares(db, DEFAULT_ARES_URL)
 }
 
-/// [`router`] with `INVOICE__REGISTRATION` on, so `POST /api/spaces` is allowed.
+/// [`router`] with `INVOICEAPP__REGISTRATION` on, so `POST /api/spaces` is allowed.
 pub fn router_open(db: DatabaseConnection) -> Router {
     TestApp::builder(&db).registration(true).build()
 }
@@ -204,21 +204,21 @@ async fn default_host(mut req: Request) -> Request {
 }
 
 /// One fs storage per test binary; tests never write `design/` into it.
-pub fn shared_storage() -> invoice::storage::Storage {
+pub fn shared_storage() -> invoiceapp::storage::Storage {
     let dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("storage");
-    invoice::storage::Storage::local(&dir).expect("shared fs storage")
+    invoiceapp::storage::Storage::local(&dir).expect("shared fs storage")
 }
 
-pub fn pdf_service(mdcast_url: &str, storage: invoice::storage::Storage) -> PdfRoot {
+pub fn pdf_service(mdcast_url: &str, storage: invoiceapp::storage::Storage) -> PdfRoot {
     PdfRoot::new(mdcast_url, None, storage).expect("build PDF service")
 }
 
 /// The PDF service of `space` (tests calling the archive / import code directly).
 pub fn space_pdf(
     mdcast_url: &str,
-    storage: invoice::storage::Storage,
+    storage: invoiceapp::storage::Storage,
     space: SpaceId,
-) -> invoice::pdf::PdfService {
+) -> invoiceapp::pdf::PdfService {
     pdf_service(mdcast_url, storage)
         .space(space)
         .expect("space PDF service")
@@ -234,22 +234,24 @@ pub fn state(db: DatabaseConnection, ares_url: &str, cnb_url: &str, pdf: PdfRoot
         public: PublicUrl::parse(PUBLIC_URL).expect("public URL"),
         email_disabled: false,
         registration: false,
-        max_spaces_per_user: invoice::config::DEFAULT_MAX_SPACES_PER_USER,
+        max_spaces_per_user: invoiceapp::config::DEFAULT_MAX_SPACES_PER_USER,
         trust_forwarded: false,
         secret_key: test_secret_key(),
         limiter: RateLimiter::default(),
-        templates: invoice::email::sandbox::TemplateSandbox::new(env!("CARGO_BIN_EXE_invoice")),
+        templates: invoiceapp::email::sandbox::TemplateSandbox::new(env!(
+            "CARGO_BIN_EXE_invoiceapp"
+        )),
         google: None,
     }
 }
 
 /// `TEST_SECRET_KEY` (base64, 32 bytes) or a fixed, fictitious test key.
-pub fn test_secret_key() -> invoice::secret::SecretKey {
+pub fn test_secret_key() -> invoiceapp::secret::SecretKey {
     match std::env::var("TEST_SECRET_KEY") {
         Ok(raw) if !raw.trim().is_empty() => {
-            invoice::secret::SecretKey::parse(&raw).expect("TEST_SECRET_KEY: 32 bytes, base64")
+            invoiceapp::secret::SecretKey::parse(&raw).expect("TEST_SECRET_KEY: 32 bytes, base64")
         }
-        _ => invoice::secret::SecretKey::from_bytes(*b"invoice-test-secret-key-32-bytes"),
+        _ => invoiceapp::secret::SecretKey::from_bytes(*b"invoice-test-secret-key-32-bytes"),
     }
 }
 

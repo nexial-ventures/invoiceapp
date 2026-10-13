@@ -69,7 +69,7 @@ Contact { id, name: string /* required <=200 */, ico: string|null, dic: string|n
 - `ico` unique when not null → 422 `{"fields":{"ico":"duplicate"}}`.
 
 ## ARES — `GET /api/ares/{ico}`
-Calls `GET {INVOICE__ARES_URL}/ekonomicke-subjekty/{ico}` (default base `https://ares.gov.cz/ekonomicke-subjekty-v-be/rest`), 10 s timeout. Maps to a contact draft (no id):
+Calls `GET {INVOICEAPP__ARES_URL}/ekonomicke-subjekty/{ico}` (default base `https://ares.gov.cz/ekonomicke-subjekty-v-be/rest`), 10 s timeout. Maps to a contact draft (no id):
 ```
 AresSubject { name, ico, dic|null, street, city, zip, country: "CZ" }
 ```

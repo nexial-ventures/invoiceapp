@@ -42,11 +42,11 @@ async fn upload_replace_serve_delete(storage: TestStorage) {
     let (_, d) = call(&app, Method::GET, &format!("/api/documents/{doc_id}"), None).await;
     assert_eq!(
         d["original"]["sha256"],
-        json!(invoice::storage::sha256_hex(PDF))
+        json!(invoiceapp::storage::sha256_hex(PDF))
     );
     assert_eq!(d["original"]["size"], json!(PDF.len()));
     assert_eq!(d["pdf"], Value::Null);
-    let sha = invoice::storage::sha256_hex(PDF);
+    let sha = invoiceapp::storage::sha256_hex(PDF);
     let prefix = db.key(&format!("documents/2026/{doc_id}-original-{}-", &sha[..8]));
     let keys = env.storage.keys(&db.key("documents/2026")).await;
     let rel = keys

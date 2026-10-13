@@ -3,7 +3,7 @@ import type { Narrow, Wire } from "@/api/wire";
 
 /**
  * `GET /api/settings/email` — SMTP comes from env only; `replyTo` is the company e-mail;
- * `disabled` = the operator's kill switch (`INVOICE__EMAIL_DISABLED`): nothing can be sent.
+ * `disabled` = the operator's kill switch (`INVOICEAPP__EMAIL_DISABLED`): nothing can be sent.
  */
 export type EmailSettings = Wire<"EmailStatus">;
 

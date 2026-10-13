@@ -5,14 +5,14 @@
 use std::time::Duration;
 
 use axum::Router;
-use invoice::app::AppState;
-use invoice::ares::DEFAULT_ARES_URL;
-use invoice::auth::google::{Google, GoogleConfig};
-use invoice::cnb::DEFAULT_CNB_URL;
-use invoice::email::{Mailer, SmtpConfig};
-use invoice::pdf::PdfRoot;
-use invoice::secret::Secret;
-use invoice::storage::Storage;
+use invoiceapp::app::AppState;
+use invoiceapp::ares::DEFAULT_ARES_URL;
+use invoiceapp::auth::google::{Google, GoogleConfig};
+use invoiceapp::cnb::DEFAULT_CNB_URL;
+use invoiceapp::email::{Mailer, SmtpConfig};
+use invoiceapp::pdf::PdfRoot;
+use invoiceapp::secret::Secret;
+use invoiceapp::storage::Storage;
 use sea_orm::DatabaseConnection;
 
 use super::mdcast::PdfEnv;
@@ -33,7 +33,7 @@ impl TestApp {
             storage: None,
             smtp: None,
             google: None,
-            jwks_refresh: invoice::auth::google::provider::JWKS_REFRESH,
+            jwks_refresh: invoiceapp::auth::google::provider::JWKS_REFRESH,
             registration: false,
             trust_forwarded: false,
             edits: Vec::new(),

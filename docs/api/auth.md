@@ -5,16 +5,16 @@ login code step, step-up codes and `user.mfaEnabled` in [mfa.md](mfa.md). Sign i
 without a password, `user.hasPassword` / `googleLinked`: [google.md](google.md).
 
 ## Config
-- `INVOICE__REGISTRATION` (`true` / `false`, default `false`): public registration on the base host **and** creating
+- `INVOICEAPP__REGISTRATION` (`true` / `false`, default `false`): public registration on the base host **and** creating
   spaces (`POST /api/spaces`; off → 403 `space_creation_disabled`, [spaces.md](spaces.md)). `true` requires
   SMTP to be configured (startup fails otherwise) — verification and reset e-mails go through the instance SMTP
   (2a), `From` = the configured sender.
-- `INVOICE__TRUST_FORWARDED` (default `false`): take the client IP for rate limits from the **last**
+- `INVOICEAPP__TRUST_FORWARDED` (default `false`): take the client IP for rate limits from the **last**
   `X-Forwarded-For` hop (behind a reverse proxy that appends to the header — earlier hops are client-controlled);
   otherwise the socket address. Behind a proxy it **must** be `true` and the app port must not be reachable
   directly (else every client shares the proxy's buckets, or a direct client forges the header). With `false`, the
   first request that carries `X-Forwarded-For` logs one warning (once per process).
-- `INVOICE__API_TOKEN` is removed (startup ignores it; `.env.example` and docs drop it).
+- `INVOICEAPP__API_TOKEN` is removed (startup ignores it; `.env.example` and docs drop it).
 - **Bootstrap = registration.** There is no CLI user / space creation; the first user registers like anyone else
   (enable registration, register, disable it if wanted — this also disables creating further spaces, including for
   you).
@@ -46,7 +46,7 @@ created through Google that has not set one (4d) —, email_verified_at, disable
   that space. Wrong e-mail, wrong password, not a member, disabled → the same 401 `{"code":"invalid_credentials"}`.
   Unverified on a space host → the same 401. Constant-time: an unknown e-mail still runs one argon2 verification.
 - Cookie `invoice_session`: 32 random bytes base64url, **host-only** (no `Domain`), `HttpOnly`, `SameSite=Lax`,
-  `Path=/`, `Secure` when `INVOICE__PUBLIC_URL` is https. The DB stores sha256 of it (table `sessions`: user_id,
+  `Path=/`, `Secure` when `INVOICEAPP__PUBLIC_URL` is https. The DB stores sha256 of it (table `sessions`: user_id,
   space_id (null on the base host), created_at, last_seen_at, expires_at, user_agent ≤ 200). A session is valid only
   on the host it was created for (the base host or its space).
 - Expiry: idle **14 days** (sliding; `last_seen_at` written at most once a minute), absolute **90 days**. Expired sessions,
@@ -71,7 +71,7 @@ created through Google that has not set one (4d) —, email_verified_at, disable
 
 ## CSRF
 Cookie-authenticated `POST` / `PUT` / `PATCH` / `DELETE` must carry an `Origin` equal to the request's own origin
-(`INVOICE__PUBLIC_URL` scheme + the request host + port); missing or different → 403 `{"code":"csrf"}`. Bearer
+(`INVOICEAPP__PUBLIC_URL` scheme + the request host + port); missing or different → 403 `{"code":"csrf"}`. Bearer
 requests and the unauthenticated auth routes (`login`, `register`, `verify`, `password-reset*`) are checked the same
 way when an `Origin` is present (a cross-site form post is refused).
 
@@ -119,9 +119,9 @@ Nothing secret (password, cookie, token, reset / verify token) is ever logged.
 - E-mails through the mock SMTP; the verify / reset tokens read from the captured mail.
 
 ## Clarifications (as implemented)
-- Config: `INVOICE__PUBLIC_URL` = `http(s)://host[:port]` with an optional trailing `/` (no path, user info or IP
-  literal; host lowercased). `INVOICE__REGISTRATION` / `INVOICE__TRUST_FORWARDED` accept `true` / `false` / `1` /
-  `0`, empty = `false`, anything else refuses the start. A leftover `INVOICE__API_TOKEN` is ignored.
+- Config: `INVOICEAPP__PUBLIC_URL` = `http(s)://host[:port]` with an optional trailing `/` (no path, user info or IP
+  literal; host lowercased). `INVOICEAPP__REGISTRATION` / `INVOICEAPP__TRUST_FORWARDED` accept `true` / `false` / `1` /
+  `0`, empty = `false`, anything else refuses the start. A leftover `INVOICEAPP__API_TOKEN` is ignored.
 - E-mails are lowercased + trimmed everywhere (register, login, resend, reset). An e-mail over 200 chars →
   `email: invalid`. Passwords are never trimmed; length counts characters.
 - Register: validation (422) runs before the rate limit, so invalid bodies do not count. A known e-mail gets the
@@ -157,12 +157,12 @@ Nothing secret (password, cookie, token, reset / verify token) is ever logged.
   get the far higher rate the delay allows (~2 / min).
 - Verify / reset tokens of one kind are refused by the other route (`token: invalid`). Several live tokens may
   exist (each resend / request issues a new one); each is single use.
-- CSRF: `Origin` is compared case-insensitively with `{scheme of INVOICE__PUBLIC_URL}://{request host incl. port}`;
+- CSRF: `Origin` is compared case-insensitively with `{scheme of INVOICEAPP__PUBLIC_URL}://{request host incl. port}`;
   `Origin: null` is foreign. GET / HEAD / OPTIONS are never checked. The public auth routes (`login`, `register`,
   `verify*`, `password-reset*`) and Bearer requests are checked only when `Origin` is sent.
 - Rate limits: `register`, `verify/resend` and `password-reset` share one per-IP bucket (5 / h) and one per-e-mail
   bucket (3 / h); every request counts there (not only failures). `Retry-After` is in whole seconds (≥ 1). Without
-  `INVOICE__TRUST_FORWARDED` the socket address is the IP; with it the **last** `X-Forwarded-For` hop (the one the
+  `INVOICEAPP__TRUST_FORWARDED` the socket address is the IP; with it the **last** `X-Forwarded-For` hop (the one the
   trusted proxy appended — earlier hops are client-controlled; the proxy must append, not pass through).
   `Retry-After` is rounded **up** (a client that waits it is not refused again). The limiter is in memory (single
   instance) and bounded without dropping state that still counts: keys (cut to 320 bytes) are swept in insertion
@@ -176,7 +176,7 @@ Nothing secret (password, cookie, token, reset / verify token) is ever logged.
 - New error codes: 401 `invalid_credentials`, 403 `forbidden`, `email_unverified`, `csrf`, 429 `rate_limited`,
   503 `busy` (password hashing saturated). Later: 403 `space_limit` (space cap), 503 `email_disabled` (kill switch,
   [email.md](email.md)).
-- `INVOICE__EMAIL_DISABLED=true`: verify, "already registered" and reset e-mails are skipped and logged at `warn`
+- `INVOICEAPP__EMAIL_DISABLED=true`: verify, "already registered" and reset e-mails are skipped and logged at `warn`
   (the routes still answer 202, nothing else changes).
 - `GET /api/auth/check` (the old token check) is removed; the SPA uses `GET /api/auth/me`.
 - **4d** ([google.md](google.md)): `password_hash` is nullable. A password login of an account without a password
@@ -195,10 +195,10 @@ Nothing secret (password, cookie, token, reset / verify token) is ever logged.
   - *No instance-wide e-mail total*: register, verify/resend and password-reset are limited per IP and per
     address; every e-mail sent on behalf of a space (documents, test, invitations) is limited per space and per
     user in the database (100 / day, 20 / h each, [spaces.md](spaces.md#limits)), and a user owns at most
-    `INVOICE__MAX_SPACES_PER_USER` (3) spaces they created. Many clients and accounts together can still make the
-    instance send more mail than any one of these bounds. Mitigations: `INVOICE__EMAIL_DISABLED=true` (kill switch:
+    `INVOICEAPP__MAX_SPACES_PER_USER` (3) spaces they created. Many clients and accounts together can still make the
+    instance send more mail than any one of these bounds. Mitigations: `INVOICEAPP__EMAIL_DISABLED=true` (kill switch:
     space e-mails → 503 `email_disabled`, account e-mails skipped and logged — registration then cannot be
-    completed), open registration only to vetted users at first, or keep `INVOICE__REGISTRATION=false`.
+    completed), open registration only to vetted users at first, or keep `INVOICEAPP__REGISTRATION=false`.
   - *PDF template isolation is mdcast's*: a space's design (typst templates uploaded by its admins,
     [design.md](design.md)) is rendered by the mdcast service; the app does not sandbox it. The operator must run
     a sandboxed mdcast (no file system or network access beyond the request, resource limits) — otherwise a

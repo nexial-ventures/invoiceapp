@@ -13,8 +13,8 @@ use common::TestDb;
 use common::documents::{archive_rel, create_doc, id, issuable, issue};
 use common::mdcast::PdfEnv;
 use common::storage::TestStorage;
-use invoice::storage::Storage;
-use invoice::storage::sweep::{self, MAX_ORPHANS, Options, Swept};
+use invoiceapp::storage::Storage;
+use invoiceapp::storage::sweep::{self, MAX_ORPHANS, Options, Swept};
 
 macro_rules! suite {
     ($($case:ident),* $(,)?) => {

@@ -33,13 +33,13 @@ pub enum AppError {
     #[error("e-mail not verified")]
     EmailUnverified,
 
-    /// `POST /api/spaces` while `INVOICE__REGISTRATION` is off: only invited
+    /// `POST /api/spaces` while `INVOICEAPP__REGISTRATION` is off: only invited
     /// people may enter the instance, so nobody creates a space of their own.
     #[error("space creation disabled")]
     SpaceCreationDisabled,
 
     /// `POST /api/spaces` by a user who already owns
-    /// `INVOICE__MAX_SPACES_PER_USER` spaces they created.
+    /// `INVOICEAPP__MAX_SPACES_PER_USER` spaces they created.
     #[error("space limit reached")]
     SpaceLimit,
 
@@ -173,11 +173,11 @@ pub enum AppError {
     #[error("storage unavailable: {0}")]
     StorageUnavailable(String),
 
-    /// No SMTP server configured (`INVOICE__SMTP__HOST` unset).
+    /// No SMTP server configured (`INVOICEAPP__SMTP__HOST` unset).
     #[error("e-mail is not configured")]
     SmtpNotConfigured,
 
-    /// `INVOICE__EMAIL_DISABLED`: the operator's kill switch.
+    /// `INVOICEAPP__EMAIL_DISABLED`: the operator's kill switch.
     #[error("e-mail is disabled")]
     EmailDisabled,
 

@@ -16,7 +16,7 @@ use axum::extract::State;
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::post;
-use invoice::pdf::PdfRoot;
+use invoiceapp::pdf::PdfRoot;
 use serde_json::{Value, json};
 
 /// One successful render as the mock saw it.
@@ -275,7 +275,7 @@ impl PdfEnv {
         &self,
         db: sea_orm::DatabaseConnection,
         url: &str,
-        storage: invoice::storage::Storage,
+        storage: invoiceapp::storage::Storage,
     ) -> Router {
         super::TestApp::builder(&db)
             .mdcast_url(url)
@@ -287,7 +287,7 @@ impl PdfEnv {
     pub fn router_limited(
         &self,
         db: sea_orm::DatabaseConnection,
-        limits: invoice::pdf::limits::RenderLimits,
+        limits: invoiceapp::pdf::limits::RenderLimits,
     ) -> Router {
         super::TestApp::builder(&db)
             .mdcast(self)

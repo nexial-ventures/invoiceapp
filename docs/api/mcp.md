@@ -11,7 +11,7 @@ invoices. It is a thin layer over the same services as the REST API — no busin
 - On a space host, behind the auth middleware like every space route (`src/auth/ctx.rs`): a personal API token
   of that space (or a session cookie); without it → 401 before MCP handling. Read tools need the role `accountant`,
   write tools `member`; a call below that is the tool error `{"code":"forbidden"}` (4a, [spaces.md](spaces.md)).
-- `initialize` answers `serverInfo { name: "invoice", version: <crate version> }`, capabilities `tools` only, and
+- `initialize` answers `serverInfo { name: "invoiceapp", version: <crate version> }`, capabilities `tools` only, and
   `instructions`: a short English description of the domain (directions, document types, statuses, money as decimal
   strings, how to issue an invoice: find / create the contact → create a draft → check totals → issue).
 - Protocol version: whatever `rmcp` negotiates (≥ 2025-03-26).

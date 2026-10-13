@@ -7,7 +7,7 @@ use axum::http::{Method, StatusCode};
 use common::auth::{As, member, on};
 use common::members::{accept, count, invite, link_token, show, user_id};
 use common::{TEST_HOST, TEST_TOKEN, TestDb, router};
-use invoice::space::Role;
+use invoiceapp::space::Role;
 use sea_orm::ConnectionTrait;
 use serde_json::json;
 

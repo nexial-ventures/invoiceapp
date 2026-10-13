@@ -6,8 +6,8 @@ use axum::Router;
 use axum::body::Body;
 use axum::http::{HeaderMap, Request, header};
 use common::{BASE_HOST, TEST_HOST, TestDb, router, send};
-use invoice::auth::host::PublicUrl;
-use invoice::security_headers::{CSP, HSTS};
+use invoiceapp::auth::host::PublicUrl;
+use invoiceapp::security_headers::{CSP, HSTS};
 
 async fn headers(app: &Router, host: &str, uri: &str) -> HeaderMap {
     let req = Request::builder()

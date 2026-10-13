@@ -7,12 +7,12 @@ MiniJinja plain-text templates (one set for all document types, per locale), edi
 
 | Variable | Meaning |
 |---|---|
-| `INVOICE__SMTP__HOST` | SMTP server; unset → e-mail not configured (sending → 503 `smtp_not_configured`) |
-| `INVOICE__SMTP__PORT` | default by TLS mode: `starttls` 587, `tls` 465, `none` 25 |
-| `INVOICE__SMTP__TLS` | `starttls` (default) \| `tls` (implicit TLS) \| `none` (plain, tests / local relay only) |
-| `INVOICE__SMTP__USERNAME`, `INVOICE__SMTP__PASSWORD` | both or neither (one alone → `serve` refuses to start); with `TLS=none` only to a loopback HOST (`localhost`, `127.0.0.0/8`, `::1`), else `serve` refuses to start |
-| `INVOICE__SMTP__FROM` | sender, `addr@x` or `Name <addr@x>`; required when HOST is set |
-| `INVOICE__EMAIL_DISABLED` | `true` = the operator's kill switch (default `false`): every e-mail sent on behalf of a space (document e-mails, the test e-mail) → 503 `email_disabled` (also without SMTP — it wins over `smtp_not_configured`); account e-mails (verify, "already registered", reset, invitations) are skipped and logged at `warn` — an invitation is still created, with `emailSent: false` and no `url` ([members.md](members.md)) |
+| `INVOICEAPP__SMTP__HOST` | SMTP server; unset → e-mail not configured (sending → 503 `smtp_not_configured`) |
+| `INVOICEAPP__SMTP__PORT` | default by TLS mode: `starttls` 587, `tls` 465, `none` 25 |
+| `INVOICEAPP__SMTP__TLS` | `starttls` (default) \| `tls` (implicit TLS) \| `none` (plain, tests / local relay only) |
+| `INVOICEAPP__SMTP__USERNAME`, `INVOICEAPP__SMTP__PASSWORD` | both or neither (one alone → `serve` refuses to start); with `TLS=none` only to a loopback HOST (`localhost`, `127.0.0.0/8`, `::1`), else `serve` refuses to start |
+| `INVOICEAPP__SMTP__FROM` | sender, `addr@x` or `Name <addr@x>`; required when HOST is set |
+| `INVOICEAPP__EMAIL_DISABLED` | `true` = the operator's kill switch (default `false`): every e-mail sent on behalf of a space (document e-mails, the test e-mail) → 503 `email_disabled` (also without SMTP — it wins over `smtp_not_configured`); account e-mails (verify, "already registered", reset, invitations) are skipped and logged at `warn` — an invitation is still created, with `emailSent: false` and no `url` ([members.md](members.md)) |
 
 - Invalid config (bad FROM, unknown TLS mode, HOST without FROM) → `serve` refuses to start with a clear message.
 - Every SMTP exchange (connect + send) has a 30 s total timeout.
@@ -32,7 +32,7 @@ MiniJinja plain-text templates (one set for all document types, per locale), edi
 - **Isolation and limits.** A template is member input, and MiniJinja's fuel bounds work, not memory (a string
   repeated and concatenated with itself reaches gigabytes in a few steps). So the server never renders one in its
   own process: every render — save validation (all sample variants in one child), preview and the send prefill —
-  runs its own binary as the hidden `invoice render-template` (`src/email/sandbox.rs`; the job as JSON on stdin,
+  runs its own binary as the hidden `invoiceapp render-template` (`src/email/sandbox.rs`; the job as JSON on stdin,
   progress lines and the result on stdout, empty environment). On Linux the child gets `RLIMIT_DATA` 256 MiB and
   `RLIMIT_CPU` 5 s (`setrlimit` between fork and exec; elsewhere only the wall clock applies); after 5 s wall
   clock it is killed. Inside it the engine (`src/email/template_render.rs`) still applies fuel 100 000
@@ -78,7 +78,7 @@ contact: { name, email } | none   // none for a contactless simplified document
 
 ### Settings
 - `GET /api/settings/email` → `{ configured: bool, disabled: bool, from: string | null, replyTo: string | null }`
-  (`disabled` = `INVOICE__EMAIL_DISABLED`; the tab then shows the notice and blocks the test e-mail)
+  (`disabled` = `INVOICEAPP__EMAIL_DISABLED`; the tab then shows the notice and blocks the test e-mail)
   (`replyTo` = company e-mail).
 - `POST /api/settings/email/test` `{ to?: string }` (default: company e-mail; neither → 422 `to: required`) → 204;
   sends a short fixed test message (no template), not in the document log but counted by the e-mail limits.

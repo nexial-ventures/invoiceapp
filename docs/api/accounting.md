@@ -41,7 +41,7 @@ AccountingResponse = AccountingSettings + {
 
 ## Pohoda XML (3b)
 
-- Stormware data exchange XML, `dataPack` **version 2.0** (`dat:dataPack` with `id`, `ico`, `application="invoice"`,
+- Stormware data exchange XML, `dataPack` **version 2.0** (`dat:dataPack` with `id`, `ico`, `application="InvoiceApp"`,
   `version="2.0"`, `note`), one `dat:dataPackItem` (`id` = document id, `version="2.0"`) per document holding an
   `inv:invoice` (`version="2.0"`). Encoding **Windows-1250** (`<?xml version="1.0" encoding="Windows-1250"?>`, as
   Pohoda imports it; characters outside 1250 → numeric character references). Namespaces `dat`, `inv`, `typ` as in

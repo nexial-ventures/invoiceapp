@@ -28,7 +28,7 @@
     "download": "Download .txt",
     "saved": "I have saved them.",
     "close": "Done",
-    "fileHeader": "Invoice recovery codes for {email}. Each works only once."
+    "fileHeader": "InvoiceApp recovery codes for {email}. Each works only once."
   },
   "regenerate": {
     "open": "New recovery codes",

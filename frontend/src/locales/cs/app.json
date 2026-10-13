@@ -1,5 +1,5 @@
 {
-  "name": "Faktury",
+  "name": "InvoiceApp",
   "backendVersion": "Verze serveru: {version}",
   "backendUnavailable": "Verzi serveru se nepodařilo načíst."
 }

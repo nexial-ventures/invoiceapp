@@ -14,7 +14,7 @@ use common::design::{activate, template, upload_ok};
 use common::documents::{create_doc, id, issuable, issue};
 use common::mdcast::{PdfEnv, get_raw};
 use common::members::{B_TOKEN, as_beta};
-use invoice::pdf::limits::{PREVIEW_TIMEOUT, QUEUE_WAIT, RenderLimits};
+use invoiceapp::pdf::limits::{PREVIEW_TIMEOUT, QUEUE_WAIT, RenderLimits};
 use serde_json::Value;
 
 const PREVIEW: &str = "/api/pdf/preview";

@@ -40,7 +40,7 @@ impl CnbClient {
     pub fn new(url: &str) -> anyhow::Result<Self> {
         let http = reqwest::Client::builder()
             .timeout(TIMEOUT)
-            .user_agent(concat!("invoice/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("invoiceapp/", env!("CARGO_PKG_VERSION")))
             .build()
             .context("build ČNB HTTP client")?;
         Ok(Self {

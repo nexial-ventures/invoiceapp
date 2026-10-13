@@ -1,15 +1,15 @@
-//! `invoice storage …` and `invoice design …`.
+//! `invoiceapp storage …` and `invoiceapp design …`.
 
 use std::path::PathBuf;
 
 use anyhow::{Context, Result, bail};
 use clap::Subcommand;
-use invoice::config::DbConfig;
-use invoice::pdf::design;
-use invoice::space;
-use invoice::storage::sweep;
-use invoice::storage::transfer::{self, Report};
-use invoice::storage::{DESIGN_PREFIX, Storage, StorageConfig};
+use invoiceapp::config::DbConfig;
+use invoiceapp::pdf::design;
+use invoiceapp::space;
+use invoiceapp::storage::sweep;
+use invoiceapp::storage::transfer::{self, Report};
+use invoiceapp::storage::{DESIGN_PREFIX, Storage, StorageConfig};
 use sea_orm::DatabaseConnection;
 
 use super::connect;
@@ -20,10 +20,10 @@ pub enum StorageAction {
     /// the configured backend. Verifies sha256, skips identical files, never
     /// overwrites different ones, never deletes the source.
     Migrate {
-        /// The old INVOICE__STORAGE_DIR (keys = relative paths).
+        /// The old INVOICEAPP__STORAGE_DIR (keys = relative paths).
         #[arg(long)]
         from_dir: PathBuf,
-        /// The old INVOICE__DESIGN_DIR (copied under `design/`).
+        /// The old INVOICEAPP__DESIGN_DIR (copied under `design/`).
         #[arg(long)]
         design_dir: Option<PathBuf>,
     },
@@ -161,11 +161,11 @@ fn report_sweep(swept: &sweep::Swept, dry_run: bool) -> Result<()> {
 /// again (needs the database; without it, the next design listing does).
 async fn refresh_design_usage(storage: &Storage) -> Result<()> {
     let Ok(cfg) = DbConfig::from_env() else {
-        println!("design storage usage not refreshed (no INVOICE__DATABASE_URL)");
+        println!("design storage usage not refreshed (no INVOICEAPP__DATABASE_URL)");
         return Ok(());
     };
     let db = connect(cfg.database_url.expose()).await?;
-    let n = invoice::pdf::editor::refresh_all(&db, storage)
+    let n = invoiceapp::pdf::editor::refresh_all(&db, storage)
         .await
         .map_err(|e| anyhow::anyhow!("refresh the design storage usage: {e}"))?;
     println!("design storage usage refreshed for {n} space(s)");
@@ -191,7 +191,7 @@ pub async fn design_cmd(action: DesignAction) -> Result<()> {
     let result = design_action(&storage, action).await;
     if changes {
         // Also after a partial failure: some files may have changed.
-        invoice::pdf::editor::refresh_usage(&db, space, &storage).await;
+        invoiceapp::pdf::editor::refresh_usage(&db, space, &storage).await;
     }
     result
 }

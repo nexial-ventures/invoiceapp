@@ -49,13 +49,13 @@ async fn ddpp_payment_survives_mdcast_down_and_first_download_archives() {
     // The browser's PDF viewer works under the CSP: no `sandbox` on it.
     assert_eq!(
         headers["content-security-policy"],
-        invoice::security_headers::CSP
+        invoiceapp::security_headers::CSP
     );
     assert_eq!(headers["x-content-type-options"], "nosniff");
     let doc = get_doc(&up, &ddpp).await;
     assert_eq!(
         doc["pdf"]["sha256"],
-        json!(invoice::storage::sha256_hex(&bytes))
+        json!(invoiceapp::storage::sha256_hex(&bytes))
     );
 
     // From now on the archive is served.
@@ -199,7 +199,7 @@ async fn race_loser_serves_the_stored_archive() {
     // `WHERE pdf_path IS NULL` update and must serve the winner's file.
     let pdf = common::space_pdf(&env.url, env.storage.storage.clone(), db.space);
     let doc_id = id(&doc).parse().expect("uuid");
-    let bytes = invoice::pdf::archive::archive_missing(&db.conn, &pdf, doc_id)
+    let bytes = invoiceapp::pdf::archive::archive_missing(&db.conn, &pdf, doc_id)
         .await
         .expect("archive");
     assert_eq!(env.mock.count(), 2, "the loser did render");

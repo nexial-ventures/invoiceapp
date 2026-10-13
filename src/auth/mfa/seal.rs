@@ -1,4 +1,4 @@
-//! What `INVOICE__SECRET_KEY` protects: TOTP secrets sealed with
+//! What `INVOICEAPP__SECRET_KEY` protects: TOTP secrets sealed with
 //! AES-256-GCM (random 96-bit nonce per value, the user id as associated
 //! data so a sealed secret cannot be moved to another user) and the
 //! HMAC-SHA256 of recovery codes. Two subkeys are derived from the master
@@ -70,7 +70,7 @@ pub fn open(key: &SecretKey, user: Uuid, sealed: &[u8]) -> Result<Vec<u8>, AppEr
             },
         )
         .map_err(|_| {
-            anyhow!("TOTP secret cannot be decrypted (INVOICE__SECRET_KEY changed?)").into()
+            anyhow!("TOTP secret cannot be decrypted (INVOICEAPP__SECRET_KEY changed?)").into()
         })
 }
 

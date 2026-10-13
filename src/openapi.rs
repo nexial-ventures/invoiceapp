@@ -6,7 +6,7 @@ use utoipa::{Modify, OpenApi};
 
 #[derive(OpenApi)]
 #[openapi(
-    info(title = "Invoice API"),
+    info(title = "InvoiceApp API"),
     paths(
         crate::health::health,
         crate::auth::host::context,

@@ -8,7 +8,7 @@ use common::auth::{As, mail, mail_app, mail_text, mail_token, member, on, seed_s
 use common::members::{B_HOST, count, invite, link_token, show};
 use common::smtp::EmailEnv;
 use common::{OWNER_EMAIL, TEST_HOST, TEST_TOKEN, TestDb, router};
-use invoice::space::Role;
+use invoiceapp::space::Role;
 use serde_json::json;
 
 const OWNER: As<'static> = As::Bearer(TEST_TOKEN);
@@ -286,7 +286,7 @@ async fn validation_and_role_rules() {
 async fn another_space_invitations_are_not_found() {
     let db = TestDb::new().await;
     let app = router(db.conn.clone());
-    let (beta_token, _) = invoice::auth::crypto::new_api_token().expect("token");
+    let (beta_token, _) = invoiceapp::auth::crypto::new_api_token().expect("token");
     seed_space(&db.conn, "beta", "beta@example.com", Some(&beta_token)).await;
     let body = json!({ "email": "nova@example.com", "role": "member" });
     let (s, b) = on(

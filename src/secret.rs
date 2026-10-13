@@ -30,7 +30,7 @@ impl<T> fmt::Display for Secret<T> {
     }
 }
 
-/// `INVOICE__SECRET_KEY`: 32 bytes (base64 in the environment). Encrypts
+/// `INVOICEAPP__SECRET_KEY`: 32 bytes (base64 in the environment). Encrypts
 /// TOTP secrets at rest and keys the recovery-code HMAC. `Debug` is
 /// redacted; the `Default` all-zero value is only the placeholder of a
 /// config that has not been parsed yet (`Config::from_source` always sets
@@ -52,10 +52,10 @@ impl SecretKey {
         let bytes = STANDARD
             .decode(raw)
             .or_else(|_| STANDARD_NO_PAD.decode(raw))
-            .map_err(|_| anyhow::anyhow!("INVOICE__SECRET_KEY is not valid base64"))?;
+            .map_err(|_| anyhow::anyhow!("INVOICEAPP__SECRET_KEY is not valid base64"))?;
         let key: [u8; 32] = bytes.try_into().map_err(|b: Vec<u8>| {
             anyhow::anyhow!(
-                "INVOICE__SECRET_KEY must be 32 bytes, got {} (generate one with `openssl rand -base64 32`)",
+                "INVOICEAPP__SECRET_KEY must be 32 bytes, got {} (generate one with `openssl rand -base64 32`)",
                 b.len()
             )
         })?;

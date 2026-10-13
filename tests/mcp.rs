@@ -106,7 +106,7 @@ async fn initialize_is_stateless_and_describes_the_server() {
     );
     let result = &resp["result"];
     assert_eq!(result["protocolVersion"], "2025-06-18");
-    assert_eq!(result["serverInfo"]["name"], "invoice");
+    assert_eq!(result["serverInfo"]["name"], "invoiceapp");
     assert_eq!(result["serverInfo"]["version"], env!("CARGO_PKG_VERSION"));
     assert!(result["capabilities"]["tools"].is_object());
     assert!(result["capabilities"].get("resources").is_none());

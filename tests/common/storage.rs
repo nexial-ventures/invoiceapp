@@ -3,8 +3,8 @@
 
 use std::path::Path;
 
-use invoice::secret::Secret;
-use invoice::storage::{S3Config, Storage};
+use invoiceapp::secret::Secret;
+use invoiceapp::storage::{S3Config, Storage};
 
 const S3_VARS: [&str; 5] = [
     "TEST_S3_ENDPOINT",
@@ -97,7 +97,7 @@ impl TestStorage {
     pub async fn bytes(&self, key: &str) -> Option<Vec<u8>> {
         match self.storage.get(key).await {
             Ok(b) => Some(b.to_vec()),
-            Err(invoice::storage::Error::NotFound(_)) => None,
+            Err(invoiceapp::storage::Error::NotFound(_)) => None,
             Err(e) => panic!("get {key}: {e}"),
         }
     }

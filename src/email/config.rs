@@ -1,4 +1,4 @@
-//! SMTP settings: `INVOICE__SMTP__HOST`, `PORT`, `TLS`, `USERNAME`,
+//! SMTP settings: `INVOICEAPP__SMTP__HOST`, `PORT`, `TLS`, `USERNAME`,
 //! `PASSWORD`, `FROM`. No host → e-mail not configured.
 
 use std::collections::HashMap;
@@ -96,13 +96,13 @@ impl SmtpConfig {
         let tls = match set(raw.tls) {
             None => TlsMode::StartTls,
             Some(t) => TlsMode::parse(&t).with_context(|| {
-                format!("INVOICE__SMTP__TLS must be starttls, tls or none, not {t:?}")
+                format!("INVOICEAPP__SMTP__TLS must be starttls, tls or none, not {t:?}")
             })?,
         };
         let port = set(raw.port)
             .map(|p| {
                 p.parse::<u16>().ok().filter(|p| *p > 0).with_context(|| {
-                    format!("INVOICE__SMTP__PORT must be a port number, not {p:?}")
+                    format!("INVOICEAPP__SMTP__PORT must be a port number, not {p:?}")
                 })
             })
             .transpose()?;
@@ -111,7 +111,9 @@ impl SmtpConfig {
         let credentials = match (username, password) {
             (Some(u), Some(p)) => Some((u, p)),
             (None, None) => None,
-            _ => bail!("INVOICE__SMTP__USERNAME and INVOICE__SMTP__PASSWORD must be set together"),
+            _ => bail!(
+                "INVOICEAPP__SMTP__USERNAME and INVOICEAPP__SMTP__PASSWORD must be set together"
+            ),
         };
         let from = set(raw.from);
         let Some(host) = set(raw.host) else {
@@ -119,15 +121,15 @@ impl SmtpConfig {
         };
         if credentials.is_some() && tls == TlsMode::None && !is_loopback(&host) {
             bail!(
-                "INVOICE__SMTP__TLS=none would send INVOICE__SMTP__USERNAME / PASSWORD in plain text \
+                "INVOICEAPP__SMTP__TLS=none would send INVOICEAPP__SMTP__USERNAME / PASSWORD in plain text \
                  to {host}: use starttls or tls, or a loopback relay (localhost, 127.0.0.0/8, ::1)"
             );
         }
         let from =
-            from.context("INVOICE__SMTP__FROM is required when INVOICE__SMTP__HOST is set")?;
+            from.context("INVOICEAPP__SMTP__FROM is required when INVOICEAPP__SMTP__HOST is set")?;
         let from: Mailbox = from.parse().map_err(|e| {
             anyhow::anyhow!(
-                "INVOICE__SMTP__FROM must be addr@domain or Name <addr@domain>, not {from:?}: {e}"
+                "INVOICEAPP__SMTP__FROM must be addr@domain or Name <addr@domain>, not {from:?}: {e}"
             )
         })?;
         Ok(Some(Self {
@@ -157,17 +159,20 @@ mod tests {
     fn unset_host_means_not_configured() {
         assert!(cfg(&[]).expect("valid").is_none());
         assert!(
-            cfg(&[("INVOICE__SMTP__HOST", " "), ("INVOICE__SMTP__FROM", "")])
-                .expect("valid")
-                .is_none()
+            cfg(&[
+                ("INVOICEAPP__SMTP__HOST", " "),
+                ("INVOICEAPP__SMTP__FROM", "")
+            ])
+            .expect("valid")
+            .is_none()
         );
     }
 
     #[test]
     fn defaults_follow_the_tls_mode() {
         let c = cfg(&[
-            ("INVOICE__SMTP__HOST", "smtp.example.com"),
-            ("INVOICE__SMTP__FROM", "Firma <faktury@example.com>"),
+            ("INVOICEAPP__SMTP__HOST", "smtp.example.com"),
+            ("INVOICEAPP__SMTP__FROM", "Firma <faktury@example.com>"),
         ])
         .expect("valid")
         .expect("configured");
@@ -177,20 +182,20 @@ mod tests {
         assert!(c.credentials.is_none());
         for (mode, tls, port) in [("tls", TlsMode::Tls, 465), ("NONE", TlsMode::None, 25)] {
             let c = cfg(&[
-                ("INVOICE__SMTP__HOST", "h"),
-                ("INVOICE__SMTP__FROM", "a@b.cz"),
-                ("INVOICE__SMTP__TLS", mode),
+                ("INVOICEAPP__SMTP__HOST", "h"),
+                ("INVOICEAPP__SMTP__FROM", "a@b.cz"),
+                ("INVOICEAPP__SMTP__TLS", mode),
             ])
             .expect("valid")
             .expect("configured");
             assert_eq!((c.tls, c.port), (tls, port));
         }
         let c = cfg(&[
-            ("INVOICE__SMTP__HOST", "h"),
-            ("INVOICE__SMTP__FROM", "a@b.cz"),
-            ("INVOICE__SMTP__PORT", "2525"),
-            ("INVOICE__SMTP__USERNAME", "u"),
-            ("INVOICE__SMTP__PASSWORD", "secret-pw"),
+            ("INVOICEAPP__SMTP__HOST", "h"),
+            ("INVOICEAPP__SMTP__FROM", "a@b.cz"),
+            ("INVOICEAPP__SMTP__PORT", "2525"),
+            ("INVOICEAPP__SMTP__USERNAME", "u"),
+            ("INVOICEAPP__SMTP__PASSWORD", "secret-pw"),
         ])
         .expect("valid")
         .expect("configured");
@@ -208,11 +213,11 @@ mod tests {
     fn credentials_in_plain_text_only_to_loopback() {
         let with = |host: &str| {
             cfg(&[
-                ("INVOICE__SMTP__HOST", host),
-                ("INVOICE__SMTP__FROM", "a@b.cz"),
-                ("INVOICE__SMTP__TLS", "none"),
-                ("INVOICE__SMTP__USERNAME", "u"),
-                ("INVOICE__SMTP__PASSWORD", "p"),
+                ("INVOICEAPP__SMTP__HOST", host),
+                ("INVOICEAPP__SMTP__FROM", "a@b.cz"),
+                ("INVOICEAPP__SMTP__TLS", "none"),
+                ("INVOICEAPP__SMTP__USERNAME", "u"),
+                ("INVOICEAPP__SMTP__PASSWORD", "p"),
             ])
         };
         for host in [
@@ -228,16 +233,16 @@ mod tests {
         for host in ["smtp.example.com", "10.0.0.1", "128.0.0.1", "::2"] {
             let err = with(host).expect_err("plain-text credentials");
             assert!(
-                format!("{err:#}").contains("INVOICE__SMTP__TLS=none"),
+                format!("{err:#}").contains("INVOICEAPP__SMTP__TLS=none"),
                 "{err:#}"
             );
         }
         // Without credentials a remote plain relay is allowed.
         assert!(
             cfg(&[
-                ("INVOICE__SMTP__HOST", "relay.example.com"),
-                ("INVOICE__SMTP__FROM", "a@b.cz"),
-                ("INVOICE__SMTP__TLS", "none"),
+                ("INVOICEAPP__SMTP__HOST", "relay.example.com"),
+                ("INVOICEAPP__SMTP__FROM", "a@b.cz"),
+                ("INVOICEAPP__SMTP__TLS", "none"),
             ])
             .is_ok()
         );
@@ -247,37 +252,37 @@ mod tests {
     fn invalid_settings_refuse_the_start() {
         let cases: [(&[(&str, &str)], &str); 5] = [
             (
-                &[("INVOICE__SMTP__HOST", "h")],
-                "INVOICE__SMTP__FROM is required",
+                &[("INVOICEAPP__SMTP__HOST", "h")],
+                "INVOICEAPP__SMTP__FROM is required",
             ),
             (
                 &[
-                    ("INVOICE__SMTP__HOST", "h"),
-                    ("INVOICE__SMTP__FROM", "not an address"),
+                    ("INVOICEAPP__SMTP__HOST", "h"),
+                    ("INVOICEAPP__SMTP__FROM", "not an address"),
                 ],
-                "INVOICE__SMTP__FROM must be",
+                "INVOICEAPP__SMTP__FROM must be",
             ),
             (
                 &[
-                    ("INVOICE__SMTP__HOST", "h"),
-                    ("INVOICE__SMTP__FROM", "a@b.cz"),
-                    ("INVOICE__SMTP__TLS", "ssl"),
+                    ("INVOICEAPP__SMTP__HOST", "h"),
+                    ("INVOICEAPP__SMTP__FROM", "a@b.cz"),
+                    ("INVOICEAPP__SMTP__TLS", "ssl"),
                 ],
-                "INVOICE__SMTP__TLS",
+                "INVOICEAPP__SMTP__TLS",
             ),
             (
                 &[
-                    ("INVOICE__SMTP__HOST", "h"),
-                    ("INVOICE__SMTP__FROM", "a@b.cz"),
-                    ("INVOICE__SMTP__PORT", "x"),
+                    ("INVOICEAPP__SMTP__HOST", "h"),
+                    ("INVOICEAPP__SMTP__FROM", "a@b.cz"),
+                    ("INVOICEAPP__SMTP__PORT", "x"),
                 ],
-                "INVOICE__SMTP__PORT",
+                "INVOICEAPP__SMTP__PORT",
             ),
             (
                 &[
-                    ("INVOICE__SMTP__HOST", "h"),
-                    ("INVOICE__SMTP__FROM", "a@b.cz"),
-                    ("INVOICE__SMTP__USERNAME", "u"),
+                    ("INVOICEAPP__SMTP__HOST", "h"),
+                    ("INVOICEAPP__SMTP__FROM", "a@b.cz"),
+                    ("INVOICEAPP__SMTP__USERNAME", "u"),
                 ],
                 "set together",
             ),

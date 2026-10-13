@@ -35,7 +35,7 @@ describe("DesignTab", () => {
       ["logo.svg", "custom", "812 B"],
     ]);
     expect(rows.map((r) => r.find('[data-test="design-file-delete"]').exists())).toEqual([false, true, true]);
-    expect(w.find('[data-test="design-help"]').text()).toContain("invoice design push");
+    expect(w.find('[data-test="design-help"]').text()).toContain("invoiceapp design push");
   });
 
   it("names the local storage", async () => {

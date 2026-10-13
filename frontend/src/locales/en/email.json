@@ -2,7 +2,7 @@
   "send": {
     "button": "Send by e-mail",
     "notConfiguredHint": "E-mail sending is not configured on the server.",
-    "notConfigured": "E-mail sending is not configured on the server (INVOICE__SMTP__* variables). The e-mail cannot be sent.",
+    "notConfigured": "E-mail sending is not configured on the server (INVOICEAPP__SMTP__* variables). The e-mail cannot be sent.",
     "title": "Send by e-mail",
     "to": "To",
     "cc": "Cc",
@@ -43,12 +43,12 @@
     "from": "Sender (From)",
     "replyTo": "Replies to (Reply-To)",
     "replyToMissing": "not set – fill in the e-mail in Settings → Company",
-    "configHelp": "The SMTP server is configured by the INVOICE__SMTP__* environment variables; changing them requires a restart.",
+    "configHelp": "The SMTP server is configured by the INVOICEAPP__SMTP__* environment variables; changing them requires a restart.",
     "testTo": "Test e-mail recipient",
     "testToHint": "Leave empty to send it to the company e-mail.",
     "testSend": "Send test e-mail",
     "testSent": "Test e-mail sent.",
-    "disabled": "Sending e-mails is temporarily disabled on this instance by its operator (INVOICE__EMAIL_DISABLED)."
+    "disabled": "Sending e-mails is temporarily disabled on this instance by its operator (INVOICEAPP__EMAIL_DISABLED)."
   },
   "templates": {
     "title": "E-mail templates",

@@ -118,7 +118,7 @@ Payment { id, date, amount: string /* >0, doc currency */, note: string|null, cr
   CZK → rate "1"; unknown currency → 404 `not_found`; ČNB unreachable → 502 `{"code":"cnb_unavailable"}`.
 
 ## ČNB
-`GET {INVOICE__CNB_URL}?date=DD.MM.YYYY` (default `https://www.cnb.cz/cs/financni-trhy/devizovy-trh/kurzy-devizoveho-trhu/kurzy-devizoveho-trhu/denni_kurz.txt`),
+`GET {INVOICEAPP__CNB_URL}?date=DD.MM.YYYY` (default `https://www.cnb.cz/cs/financni-trhy/devizovy-trh/kurzy-devizoveho-trhu/kurzy-devizoveho-trhu/denni_kurz.txt`),
 10 s timeout. Text format: line 1 `08.10.2026 #196` (publication date), line 2 header, then
 `země|měna|množství|kód|kurz` with comma decimals; `rate = kurz / množství`. ČNB returns the latest list published on or
 before the requested date. Cache: table `exchange_rates (currency, requested_date) → (published_date, rate)`; a cached row is

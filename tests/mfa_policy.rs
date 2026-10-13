@@ -9,7 +9,7 @@ use common::auth::{As, login, member, on, user};
 use common::members::{accept, count, invited, show};
 use common::mfa::{enrol, fresh, require_mfa};
 use common::{BASE_HOST, OWNER_EMAIL, OWNER_PASSWORD, TEST_HOST, TEST_TOKEN, TestDb, router};
-use invoice::space::Role;
+use invoiceapp::space::Role;
 use serde_json::{Value, json};
 
 fn mfa_required() -> (StatusCode, Value) {

@@ -11,7 +11,7 @@ use common::isdoc::unzip;
 use common::mdcast::{PdfEnv, get_raw};
 use common::received::create_received;
 use common::{TestDb, call, router};
-use invoice::migration::{Migrator, MigratorTrait};
+use invoiceapp::migration::{Migrator, MigratorTrait};
 use sea_orm::{ConnectOptions, ConnectionTrait, Database, Statement};
 use serde_json::json;
 

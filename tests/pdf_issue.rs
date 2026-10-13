@@ -46,7 +46,7 @@ async fn issue_archives_the_pdf() {
     let stored = std::fs::read(&path).expect("archived file exists");
     assert_eq!(stored, render.pdf);
     let sha = doc["pdf"]["sha256"].as_str().expect("sha256");
-    assert_eq!(sha, invoice::storage::sha256_hex(&stored));
+    assert_eq!(sha, invoiceapp::storage::sha256_hex(&stored));
     assert!(doc["pdf"]["renderedAt"].is_string());
 
     // What mdcast received: the issued document, fonts sorted, no template in the bundle.

@@ -17,7 +17,7 @@ use common::auth::{As, member, on};
 use common::documents::dead_url;
 use common::members::{session_on, user_id};
 use common::{BASE_HOST, TEST_HOST, TEST_TOKEN, TestDb, call, router_with};
-use invoice::space::Role;
+use invoiceapp::space::Role;
 use serde_json::{Value, json};
 
 #[derive(Debug, Clone, Copy)]

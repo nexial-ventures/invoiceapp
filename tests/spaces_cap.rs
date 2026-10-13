@@ -1,5 +1,5 @@
 //! The space cap (spaces.md "Limits"): a user may own at most
-//! `INVOICE__MAX_SPACES_PER_USER` (default 3) spaces they created;
+//! `INVOICEAPP__MAX_SPACES_PER_USER` (default 3) spaces they created;
 //! memberships via invitations — even as owner — do not count.
 
 mod common;
@@ -9,7 +9,7 @@ use axum::http::{Method, StatusCode};
 use common::auth::{As, login, on, seed_space};
 use common::members::{count, join};
 use common::{BASE_HOST, OWNER_EMAIL, OWNER_PASSWORD, TestDb};
-use invoice::space::Role;
+use invoiceapp::space::Role;
 use sea_orm::ConnectionTrait;
 use serde_json::{Value, json};
 

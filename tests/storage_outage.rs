@@ -11,7 +11,7 @@ use common::mdcast::{PdfEnv, get_raw};
 use common::received::{create_received, upload};
 use common::storage::dead_s3;
 use common::{TestDb, call};
-use invoice::document::repo::original::remove_unreferenced;
+use invoiceapp::document::repo::original::remove_unreferenced;
 use serde_json::{Value, json};
 
 const PDF: &[u8] = b"%PDF-1.4\n% outage test\n%%EOF\n";
@@ -121,10 +121,10 @@ async fn cleanup_keeps_objects_a_row_points_at() {
 
 #[tokio::test]
 async fn failed_isdoc_import_write_rolls_back() {
-    use invoice::document::repo::issue::Rate;
-    use invoice::error::AppError;
-    use invoice::import::store::{self, Options};
-    use invoice::isdoc::{parse, plan};
+    use invoiceapp::document::repo::issue::Rate;
+    use invoiceapp::error::AppError;
+    use invoiceapp::import::store::{self, Options};
+    use invoiceapp::isdoc::{parse, plan};
 
     let db = TestDb::new().await;
     let env = PdfEnv::new();

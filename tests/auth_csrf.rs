@@ -15,7 +15,7 @@ async fn cookies_are_bound_to_their_host() {
     let app = router(db.conn.clone());
     common::auth::seed_space(&db.conn, "beta", "beta@example.com", None).await;
     // The owner of acme is also made a member of beta, so only the host differs.
-    let space = invoice::space::repo::find_by_slug(&db.conn, "beta")
+    let space = invoiceapp::space::repo::find_by_slug(&db.conn, "beta")
         .await
         .expect("q")
         .expect("beta");

@@ -10,7 +10,7 @@ export interface AppContext {
   registration: boolean;
   /** Sign in with Google is configured (the Google buttons are shown). */
   google: boolean;
-  /** `INVOICE__PUBLIC_URL`, e.g. `https://invoiceapp.cz`. */
+  /** `INVOICEAPP__PUBLIC_URL`, e.g. `https://invoiceapp.cz`. */
   baseUrl: string;
 }
 

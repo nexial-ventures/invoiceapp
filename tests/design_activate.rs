@@ -82,7 +82,7 @@ async fn activation(storage: TestStorage) {
     assert_eq!(files, ["fonts/brand.ttf", "invoice.typ"]);
     assert_eq!(
         version["files"][0]["sha256"],
-        invoice::storage::sha256_hex(b"ttf")
+        invoiceapp::storage::sha256_hex(b"ttf")
     );
 
     let l = listing(&app).await;

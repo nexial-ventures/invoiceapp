@@ -11,7 +11,7 @@ use common::design::{listing, paths, template, upload, upload_as, upload_ok};
 use common::mdcast::{PdfEnv, get_raw};
 use common::members::{B_HOST, B_TOKEN};
 use common::{TEST_HOST, TestDb, call};
-use invoice::space::Role;
+use invoiceapp::space::Role;
 use serde_json::{Value, json};
 
 const MB: usize = 1024 * 1024;

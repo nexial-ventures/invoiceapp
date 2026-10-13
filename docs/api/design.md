@@ -7,7 +7,7 @@ are never re-rendered (1d). All routes are on a space host, **admin+** (Settings
 `spaces/{id}/`.
 
 ## Storage layout
-- `design/…` — live files (unchanged; also written by `invoice design push --space`).
+- `design/…` — live files (unchanged; also written by `invoiceapp design push --space`).
 - `design-draft/…` — the draft: uploaded files that will override live ones on activation.
 - `design-versions/{versionId}/…` — a full copy of the live set right after an activation / revert.
 - Table `design_drafts` (space_id PK, deleted paths `text[]`, revision, updated_at, updated_by) — draft deletions (a
@@ -76,8 +76,8 @@ are never re-rendered (1d). All routes are on a space host, **admin+** (Settings
 ## Interaction with existing behaviour
 - Renders (issue, preview) keep reading **live** only. The design cache (1d, per space since 4a) — the downloaded
   files and the live listing (reused for 30 s) — is invalidated by the activation / restore / reset (also when its
-  transaction fails) or the deletion of that space, and bounded by `INVOICE__DESIGN_CACHE_MB` (LRU).
-- `invoice design push|pull|ls|rm --space` keep working on live directly (operator tool, no versions); the next
+  transaction fails) or the deletion of that space, and bounded by `INVOICEAPP__DESIGN_CACHE_MB` (LRU).
+- `invoiceapp design push|pull|ls|rm --space` keep working on live directly (operator tool, no versions); the next
   activation snapshots whatever is live. A running server picks a push up once its cached listing expires (≤ 30 s); an `rm`
   of a listed file makes the next render list again. Cache invalidation is in-process — the app assumes a single
   instance; any other instance would see an activation / restore / reset only after ≤ 30 s.

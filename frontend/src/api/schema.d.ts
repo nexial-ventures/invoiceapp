@@ -2517,11 +2517,11 @@ export interface components {
             to: string[];
         };
         EmailStatus: {
-            /** @description SMTP is configured (`INVOICE__SMTP__HOST`). */
+            /** @description SMTP is configured (`INVOICEAPP__SMTP__HOST`). */
             configured: boolean;
-            /** @description `INVOICE__EMAIL_DISABLED`: sending is switched off by the operator. */
+            /** @description `INVOICEAPP__EMAIL_DISABLED`: sending is switched off by the operator. */
             disabled: boolean;
-            /** @description `INVOICE__SMTP__FROM` as configured. */
+            /** @description `INVOICEAPP__SMTP__FROM` as configured. */
             from?: string | null;
             /** @description The company e-mail (`Reply-To`). */
             replyTo?: string | null;
@@ -2902,7 +2902,7 @@ export interface components {
             body: string;
             cc: string[];
             configured: boolean;
-            /** @description `INVOICE__EMAIL_DISABLED`: sending → 503 `email_disabled`. */
+            /** @description `INVOICEAPP__EMAIL_DISABLED`: sending → 503 `email_disabled`. */
             disabled: boolean;
             locale: string;
             subject: string;
@@ -3166,13 +3166,13 @@ export interface components {
         SentInvite: components["schemas"]["Invite"] & {
             /**
              * @description The e-mail was skipped because sending is disabled
-             *     (`INVOICE__EMAIL_DISABLED`); resend once it is enabled again.
+             *     (`INVOICEAPP__EMAIL_DISABLED`); resend once it is enabled again.
              */
             emailDisabled: boolean;
             /**
              * @description `true` = the e-mail is queued (failures are logged), no `url`;
              *     `false` = no SMTP, the `url` is returned instead — or e-mail is
-             *     disabled (`INVOICE__EMAIL_DISABLED`, skipped and logged, no `url`:
+             *     disabled (`INVOICEAPP__EMAIL_DISABLED`, skipped and logged, no `url`:
              *     resend once it is enabled again).
              */
             emailSent: boolean;
@@ -8556,7 +8556,7 @@ export interface operations {
                     "application/json": components["schemas"]["SpaceInfo"];
                 };
             };
-            /** @description `space_creation_disabled` (`INVOICE__REGISTRATION` off), `email_unverified`, `space_limit` (owns `INVOICE__MAX_SPACES_PER_USER` spaces they created) */
+            /** @description `space_creation_disabled` (`INVOICEAPP__REGISTRATION` off), `email_unverified`, `space_limit` (owns `INVOICEAPP__MAX_SPACES_PER_USER` spaces they created) */
             403: {
                 headers: {
                     [name: string]: unknown;

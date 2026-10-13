@@ -2,7 +2,7 @@
   "send": {
     "button": "Odeslat e-mailem",
     "notConfiguredHint": "Odesílání e-mailů není na serveru nastaveno.",
-    "notConfigured": "Odesílání e-mailů není na serveru nastaveno (proměnné INVOICE__SMTP__*). E-mail nelze odeslat.",
+    "notConfigured": "Odesílání e-mailů není na serveru nastaveno (proměnné INVOICEAPP__SMTP__*). E-mail nelze odeslat.",
     "title": "Odeslat e-mailem",
     "to": "Komu",
     "cc": "Kopie",
@@ -43,12 +43,12 @@
     "from": "Odesílatel (From)",
     "replyTo": "Odpovědi na (Reply-To)",
     "replyToMissing": "nenastaveno – vyplňte e-mail v Nastavení → Firma",
-    "configHelp": "SMTP server se nastavuje proměnnými prostředí INVOICE__SMTP__*; po jejich změně je nutný restart.",
+    "configHelp": "SMTP server se nastavuje proměnnými prostředí INVOICEAPP__SMTP__*; po jejich změně je nutný restart.",
     "testTo": "Příjemce testovacího e-mailu",
     "testToHint": "Prázdné = odeslat na e-mail firmy.",
     "testSend": "Odeslat testovací e-mail",
     "testSent": "Testovací e-mail odeslán.",
-    "disabled": "Odesílání e-mailů je na této instanci dočasně vypnuté provozovatelem (INVOICE__EMAIL_DISABLED)."
+    "disabled": "Odesílání e-mailů je na této instanci dočasně vypnuté provozovatelem (INVOICEAPP__EMAIL_DISABLED)."
   },
   "templates": {
     "title": "Šablony e-mailů",

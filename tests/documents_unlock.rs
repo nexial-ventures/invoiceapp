@@ -13,7 +13,7 @@ use common::mdcast::{PdfEnv, get_raw};
 use common::members::{B_TOKEN, as_beta};
 use common::received::create_received;
 use common::{OWNER_EMAIL, TEST_HOST, TestDb, call, router};
-use invoice::space::Role;
+use invoiceapp::space::Role;
 use sea_orm::ConnectionTrait;
 use serde_json::{Value, json};
 

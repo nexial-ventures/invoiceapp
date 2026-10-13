@@ -9,7 +9,7 @@ use common::auth::{member, user};
 use common::members::{accept, count, invited};
 use common::mfa::{enrol, finish, fresh, start};
 use common::{OWNER_EMAIL, OWNER_PASSWORD, TEST_HOST, TestDb, router};
-use invoice::space::Role;
+use invoiceapp::space::Role;
 use sea_orm::ConnectionTrait;
 use serde_json::json;
 
@@ -116,7 +116,7 @@ async fn a_refused_accept_does_not_spend_the_code() {
 }
 
 /// A TOTP secret that no longer decrypts (here: a damaged row; in practice
-/// also a changed `INVOICE__SECRET_KEY`) answers TOTP codes as wrong without
+/// also a changed `INVOICEAPP__SECRET_KEY`) answers TOTP codes as wrong without
 /// counting them and without a 500, so recovery codes stay reachable.
 #[tokio::test]
 async fn an_undecryptable_secret_keeps_recovery_codes_usable() {
@@ -149,7 +149,7 @@ async fn an_undecryptable_secret_keeps_recovery_codes_usable() {
     assert_eq!((s, cookie.is_some()), (StatusCode::NO_CONTENT, true));
 }
 
-/// Another `INVOICE__SECRET_KEY`: TOTP codes are wrong (no 500) and never
+/// Another `INVOICEAPP__SECRET_KEY`: TOTP codes are wrong (no 500) and never
 /// fill the login bucket — the password step keeps working. (Recovery codes
 /// are HMAC-keyed by the same key, so they stop matching too.)
 #[tokio::test]
@@ -158,7 +158,7 @@ async fn a_changed_secret_key_does_not_lock_out_the_login_bucket() {
     let e = enrol(&router(db.conn.clone()), OWNER_EMAIL).await;
     let app = common::TestApp::builder(&db.conn)
         .mdcast_url("http://127.0.0.1:9")
-        .state(|s| s.secret_key = invoice::secret::SecretKey::from_bytes([7; 32]))
+        .state(|s| s.secret_key = invoiceapp::secret::SecretKey::from_bytes([7; 32]))
         .build();
     for _ in 0..2 {
         let pending = start(&app, TEST_HOST, OWNER_EMAIL).await;

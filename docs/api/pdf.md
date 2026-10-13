@@ -1,6 +1,6 @@
 # PDF (phase 1d)
 
-Documents are rendered to PDF by the mdcast service (`POST {INVOICE__MDCAST_URL}/v1/render/template`, crate
+Documents are rendered to PDF by the mdcast service (`POST {INVOICEAPP__MDCAST_URL}/v1/render/template`, crate
 `mdcast-client` 0.4.2): one typst template (`invoice.typ`) + a JSON payload the template reads with
 `json("/data.json")` + an asset bundle (design files, fonts, the generated QR code).
 
@@ -17,8 +17,8 @@ Documents are rendered to PDF by the mdcast service (`POST {INVOICE__MDCAST_URL}
   instance is assumed; another instance would see an activation within 30 s); file contents are cached in memory by key + version (ETag,
   size, modification time from the listing), so only new or changed files are downloaded. Hidden files
   (`.`-prefixed path segments) are ignored; a file > 10 MB → render fails (`pdf_render_failed`, checked on the
-  listed size before any download). Files get there with `invoice design push <dir>` (or straight into the bucket);
-  `invoice design pull <dir>` / `ls` / `rm <path>…` complete the set.
+  listed size before any download). Files get there with `invoiceapp design push <dir>` (or straight into the bucket);
+  `invoiceapp design pull <dir>` / `ls` / `rm <path>…` complete the set.
 - Every `fonts/**/*.ttf|*.otf` is registered with the typst font book (request `fonts`, sorted by path); every other
   file goes into the bundle under its relative path, so `#image("logo.png")` / `#import "parts.typ"` resolve like on a
   filesystem.
@@ -148,7 +148,7 @@ Fetch the PDF with the Bearer header (blob → object URL); a plain link cannot 
 
 ## Render limits
 
-- **Instance-wide**: at most `INVOICE__MDCAST_CONCURRENCY` (default 4) mdcast renders run at once (a semaphore around
+- **Instance-wide**: at most `INVOICEAPP__MDCAST_CONCURRENCY` (default 4) mdcast renders run at once (a semaphore around
   the mdcast call; design listing / downloads happen before it). A render waits at most 10 s for a slot, then 503
   `{"code":"pdf_unavailable","detail":"busy"}` + `Retry-After: 10`. This applies to every render, issue included.
 - **Previews** — `GET /api/pdf/preview`, `GET /api/pdf/design/draft/preview`, `GET /api/documents/{id}/pdf` of a
@@ -160,7 +160,7 @@ Fetch the PDF with the Bearer header (blob → object URL); a plain link cannot 
   the 60 s client timeout. A timed-out preview only stops waiting: mdcast may still finish the render (its own
   limits bound it).
 - **A slot for issuing**: previews and the design activation / restore checks together hold at most
-  `INVOICE__MDCAST_CONCURRENCY − 1` slots (at least one), so one is always left for issue / archive renders when the
+  `INVOICEAPP__MDCAST_CONCURRENCY − 1` slots (at least one), so one is always left for issue / archive renders when the
   concurrency is 2 or more (with 1 they share it). The checks keep the 60 s timeout and are not under the per-space
   preview limits (they have `design-space`).
 - **Issuing is never refused by the preview limits** (only the instance-wide slots apply), nor is an archive render
@@ -181,12 +181,12 @@ Fetch the PDF with the Bearer header (blob → object URL); a plain link cannot 
 ## Configuration
 | Env var | Default | Notes |
 |---|---|---|
-| `INVOICE__MDCAST_URL` | `https://mdcast.nexial.cz` | empty → default |
-| `INVOICE__MDCAST_TOKEN` | — | optional Bearer for mdcast |
-| `INVOICE__MDCAST_CONCURRENCY` | `4` | concurrent mdcast renders of the instance (≥ 1), see [Render limits](#render-limits) |
-| `INVOICE__STORAGE_KIND` | `fs` | `fs` or `s3` (see [Storage](#storage)) |
-| `INVOICE__STORAGE_DIR` | `./data` | `fs` root, created at start; Docker image uses `/data` (volume) |
-| `INVOICE__S3__ENDPOINT` / `BUCKET` / `REGION` / `ACCESS_KEY_ID` / `SECRET_ACCESS_KEY` / `PATH_STYLE` | — / — / `us-east-1` / — / — / `false` | `s3` only; endpoint empty → AWS |
+| `INVOICEAPP__MDCAST_URL` | `https://mdcast.nexial.cz` | empty → default |
+| `INVOICEAPP__MDCAST_TOKEN` | — | optional Bearer for mdcast |
+| `INVOICEAPP__MDCAST_CONCURRENCY` | `4` | concurrent mdcast renders of the instance (≥ 1), see [Render limits](#render-limits) |
+| `INVOICEAPP__STORAGE_KIND` | `fs` | `fs` or `s3` (see [Storage](#storage)) |
+| `INVOICEAPP__STORAGE_DIR` | `./data` | `fs` root, created at start; Docker image uses `/data` (volume) |
+| `INVOICEAPP__S3__ENDPOINT` / `BUCKET` / `REGION` / `ACCESS_KEY_ID` / `SECRET_ACCESS_KEY` / `PATH_STYLE` | — / — / `us-east-1` / — / — / `false` | `s3` only; endpoint empty → AWS |
 
 mdcast HTTP timeout 60 s (previews 20 s).
 
@@ -198,7 +198,7 @@ atomic), get (whole or streamed), delete (idempotent), exists / head, list by pr
 contain empty, `.` or `..` segments: `documents/{year}/{id}-{sha8}-{nonce}.pdf` (older archives `{id}.pdf`), `documents/{year}/{id}-original-{sha8}-{nonce}.pdf`,
 `design/…`.
 
-- `fs` (default): `INVOICE__STORAGE_DIR`. `s3`: any S3-compatible service; bucket, access key id and secret are
+- `fs` (default): `INVOICEAPP__STORAGE_DIR`. `s3`: any S3-compatible service; bucket, access key id and secret are
   required, `PATH_STYLE=true` for Garage / MinIO. Invalid settings (unknown kind, missing bucket / credentials,
   endpoint without `http(s)://`, unparsable `PATH_STYLE`) → the server refuses to start. Reachability is probed once
   at start and only logged.
@@ -206,14 +206,14 @@ contain empty, `.` or `..` segments: `documents/{year}/{id}-{sha8}-{nonce}.pdf` 
   slow 20 MB download is not cut off), at most 2 retries within 15 s — then 503 `storage_unavailable`.
 - Virtual-hosted style (`PATH_STYLE=false`) with a custom endpoint puts the bucket into the host
   (`https://s3.example` → `https://{bucket}.s3.example`; unchanged when the host already starts with `{bucket}.`).
-- A leftover `INVOICE__DESIGN_DIR` refuses the start (its files would silently stop applying).
+- A leftover `INVOICEAPP__DESIGN_DIR` refuses the start (its files would silently stop applying).
 - A failed issue, original upload or ISDOC / CSV import (write, final transaction or commit) removes the object it
   wrote, unless a document row points at that key. Every write attempt gets its own key (`…-{sha8}-{nonce}.pdf`), so
   the cleanup never removes an object another attempt (a double-clicked issue, an identical upload) just wrote.
 - **Crash orphans**: objects are written before the transaction that references them, so a crash (or a lost
   connection) between the put and the commit leaves an unreferenced object behind (harmless, never served). The
   **orphan sweep** (`src/storage/sweep.rs`) runs in `serve` daily — the first time 1 hour after the start (a crash
-  loop does not sweep; a deployment restarted daily still does) — and on demand as `invoice storage sweep [--dry-run] [--force]` (needs the database).
+  loop does not sweep; a deployment restarted daily still does) — and on demand as `invoiceapp storage sweep [--dry-run] [--force]` (needs the database).
   It lists `spaces/*/documents/`, keeps only the objects of spaces that exist in `spaces` (another prefix is never
   touched), then reads every `documents.pdf_path` / `original_path`; an unreferenced object whose modification time
   is more than **1 hour** old is an orphan (younger ones may belong to an issue or upload still before its commit).
@@ -222,13 +222,13 @@ contain empty, `.` or `..` segments: `documents/{year}/{id}-{sha8}-{nonce}.pdf` 
   it. Nothing else is recomputed (stored-byte usage comes from the rows). `serve` logs the counts; the CLI prints
   `deleted` / `failed` (stderr) / `orphan` (dry run or refused) lines and a summary, and exits 1 when it refused or
   a deletion failed.
-- `invoice storage migrate --from-dir <old INVOICE__STORAGE_DIR> [--design-dir <old INVOICE__DESIGN_DIR>]` copies
+- `invoiceapp storage migrate --from-dir <old INVOICEAPP__STORAGE_DIR> [--design-dir <old INVOICEAPP__DESIGN_DIR>]` copies
   every non-hidden file into the configured backend (keys = relative paths; the design dir under `design/`), reads
   each one back and compares sha256. Identical objects are skipped (re-runs are no-ops; decided by size + the MD5
   ETag of single-part S3 objects without a download, by downloading when the ETag is no MD5, e.g. fs); an existing
   object with different content is reported and kept; unreadable local entries (a dangling symlink, an unreadable
   `lost+found`) are skipped and reported. Any problem → exit code 1 after the rest is copied. The source is never
-  modified. `invoice design rm` of a path that is not stored prints "not found" and exits 1.
+  modified. `invoiceapp design rm` of a path that is not stored prints "not found" and exits 1.
 
 ## Clarifications (as implemented)
 
@@ -239,8 +239,8 @@ contain empty, `.` or `..` segments: `documents/{year}/{id}-{sha8}-{nonce}.pdf` 
   `"STORNO"`/`"CANCELLED"` on a cancelled document rendered without an archive, else `null`); recaps carry `columns: { rate, base, vat, total }` header labels and `rateNote` (`null` on `vatRecap`);
   a recap `total` row's `rate` holds the "Celkem"/"Total" label; `columns.base` is "Základ"/"Net", for a non-payer
   "Celkem"/"Amount".
-- **Empty env values** mean the default: `INVOICE__MDCAST_URL`, `INVOICE__MDCAST_TOKEN`, `INVOICE__STORAGE_KIND`,
-  `INVOICE__STORAGE_DIR`, every `INVOICE__S3__*`.
+- **Empty env values** mean the default: `INVOICEAPP__MDCAST_URL`, `INVOICEAPP__MDCAST_TOKEN`, `INVOICEAPP__STORAGE_KIND`,
+  `INVOICEAPP__STORAGE_DIR`, every `INVOICEAPP__S3__*`.
 - **Formatting**: negative money `-1 234,50 Kč` / `CZK -1,234.50`; `en` percent without a space (`21%`), `cs` with
   NBSP (`21 %`); dates use plain spaces; exchange rates print with at least 3 decimals.
 - **Lines**: collapsed subtotals hide their members recursively (a member that is itself a subtotal hides its own
@@ -275,7 +275,7 @@ contain empty, `.` or `..` segments: `documents/{year}/{id}-{sha8}-{nonce}.pdf` 
   cache unless their listed version changed. The embedded files' digests are computed once per process and
   sent as digest-only bundle entries (bytes only if mdcast's `409` asks); stored overrides are still hashed per
   render by `AssetBundle`. A non-UTF-8 `invoice.typ` → `pdf_render_failed`.
-- **mdcast token**: without `INVOICE__MDCAST_TOKEN` a placeholder Bearer is sent (`mdcast-client` requires one; a
+- **mdcast token**: without `INVOICEAPP__MDCAST_TOKEN` a placeholder Bearer is sent (`mdcast-client` requires one; a
   server without a gate ignores it). `https://mdcast.nexial.cz` requires a real token for renders — without it every
   render is 503 `pdf_unavailable` (401 maps there).
 - **Preview**: VAT mode `standard` and CZK regardless of the company's payer flag; due date = today + 14 days;

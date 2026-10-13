@@ -1,5 +1,5 @@
 [package]
-name = "invoice"
+name = "invoiceapp"
 version = "0.1.1"
 edition = "2024"
 rust-version = "1.97"
@@ -9,7 +9,7 @@ publish = false
 path = "src/lib.rs"
 
 [[bin]]
-name = "invoice"
+name = "invoiceapp"
 path = "src/main.rs"
 
 [dependencies]

@@ -63,7 +63,7 @@ impl PdfRoot {
             .token(token)
             .http_client(http)
             .build()
-            .context("INVOICE__MDCAST_URL must start with http:// or https://")?;
+            .context("INVOICEAPP__MDCAST_URL must start with http:// or https://")?;
         Ok(Self {
             client,
             storage,
@@ -86,14 +86,14 @@ impl PdfRoot {
         })
     }
 
-    /// Replace the render limits (`INVOICE__MDCAST_CONCURRENCY`; tests use
+    /// Replace the render limits (`INVOICEAPP__MDCAST_CONCURRENCY`; tests use
     /// shorter waits).
     pub fn with_render_limits(mut self, limits: RenderLimits) -> Self {
         self.limits = limits;
         self
     }
 
-    /// Bound the design cache to `mb` MiB (`INVOICE__DESIGN_CACHE_MB`;
+    /// Bound the design cache to `mb` MiB (`INVOICEAPP__DESIGN_CACHE_MB`;
     /// [`design_cache::DEFAULT_LIMIT_MB`] otherwise).
     pub fn with_design_cache_mb(mut self, mb: u32) -> Self {
         self.design_cache = design::Cache::with_limit(u64::from(mb) * 1024 * 1024);

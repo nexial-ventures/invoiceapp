@@ -4,7 +4,7 @@
 use axum::Router;
 use axum::body::Body;
 use axum::http::{HeaderMap, Method, StatusCode, header};
-use invoice::auth::mfa::totp;
+use invoiceapp::auth::mfa::totp;
 use sea_orm::{ConnectionTrait, DatabaseConnection, Statement};
 use serde_json::{Value, json};
 use uuid::Uuid;

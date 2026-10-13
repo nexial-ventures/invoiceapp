@@ -1,6 +1,6 @@
-//! The CLI's file transfers: `invoice storage migrate` and `invoice design
+//! The CLI's file transfers: `invoiceapp storage migrate` and `invoiceapp design
 //! push` copy local files into the configured backend (verified by sha256,
-//! the source only read); `invoice design pull` copies a prefix out.
+//! the source only read); `invoiceapp design pull` copies a prefix out.
 
 use std::path::{Path, PathBuf};
 
@@ -135,8 +135,8 @@ pub async fn copy_tree(
     Ok(())
 }
 
-/// `--from-dir` (the old `INVOICE__STORAGE_DIR`, keys = relative paths) and
-/// optionally `--design-dir` (the old `INVOICE__DESIGN_DIR`, under `design/`).
+/// `--from-dir` (the old `INVOICEAPP__STORAGE_DIR`, keys = relative paths) and
+/// optionally `--design-dir` (the old `INVOICEAPP__DESIGN_DIR`, under `design/`).
 /// Idempotent; existing different objects are reported, never replaced.
 pub async fn migrate(
     storage: &Storage,

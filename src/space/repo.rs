@@ -73,7 +73,7 @@ pub async fn list_for_user(
 }
 
 /// Spaces `user` created and still owns (the space cap,
-/// `INVOICE__MAX_SPACES_PER_USER`); spaces they were invited into, even as
+/// `INVOICEAPP__MAX_SPACES_PER_USER`); spaces they were invited into, even as
 /// owner, do not count.
 pub async fn count_owned(db: &impl ConnectionTrait, user: Uuid) -> Result<u64, AppError> {
     let row = db

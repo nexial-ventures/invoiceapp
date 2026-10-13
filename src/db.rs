@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use sea_orm::{ConnectOptions, ConnectionTrait, DatabaseTransaction, DbErr, Statement};
 
-/// `INVOICE__DB_MAX_CONNECTIONS` default.
+/// `INVOICEAPP__DB_MAX_CONNECTIONS` default.
 pub const DEFAULT_MAX_CONNECTIONS: u32 = 20;
 /// Longest wait for a free pooled connection.
 pub const ACQUIRE_TIMEOUT: Duration = Duration::from_secs(5);
