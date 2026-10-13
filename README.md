@@ -106,7 +106,7 @@ PDFs need an mdcast (`INVOICE__MDCAST_URL`, `INVOICE__MDCAST_TOKEN`).
   `Referrer-Policy: strict-origin-when-cross-origin`, and HSTS `max-age=31536000; includeSubDomains` when
   `INVOICE__PUBLIC_URL` is https). `includeSubDomains` pins **every** subdomain of the base host to https for a
   year, not only the spaces: give the app a **dedicated base host** (e.g. `invoice.example.com`), not an apex
-  domain shared with other services that may still need plain http. Do not add a conflicting CSP in the proxy; [docs/architecture.md](docs/architecture.md) (`security_headers.rs`) lists the policy.
+  domain shared with other services that may still need plain http. Do not add a conflicting CSP in the proxy; [docs/api/README.md](docs/api/README.md#clarifications-as-implemented) lists the policy.
 - **`INVOICE__SECRET_KEY`** (`openssl rand -base64 32`) is permanent: changing or losing it makes every enrolled
   TOTP secret and every recovery code unusable.
 - **`INVOICE__REGISTRATION=true`** requires SMTP (`INVOICE__SMTP__*`); the start is refused otherwise. `false` also

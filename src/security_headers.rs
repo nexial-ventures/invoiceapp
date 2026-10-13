@@ -1,5 +1,5 @@
 //! Security headers on every response, SPA and API alike (issue #40,
-//! `docs/architecture.md`). A header a handler already set wins (the Google
+//! `docs/api/README.md`). A header a handler already set wins (the Google
 //! redirects keep `Referrer-Policy: no-referrer`).
 
 use axum::extract::{Request, State};

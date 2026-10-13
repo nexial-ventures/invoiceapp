@@ -29,7 +29,10 @@ use invoice::space::SpaceId;
 use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection};
 use tower::ServiceExt;
 
+pub use builder::TestApp;
+
 pub mod auth;
+pub mod builder;
 pub mod csv_export;
 pub mod csvio;
 pub mod design;
@@ -167,15 +170,7 @@ pub fn router(db: DatabaseConnection) -> Router {
 
 /// [`router`] with `INVOICE__REGISTRATION` on, so `POST /api/spaces` is allowed.
 pub fn router_open(db: DatabaseConnection) -> Router {
-    let (mdcast_url, _) = mdcast::spawn();
-    let mut state = state(
-        db,
-        DEFAULT_ARES_URL,
-        DEFAULT_CNB_URL,
-        pdf_service(&mdcast_url, shared_storage()),
-    );
-    state.registration = true;
-    app(state)
+    TestApp::builder(&db).registration(true).build()
 }
 
 /// App router with ARES at `ares_url` (a local mock server in tests).
@@ -192,13 +187,7 @@ pub fn router_with_cnb(db: DatabaseConnection, cnb_url: &str) -> Router {
 /// service) into a storage dir shared by the test binary — archive paths
 /// contain the document id, so tests cannot collide.
 pub fn router_with(db: DatabaseConnection, ares_url: &str, cnb_url: &str) -> Router {
-    let (mdcast_url, _) = mdcast::spawn();
-    app(state(
-        db,
-        ares_url,
-        cnb_url,
-        pdf_service(&mdcast_url, shared_storage()),
-    ))
+    TestApp::builder(&db).ares(ares_url).cnb(cnb_url).build()
 }
 
 /// The app of `state`; a request without `Host` goes to [`TEST_HOST`].

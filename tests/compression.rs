@@ -1,4 +1,4 @@
-//! Response compression (issue #40, docs/architecture.md): text bodies are
+//! Response compression (issue #40, docs/api/README.md): text bodies are
 //! compressed by `Accept-Encoding`, PDFs pass through untouched.
 
 mod common;

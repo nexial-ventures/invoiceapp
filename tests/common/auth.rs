@@ -211,16 +211,11 @@ pub fn mail_app(
     env: &super::smtp::EmailEnv,
     registration: bool,
 ) -> Router {
-    let pdf = super::pdf_service(&env.pdf.url, env.pdf.storage.storage.clone());
-    let mut state = super::state(
-        db.clone(),
-        invoice::ares::DEFAULT_ARES_URL,
-        invoice::cnb::DEFAULT_CNB_URL,
-        pdf,
-    );
-    state.email = Some(invoice::email::Mailer::new(&env.config).expect("mailer"));
-    state.registration = registration;
-    super::app(state)
+    super::TestApp::builder(db)
+        .mdcast(&env.pdf)
+        .smtp(&env.config)
+        .registration(registration)
+        .build()
 }
 
 /// The text body of a single-part mail (7bit / 8bit, quoted-printable or

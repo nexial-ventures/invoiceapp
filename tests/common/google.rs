@@ -4,15 +4,13 @@
 use axum::Router;
 use axum::body::Body;
 use axum::http::{HeaderMap, Method, StatusCode, header};
-use invoice::auth::google::{Google, GoogleConfig};
-use invoice::secret::Secret;
 use sea_orm::DatabaseConnection;
 use serde_json::Value;
 
 use super::BASE_HOST;
 use super::auth::{exchange, request, session_cookie};
 use super::mfa::pending_cookie;
-use super::oidc::{self, CLIENT_ID, CLIENT_SECRET, OidcMock};
+use super::oidc::{self, CLIENT_ID, OidcMock};
 
 /// The app with Google pointed at a fresh mock provider.
 pub fn app(db: &DatabaseConnection, registration: bool) -> (Router, OidcMock) {
@@ -30,21 +28,12 @@ pub fn app_with(
     jwks_refresh: std::time::Duration,
 ) -> (Router, OidcMock) {
     let mock = oidc::spawn();
-    let (mdcast, _) = super::mdcast::spawn();
-    let mut state = super::state(
-        db.clone(),
-        invoice::ares::DEFAULT_ARES_URL,
-        invoice::cnb::DEFAULT_CNB_URL,
-        super::pdf_service(&mdcast, super::shared_storage()),
-    );
-    state.registration = registration;
-    let cfg = GoogleConfig {
-        client_id: CLIENT_ID.into(),
-        client_secret: Secret::new(CLIENT_SECRET.into()),
-        issuer: mock.url.clone(),
-    };
-    state.google = Some(Google::with_jwks_refresh(cfg, jwks_refresh).expect("google client"));
-    (super::app(state), mock)
+    let app = super::TestApp::builder(db)
+        .registration(registration)
+        .google(&mock.url)
+        .jwks_refresh(jwks_refresh)
+        .build();
+    (app, mock)
 }
 
 /// The `name` cookie a response set.

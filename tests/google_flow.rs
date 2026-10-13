@@ -204,19 +204,10 @@ async fn provider_unreachable() {
         let l = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
         l.local_addr().expect("addr").port()
     };
-    let mut state = common::state(
-        db.conn.clone(),
-        invoice::ares::DEFAULT_ARES_URL,
-        invoice::cnb::DEFAULT_CNB_URL,
-        common::pdf_service("http://127.0.0.1:9", common::shared_storage()),
-    );
-    let cfg = invoice::auth::google::GoogleConfig {
-        client_id: "id".into(),
-        client_secret: invoice::secret::Secret::new("secret".into()),
-        issuer: format!("http://127.0.0.1:{dead}"),
-    };
-    state.google = Some(invoice::auth::google::Google::new(cfg).expect("client"));
-    let dead_app = common::app(state);
+    let dead_app = common::TestApp::builder(&db.conn)
+        .mdcast_url("http://127.0.0.1:9")
+        .google(&format!("http://127.0.0.1:{dead}"))
+        .build();
     let (s, h, _) = get(
         &dead_app,
         TEST_HOST,

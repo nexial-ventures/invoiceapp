@@ -1,4 +1,4 @@
-//! Security headers on every response (issue #40, docs/architecture.md).
+//! Security headers on every response (issue #40, docs/api/README.md).
 
 mod common;
 
@@ -6,9 +6,7 @@ use axum::Router;
 use axum::body::Body;
 use axum::http::{HeaderMap, Request, header};
 use common::{BASE_HOST, TEST_HOST, TestDb, router, send};
-use invoice::ares::DEFAULT_ARES_URL;
 use invoice::auth::host::PublicUrl;
-use invoice::cnb::DEFAULT_CNB_URL;
 use invoice::security_headers::{CSP, HSTS};
 
 async fn headers(app: &Router, host: &str, uri: &str) -> HeaderMap {
@@ -21,11 +19,9 @@ async fn headers(app: &Router, host: &str, uri: &str) -> HeaderMap {
 }
 
 fn https_app(db: sea_orm::DatabaseConnection) -> Router {
-    let (mdcast, _) = common::mdcast::spawn();
-    let pdf = common::pdf_service(&mdcast, common::shared_storage());
-    let mut state = common::state(db, DEFAULT_ARES_URL, DEFAULT_CNB_URL, pdf);
-    state.public = PublicUrl::parse("https://localhost:3000").expect("public URL");
-    common::app(state)
+    common::TestApp::builder(&db)
+        .state(|s| s.public = PublicUrl::parse("https://localhost:3000").expect("public URL"))
+        .build()
 }
 
 fn assert_common(h: &HeaderMap, what: &str) {

@@ -277,8 +277,10 @@ impl PdfEnv {
         url: &str,
         storage: invoice::storage::Storage,
     ) -> Router {
-        let pdf = super::pdf_service(url, storage);
-        Self::app(db, pdf)
+        super::TestApp::builder(&db)
+            .mdcast_url(url)
+            .storage(storage)
+            .build()
     }
 
     /// The app rendering against this mock under `limits` (short waits).
@@ -287,24 +289,16 @@ impl PdfEnv {
         db: sea_orm::DatabaseConnection,
         limits: invoice::pdf::limits::RenderLimits,
     ) -> Router {
-        let pdf = super::pdf_service(&self.url, self.storage.storage.clone());
-        Self::app(db, pdf.with_render_limits(limits))
+        super::TestApp::builder(&db)
+            .mdcast(self)
+            .state(move |s| s.pdf = s.pdf.clone().with_render_limits(limits))
+            .build()
     }
 
     /// The app rendering against this mock, plus its PDF service (its
     /// shared design cache is inspectable).
     pub fn router_and_pdf(&self, db: sea_orm::DatabaseConnection) -> (Router, PdfRoot) {
-        let pdf = super::pdf_service(&self.url, self.storage.storage.clone());
-        (Self::app(db, pdf.clone()), pdf)
-    }
-
-    fn app(db: sea_orm::DatabaseConnection, pdf: PdfRoot) -> Router {
-        super::app(super::state(
-            db,
-            invoice::ares::DEFAULT_ARES_URL,
-            invoice::cnb::DEFAULT_CNB_URL,
-            pdf,
-        ))
+        super::TestApp::builder(&db).mdcast(self).build_with_pdf()
     }
 }
 

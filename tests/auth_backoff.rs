@@ -10,8 +10,6 @@ use axum::body::Body;
 use axum::http::{Method, StatusCode, header};
 use common::auth::{As, exchange, request, session_cookie};
 use common::{OWNER_EMAIL, OWNER_PASSWORD, TEST_HOST, TestDb};
-use invoice::ares::DEFAULT_ARES_URL;
-use invoice::cnb::DEFAULT_CNB_URL;
 use serde_json::json;
 
 const WRONG: &str = "wrong password!";
@@ -23,11 +21,7 @@ type Outcome = Result<(), (StatusCode, Option<u64>)>;
 /// The test app behind a "proxy": the client IP is the `X-Forwarded-For`
 /// each attempt sends.
 fn app(db: sea_orm::DatabaseConnection) -> Router {
-    let (mdcast, _) = common::mdcast::spawn();
-    let pdf = common::pdf_service(&mdcast, common::shared_storage());
-    let mut state = common::state(db, DEFAULT_ARES_URL, DEFAULT_CNB_URL, pdf);
-    state.trust_forwarded = true;
-    common::app(state)
+    common::TestApp::builder(&db).trust_forwarded(true).build()
 }
 
 /// One login from `ip`: `Ok(())` signed in, else the status and `Retry-After`.
