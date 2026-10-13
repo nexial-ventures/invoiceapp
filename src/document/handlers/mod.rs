@@ -5,6 +5,7 @@
 pub mod actions;
 pub mod documents;
 pub mod dto;
+pub mod number_preview;
 pub mod original;
 pub mod payments;
 pub mod received;

@@ -19,6 +19,7 @@ import { useCompute } from "../useCompute";
 import { useIndicativeRate } from "../useIndicativeRate";
 import ContactPicker from "./ContactPicker.vue";
 import DocumentHeaderFields from "./DocumentHeaderFields.vue";
+import DocumentNumberField from "./DocumentNumberField.vue";
 import LineEditor from "./LineEditor.vue";
 import RelatedDocumentPicker from "./RelatedDocumentPicker.vue";
 import SimplifiedLimitNote from "./SimplifiedLimitNote.vue";
@@ -137,6 +138,10 @@ async function onSubmit() {
         @pick="onPick"
         @clear="draft.contactId = null"
       />
+    </section>
+
+    <section v-if="!draft.imported" class="card">
+      <DocumentNumberField v-model="draft" :error="headerErrors.number" />
     </section>
 
     <section v-if="correction" class="card">

@@ -7,6 +7,7 @@ type Translate = (key: string, params?: Record<string, unknown>) => string;
 /** Header fields that have a `documents.fields.*` label. */
 export const FIELD_LABELS = [
   "docType",
+  "number",
   "contactId",
   "issueDate",
   "taxPointDate",

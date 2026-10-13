@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { useErrorText } from "@/composables/useAction";
 import ContactForm from "../components/ContactForm.vue";
+import ContactNumberCounters from "../components/ContactNumberCounters.vue";
 import { useContactsStore } from "../store";
 import type { Contact } from "../types";
 import { useSessionStore } from "@/stores/session";
@@ -77,5 +78,7 @@ async function onDelete() {
         </button>
       </template>
     </ContactForm>
+
+    <ContactNumberCounters v-if="contact" :key="contact.id" :contact-id="contact.id" :has-code="!!contact.numberCode" />
   </section>
 </template>

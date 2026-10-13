@@ -7,7 +7,7 @@ import { mockFetch } from "@/test-utils";
 import type { NumberSeries } from "../types";
 import NumberSeriesTab from "./NumberSeriesTab.vue";
 
-const series = (docType: NumberSeries["docType"]): NumberSeries => ({ docType, pattern: `${docType}{YYYY}{NNNN}`, counters: [], nextNumberPreview: "" });
+const series = (docType: NumberSeries["docType"]): NumberSeries => ({ docType, pattern: `${docType}{YYYY}{NNNN}`, clientPattern: null, counters: [], nextNumberPreview: "" });
 
 describe("NumberSeriesTab", () => {
   beforeEach(() => {

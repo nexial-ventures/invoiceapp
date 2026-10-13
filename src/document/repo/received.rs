@@ -96,6 +96,7 @@ async fn create_in(
         number: Some(number),
         number_year: Some(year),
         number_seq: Some(seq),
+        number_code: None,
         imported: false,
         contact_id: Some(d.contact_id),
         issue_date: d.issue_date,

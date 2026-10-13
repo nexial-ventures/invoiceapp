@@ -77,8 +77,8 @@
       "received_advance_credit_note": "Přijaté opravné daňové doklady k platbě"
     },
     "pattern": "Vzor",
-    "preview": "Náhled dalšího čísla",
-    "serverPreview": "Další číslo podle serveru",
+    "preview": "Ukázka vzoru",
+    "serverPreview": "Další číslo",
     "counters": "Počítadla podle roku",
     "year": "Rok",
     "lastNumber": "Poslední číslo",

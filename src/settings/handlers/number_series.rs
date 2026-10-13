@@ -18,9 +18,13 @@ use crate::time::current_year;
 pub struct NumberSeries {
     pub doc_type: DocType,
     pub pattern: String,
+    /// Issued series only: the pattern for customers with a number code
+    /// (exactly one `{C}`); `null` = everyone uses `pattern`.
+    pub client_pattern: Option<String>,
     /// Newest year first.
     pub counters: Vec<Counter>,
-    /// The number the next allocation in the current year would get.
+    /// The number the next allocation of the global series in the current
+    /// year would get (past the counter and every number held).
     pub next_number_preview: String,
 }
 
@@ -40,24 +44,24 @@ pub struct PatternInput {
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+pub struct ClientPatternInput {
+    /// Empty / `null` clears it.
+    #[serde(default)]
+    pub client_pattern: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct CounterInput {
     pub last_number: i64,
 }
 
 impl NumberSeries {
-    pub fn build(s: Series, year: i32) -> Self {
-        let last = s
-            .counters
-            .iter()
-            .find(|c| c.year == year)
-            .map_or(0, |c| c.last_number);
-        // Stored patterns are validated on write; an unparsable one shows as-is.
-        let next_number_preview = Pattern::parse(&s.pattern)
-            .map(|p| p.format(year, i64::from(last) + 1))
-            .unwrap_or_else(|_| s.pattern.clone());
+    pub fn build(s: Series) -> Self {
         Self {
             doc_type: s.doc_type,
             pattern: s.pattern,
+            client_pattern: s.client_pattern,
             counters: s
                 .counters
                 .into_iter()
@@ -66,7 +70,7 @@ impl NumberSeries {
                     last_number: c.last_number,
                 })
                 .collect(),
-            next_number_preview,
+            next_number_preview: s.next_number_preview,
         }
     }
 }
@@ -83,13 +87,8 @@ pub async fn list(
     access: Read,
 ) -> Result<Json<Vec<NumberSeries>>, AppError> {
     let year = current_year();
-    let series = repo::number_series::list(&state.db, access.space()).await?;
-    Ok(Json(
-        series
-            .into_iter()
-            .map(|s| NumberSeries::build(s, year))
-            .collect(),
-    ))
+    let series = repo::number_series::list(&state.db, access.space(), year).await?;
+    Ok(Json(series.into_iter().map(NumberSeries::build).collect()))
 }
 
 #[utoipa::path(
@@ -113,8 +112,49 @@ pub async fn put_pattern(
 ) -> Result<Json<NumberSeries>, AppError> {
     let pattern = input.pattern.trim().to_string();
     Pattern::parse(&pattern).map_err(|_| AppError::field("pattern", "invalid_pattern"))?;
-    let s = repo::number_series::set_pattern(&state.db, access.space(), doc_type, pattern).await?;
-    Ok(Json(NumberSeries::build(s, current_year())))
+    let year = current_year();
+    let s = repo::number_series::set_pattern(&state.db, access.space(), doc_type, pattern, year)
+        .await?;
+    Ok(Json(NumberSeries::build(s)))
+}
+
+#[utoipa::path(
+    put,
+    path = "/api/settings/number-series/{docType}/client-pattern",
+    tag = "settings",
+    security(("cookie" = []), ("bearer" = [])),
+    params(("docType" = DocType, Path)),
+    request_body = ClientPatternInput,
+    responses(
+        (status = 200, body = NumberSeries),
+        (status = 404, body = ErrorBody),
+        (status = 422, description = "`clientPattern`: `invalid_pattern` / `not_issued` / `duplicate`", body = ErrorBody),
+    )
+)]
+pub async fn put_client_pattern(
+    State(state): State<AppState>,
+    access: Manage,
+    ApiPath(doc_type): ApiPath<DocType>,
+    ApiJson(input): ApiJson<ClientPatternInput>,
+) -> Result<Json<NumberSeries>, AppError> {
+    let pattern = client_pattern(doc_type, input.client_pattern.as_deref())?;
+    let year = current_year();
+    let s =
+        repo::number_series::set_client_pattern(&state.db, access.space(), doc_type, pattern, year)
+            .await?;
+    Ok(Json(NumberSeries::build(s)))
+}
+
+/// Trimmed; empty clears. Only the seven issued series take one.
+fn client_pattern(doc_type: DocType, input: Option<&str>) -> Result<Option<String>, AppError> {
+    let Some(p) = input.map(str::trim).filter(|p| !p.is_empty()) else {
+        return Ok(None);
+    };
+    if !doc_type.is_document_type() {
+        return Err(AppError::field("clientPattern", "not_issued"));
+    }
+    Pattern::parse_client(p).map_err(|_| AppError::field("clientPattern", "invalid_pattern"))?;
+    Ok(Some(p.to_string()))
 }
 
 #[utoipa::path(
@@ -130,6 +170,7 @@ pub async fn put_pattern(
         (status = 422, description = "`year` / `lastNumber` out of range", body = ErrorBody),
     )
 )]
+/// Any value >= 0: allocation skips numbers already held anyway.
 pub async fn put_counter(
     State(state): State<AppState>,
     access: Manage,
@@ -151,39 +192,36 @@ pub async fn put_counter(
         doc_type,
         year,
         last_number.unwrap_or_default(),
+        current_year(),
     )
     .await?;
-    Ok(Json(NumberSeries::build(s, current_year())))
+    Ok(Json(NumberSeries::build(s)))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::settings::entity::number_series_counter as counter;
 
     #[test]
-    fn preview_uses_current_year_counter() {
-        let series = |counters| Series {
-            doc_type: DocType::Invoice,
-            pattern: "{YYYY}{NNNN}".into(),
-            counters,
-        };
-        let c = |year, last_number| counter::Model {
-            series_id: uuid::Uuid::nil(),
-            year,
-            last_number,
+    fn client_pattern_input() {
+        let ok = client_pattern(DocType::Invoice, Some(" {C}-{YYYY}{NNN} "));
+        assert_eq!(ok.ok().flatten().as_deref(), Some("{C}-{YYYY}{NNN}"));
+        assert!(matches!(
+            client_pattern(DocType::Invoice, Some("  ")),
+            Ok(None)
+        ));
+        assert!(matches!(client_pattern(DocType::Received, None), Ok(None)));
+        let field = |r: Result<Option<String>, AppError>| match r {
+            Err(AppError::Validation(f)) => f.get("clientPattern"),
+            _ => None,
         };
         assert_eq!(
-            NumberSeries::build(series(vec![]), 2026).next_number_preview,
-            "20260001"
+            field(client_pattern(DocType::Invoice, Some("{YYYY}{NNN}"))),
+            Some("invalid_pattern")
         );
         assert_eq!(
-            NumberSeries::build(series(vec![c(2026, 41), c(2025, 99)]), 2026).next_number_preview,
-            "20260042"
-        );
-        assert_eq!(
-            NumberSeries::build(series(vec![c(2025, 99)]), 2026).next_number_preview,
-            "20260001"
+            field(client_pattern(DocType::Received, Some("{C}{YYYY}{NNN}"))),
+            Some("not_issued")
         );
     }
 }

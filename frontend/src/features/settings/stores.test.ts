@@ -52,6 +52,7 @@ describe("settings stores", () => {
     const s = (docType: NumberSeries["docType"], pattern: string): NumberSeries => ({
       docType,
       pattern,
+      clientPattern: null,
       counters: [],
       nextNumberPreview: "",
     });

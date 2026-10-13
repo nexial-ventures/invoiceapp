@@ -190,6 +190,7 @@ async fn insert(
         number: Some(number),
         number_year: Some(year),
         number_seq: seq,
+        number_code: None,
         imported: issued,
         contact_id,
         issue_date: plan.issue_date,

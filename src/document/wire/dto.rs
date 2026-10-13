@@ -29,6 +29,9 @@ pub struct Document {
     #[schema(value_type = String)]
     pub direction: Direction,
     pub number: Option<String>,
+    /// The number this document replaced when it was re-issued under
+    /// another one after an unlock.
+    pub previous_number: Option<String>,
     pub status: Status,
     pub payment_state: Option<PaymentState>,
     pub overdue: bool,

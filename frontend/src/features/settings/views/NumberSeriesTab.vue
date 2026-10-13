@@ -40,6 +40,10 @@ onMounted(() => void run(store.load));
         </li>
       </ul>
       <p class="mt-2 text-gray-600 dark:text-gray-400">{{ t("settings.numberSeries.helpRules") }}</p>
+      <p class="mt-2 text-gray-600 dark:text-gray-400" data-test="client-help">
+        <code class="rounded bg-gray-100 px-1 font-mono dark:bg-gray-800">{C}</code>
+        — {{ t("numbering.clientPattern.help") }}
+      </p>
     </aside>
 
     <p v-if="error" role="alert" class="alert-error">{{ error }}</p>

@@ -28,6 +28,7 @@ mod m20261023_000002_fk_indexes;
 mod m20261024_000001_abuse_limits;
 mod m20261025_000001_doc_type_checks;
 mod m20261026_000001_document_unlock;
+mod m20261027_000001_client_numbering;
 
 pub struct Migrator;
 
@@ -56,6 +57,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20261024_000001_abuse_limits::Migration),
             Box::new(m20261025_000001_doc_type_checks::Migration),
             Box::new(m20261026_000001_document_unlock::Migration),
+            Box::new(m20261027_000001_client_numbering::Migration),
         ]
     }
 }

@@ -8,6 +8,12 @@ use crate::document::model::Existing;
 use crate::num_parse::decimal;
 use crate::validation::{self as v, Check};
 
+/// Tells an explicit `null` (`Some(None)`) from an omitted field (`None`,
+/// via `#[serde(default)]`).
+pub fn present<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<Option<String>>, D::Error> {
+    <Option<String> as serde::Deserialize>::deserialize(d).map(Some)
+}
+
 /// Digits only, at most `max` (variable / constant symbol).
 pub fn digits(s: Option<&str>, max: usize) -> Check<Option<String>> {
     let s = v::opt_text(s, max)?;

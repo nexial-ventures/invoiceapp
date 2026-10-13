@@ -281,7 +281,7 @@ async fn cancel_mark_sent_and_internal_note() {
 }
 
 #[tokio::test]
-async fn counter_cannot_go_below_issued_numbers() {
+async fn lower_counter_is_accepted_and_allocation_skips_issued_numbers() {
     let db = TestDb::new().await;
     let app = router(db.conn.clone());
     let body = issuable(&app).await;
@@ -289,47 +289,19 @@ async fn counter_cannot_go_below_issued_numbers() {
         let doc = create_doc(&app, body.clone()).await;
         assert_eq!(issue(&app, &id(&doc)).await.0, StatusCode::OK);
     }
-    let put = |n: i64, year: i32| {
-        let app = app.clone();
-        async move {
-            call(
-                &app,
-                Method::PUT,
-                &format!("/api/settings/number-series/invoice/counters/{year}"),
-                Some(json!({ "lastNumber": n })),
-            )
-            .await
-        }
-    };
-    let (status, err) = put(2, 2026).await;
+    let uri = "/api/settings/number-series/invoice/counters/2026";
+    let (status, s) = call(&app, Method::PUT, uri, Some(json!({ "lastNumber": 1 }))).await;
+    assert_eq!(status, StatusCode::OK, "{s}");
+    assert_eq!(s["counters"][0], json!({ "year": 2026, "lastNumber": 1 }));
+    let doc = create_doc(&app, body.clone()).await;
+    let (status, issued) = issue(&app, &id(&doc)).await;
+    assert_eq!(status, StatusCode::OK, "{issued}");
     assert_eq!(
-        (status, err),
-        (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            json!({ "code": "validation", "fields": { "lastNumber": "below_issued" } })
-        )
+        issued["number"], "20260004",
+        "past the highest issued number"
     );
-    assert_eq!(put(3, 2026).await.0, StatusCode::OK);
-    assert_eq!(put(10, 2026).await.0, StatusCode::OK);
-    assert_eq!(
-        put(0, 2025).await.0,
-        StatusCode::OK,
-        "other years are independent"
-    );
-    let (status, _) = call(
-        &app,
-        Method::PUT,
-        "/api/settings/number-series/credit_note/counters/2026",
-        Some(json!({ "lastNumber": 0 })),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK, "other doc types are independent");
-
-    // Imported documents do not hold the counter (1e sets the flag).
-    use sea_orm::ConnectionTrait;
-    db.conn
-        .execute_unprepared("UPDATE documents SET imported = true")
-        .await
-        .expect("mark imported");
-    assert_eq!(put(0, 2026).await.0, StatusCode::OK);
+    // A counter above the issued numbers wins.
+    call(&app, Method::PUT, uri, Some(json!({ "lastNumber": 10 }))).await;
+    let doc = create_doc(&app, body).await;
+    assert_eq!(issue(&app, &id(&doc)).await.1["number"], "20260011");
 }

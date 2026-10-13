@@ -2,11 +2,13 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import FormField from "@/components/form/FormField.vue";
+import { ISSUED_SERIES } from "@/api/types";
 import { useFormSubmit } from "@/composables/useFormSubmit";
 import { collectErrors } from "@/lib/formErrors";
 import { formatNumber, MAX_PATTERN_LENGTH } from "../numberPattern";
 import { useNumberSeriesStore } from "../stores";
 import type { NumberSeries } from "../types";
+import ClientPatternForm from "./ClientPatternForm.vue";
 import CountersEditor from "./CountersEditor.vue";
 
 const props = defineProps<{ series: NumberSeries; currentYear: number }>();
@@ -21,12 +23,14 @@ watch(
   (saved) => (pattern.value = saved),
 );
 
-const nextNumber = computed(
-  () => (props.series.counters.find((c) => c.year === props.currentYear)?.lastNumber ?? 0) + 1,
-);
-const preview = computed(() => formatNumber(pattern.value.trim(), props.currentYear, nextNumber.value));
+// Validates the pattern being typed; the real next number is the server's `nextNumberPreview`
+// (it skips numbers already held, which the counter alone does not tell).
+const preview = computed(() => formatNumber(pattern.value.trim(), props.currentYear, 1));
 const dirty = computed(() => pattern.value.trim() !== props.series.pattern);
 const inputId = computed(() => `pattern-${props.series.docType}`);
+/** Client patterns exist for issued series only (received documents always use the global one). */
+const issued = computed(() => (ISSUED_SERIES as readonly string[]).includes(props.series.docType));
+const saveCounter = (year: number, lastNumber: number) => store.setCounter(props.series.docType, year, lastNumber);
 
 async function onSubmit() {
   const value = pattern.value.trim();
@@ -59,8 +63,8 @@ async function onSubmit() {
         </div>
       </FormField>
       <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-        <dt class="text-gray-600 dark:text-gray-400">{{ t("settings.numberSeries.preview") }}</dt>
-        <dd class="font-mono" data-test="client-preview">
+        <dt v-if="dirty || preview === null" class="text-gray-600 dark:text-gray-400">{{ t("settings.numberSeries.preview") }}</dt>
+        <dd v-if="dirty || preview === null" class="font-mono" data-test="client-preview">
           <template v-if="preview !== null">{{ preview }}</template>
           <span v-else class="text-red-600 dark:text-red-400">{{ t("validation.invalid_pattern") }}</span>
         </dd>
@@ -70,6 +74,8 @@ async function onSubmit() {
       <p v-if="error" role="alert" class="alert-error">{{ error }}</p>
     </form>
 
-    <CountersEditor :series="series" :current-year="currentYear" />
+    <ClientPatternForm v-if="issued" :series="series" :current-year="currentYear" />
+
+    <CountersEditor :counters="series.counters" :current-year="currentYear" :save-counter="saveCounter" />
   </section>
 </template>

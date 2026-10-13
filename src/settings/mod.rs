@@ -55,6 +55,10 @@ pub fn router() -> Router<AppState> {
         .route("/number-series", get(number_series::list))
         .route("/number-series/{doc_type}", put(number_series::put_pattern))
         .route(
+            "/number-series/{doc_type}/client-pattern",
+            put(number_series::put_client_pattern),
+        )
+        .route(
             "/number-series/{doc_type}/counters/{year}",
             put(number_series::put_counter),
         )

@@ -64,14 +64,6 @@ async fn reissue_keeps_the_number_after_a_date_change() {
         (&saved["number"], &saved["status"]),
         (&json!("20260001"), &json!("draft"))
     );
-    // A native number may be sent back unchanged, never altered.
-    let mut other = saved.clone();
-    other["number"] = json!("X-1");
-    let uri = format!("/api/documents/{}", id(&saved));
-    let (status, err) = call(&app, Method::PUT, &uri, Some(other)).await;
-    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-    assert_eq!(err["fields"]["number"], "invalid");
-
     let renders = env.mock.count();
     let (status, reissued) = issue(&app, &id(&saved)).await;
     assert_eq!(status, StatusCode::OK, "{reissued}");
@@ -112,11 +104,11 @@ async fn the_kept_number_stays_reserved() {
     let (status, _) = unlock(&app, &id(&first), json!("fix")).await;
     assert_eq!(status, StatusCode::OK);
 
-    // The counter guard still counts the unlocked draft's number.
+    // A counter set below it is accepted; allocation still skips the
+    // number the unlocked draft holds.
     let uri = "/api/settings/number-series/invoice/counters/2026";
-    let (status, err) = call(&app, Method::PUT, uri, Some(json!({ "lastNumber": 0 }))).await;
-    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{err}");
-    assert_eq!(err["fields"]["lastNumber"], "below_issued");
+    let (status, s) = call(&app, Method::PUT, uri, Some(json!({ "lastNumber": 0 }))).await;
+    assert_eq!(status, StatusCode::OK, "{s}");
 
     let second = create_issued(&app, body).await;
     assert_eq!(second["number"], "20260002");

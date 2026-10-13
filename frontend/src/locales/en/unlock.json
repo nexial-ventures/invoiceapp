@@ -12,7 +12,7 @@
   "bannerTitle": "Unlocked issued document",
   "banner": "Unlocked on {when} by {who}: {reason}",
   "unknownUser": "a deleted user",
-  "keptNumber": "Keeps its number {number}: re-issuing takes no new one.",
+  "keptNumber": "Keeps its number {number} unless you change or clear it: re-issuing a kept number takes no new one.",
   "confirmDelete": "This draft was issued as {number}. Deleting it also deletes its payments and e-mail log, and the number is not reused. Really delete it?",
   "issueExceeds": "Cannot issue: the issued credit notes would exceed the corrected document (plus its debit notes) for some VAT rate. Cancel or correct them first.",
   "issueRelated": "Cannot issue: its corrections were made for the original customer, currency and VAT mode. Change these back, or cancel or delete those corrections first.",

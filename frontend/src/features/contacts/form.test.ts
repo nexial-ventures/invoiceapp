@@ -45,6 +45,15 @@ describe("contact form", () => {
       defaultDueDays: 30,
       defaultLocale: "en",
       defaultCurrency: "EUR",
+      numberCode: null,
     });
+  });
+
+  it("round-trips the number code and validates it like the server", () => {
+    const draft = toDraft({ ...toInput({ ...toDraft(), name: "Acme" }), numberCode: "ACME", id: "c1", createdAt: "", updatedAt: "" });
+    expect(draft.numberCode).toBe("ACME");
+    expect(toInput({ ...draft, numberCode: " ac/1 " }).numberCode).toBe("ac/1");
+    expect(validateContact({ ...draft, numberCode: "AC ME" })).toEqual({ numberCode: "invalid" });
+    expect(validateContact({ ...draft, numberCode: "A".repeat(11) })).toEqual({ numberCode: "invalid" });
   });
 });

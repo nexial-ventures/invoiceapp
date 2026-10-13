@@ -20,7 +20,7 @@ use crate::document::entity::{document, document_line, payment, vat_recap};
 use crate::document::line::Direction;
 use crate::document::line::{ItemData, LineData, MAX_INPUT, RoundingMode, Status};
 use crate::error::{AppError, number_violation};
-use crate::settings::repo::number_series;
+use crate::settings::repo::numbering;
 use crate::space::SpaceId;
 
 /// Whether a payment on `doc` must issue a DDPP: a native issued proforma
@@ -83,8 +83,14 @@ pub async fn issue(
         ddpp::totals(&shares, rate.rate).map_err(|o| AppError::field(o.field(), "invalid"))?;
     let year = payment.date.year();
     let space = SpaceId::from_row(proforma.space_id);
-    let (number, seq) =
-        number_series::allocate_number(txn, space, DocType::AdvanceTaxDoc, year).await?;
+    // The proforma's customer as it is now: its code picks the sequence.
+    let customer = match proforma.contact_id {
+        Some(id) => super::context::contact(txn, space, id).await?,
+        None => None,
+    };
+    let numbering::Allocated {
+        number, seq, code, ..
+    } = numbering::allocate(txn, space, DocType::AdvanceTaxDoc, year, customer.as_ref()).await?;
     let proforma_number = proforma.number.clone().unwrap_or_default();
     let lines = item_lines(
         &shares,
@@ -101,6 +107,7 @@ pub async fn issue(
         number: Some(number.clone()),
         number_year: Some(year),
         number_seq: Some(seq),
+        number_code: code,
         imported: false,
         contact_id: proforma.contact_id,
         issue_date: payment.date,

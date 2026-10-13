@@ -63,8 +63,14 @@ pub struct DocumentInput {
     pub lines: Vec<LineInput>,
     /// Manual import (create only, default `false`; immutable).
     pub imported: Option<bool>,
-    /// Imported documents only (required there, <= 40, unique per type).
-    pub number: Option<String>,
+    /// Imported: required, <= 40, unique per type. Native draft: optional
+    /// manual number (`[A-Za-z0-9/_-]`, <= 50, unique per type → `number:
+    /// taken`); `null` / `""` = none (allocate at issue); **omitted on
+    /// `PUT` = keep the draft's current number** (an unlocked one's too).
+    #[serde(default, deserialize_with = "super::fields::present")]
+    #[schema(value_type = Option<String>)]
+    #[schemars(with = "Option<String>")]
+    pub number: Option<Option<String>>,
     /// Imported documents only; ignored on native drafts.
     pub related_document_id: Option<Uuid>,
     pub category_id: Option<Uuid>,

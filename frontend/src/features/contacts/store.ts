@@ -1,7 +1,8 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
+import type { DocType } from "@/api/types";
 import { contactsApi } from "./api";
-import type { Contact, ContactInput } from "./types";
+import type { Contact, ContactInput, ContactNumberSeries } from "./types";
 
 export const PAGE_SIZE = 50;
 
@@ -52,4 +53,26 @@ export const useContactsStore = defineStore("contacts", () => {
   }
 
   return { items, total, q, offset, loading, load, search, goTo, get, save, remove };
+});
+
+/** One contact's client number sequences (the contact edit view); reset per contact. */
+export const useContactNumberingStore = defineStore("contacts/numbering", () => {
+  const contactId = ref<string | null>(null);
+  const series = ref<ContactNumberSeries[]>([]);
+
+  async function load(id: string): Promise<void> {
+    if (contactId.value !== id) series.value = [];
+    contactId.value = id;
+    const loaded = await contactsApi.numberCounters(id);
+    if (contactId.value === id) series.value = loaded;
+  }
+
+  async function setCounter(docType: DocType, year: number, lastNumber: number): Promise<void> {
+    const id = contactId.value;
+    if (!id) return;
+    const saved = await contactsApi.setNumberCounter(id, docType, year, lastNumber);
+    if (contactId.value === id) series.value = series.value.map((s) => (s.docType === saved.docType ? saved : s));
+  }
+
+  return { contactId, series, load, setCounter };
 });

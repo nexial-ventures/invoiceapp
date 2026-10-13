@@ -75,6 +75,7 @@ pub(super) fn contact_with_defaults() -> contact::Model {
         default_due_days: Some(30),
         default_locale: Some("en".into()),
         default_currency: Some("EUR".into()),
+        number_code: None,
         created_at: Utc::now().into(),
         updated_at: Utc::now().into(),
     }

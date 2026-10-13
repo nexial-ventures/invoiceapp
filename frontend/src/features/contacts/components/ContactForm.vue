@@ -58,6 +58,21 @@ async function onSubmit() {
           <textarea id="contact-note" v-model="draft.note" rows="3" class="input" />
         </FormField>
       </section>
+
+      <section class="card space-y-4" data-test="contact-numbering">
+        <h2 class="font-semibold">{{ t("numbering.contact.title") }}</h2>
+        <FormField :label="t('numbering.contact.numberCode')" for="contact-numberCode" :error="fieldErrors.numberCode" :hint="t('numbering.contact.numberCodeHint')">
+          <input
+            id="contact-numberCode"
+            v-model="draft.numberCode"
+            maxlength="10"
+            class="input max-w-xs font-mono"
+            :class="{ 'input-error': fieldErrors.numberCode }"
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </FormField>
+      </section>
     </fieldset>
 
     <p v-if="error" role="alert" class="alert-error" data-test="form-error">{{ error }}</p>

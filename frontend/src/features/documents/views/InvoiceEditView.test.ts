@@ -94,7 +94,7 @@ describe("InvoiceEditView", () => {
     expect(router.currentRoute.value.fullPath).toBe("/invoices/n1");
   });
 
-  it("native drafts send imported false, no number and no relatedDocumentId", async () => {
+  it("native drafts send imported false, no untouched number and no relatedDocumentId", async () => {
     const fetch = mockFetchRoutes({
       "GET /api/settings/company": company,
       "GET /api/settings/vat-rates": vatRates,
@@ -109,7 +109,8 @@ describe("InvoiceEditView", () => {
     await w.find("form").trigger("submit");
     await flushPromises();
     const body = JSON.parse(String(fetch.mock.calls.find(([url, init]) => url === "/api/documents" && init?.method === "POST")?.[1]?.body)) as Record<string, unknown>;
-    expect(body).toMatchObject({ imported: false, number: null, categoryId: null, customFields: {} });
+    expect(body).toMatchObject({ imported: false, categoryId: null, customFields: {} });
+    expect("number" in body).toBe(false);
     expect("relatedDocumentId" in body).toBe(false);
   });
 
@@ -135,5 +136,46 @@ describe("InvoiceEditView", () => {
     expect(banner).toContain("admin@example.com");
     expect(banner).toContain("Wrong VAT rate");
     expect(w.find('[data-test="kept-number"]').text()).toContain("20260001");
+  });
+
+  it("an unlocked draft keeps its number untouched, renumbers it, or clears it to the sequence", async () => {
+    const draft = document({ number: "20260001", unlockedAt: "2026-10-12T09:30:00Z", unlockReason: "Typo" });
+    const bodies: Record<string, unknown>[] = [];
+    let answer: unknown = draft;
+    mockFetchRoutes({
+      "GET /api/settings/company": company,
+      "GET /api/settings/vat-rates": vatRates,
+      "GET /api/settings/bank-accounts": bankAccounts,
+      "GET /api/settings/categories": [],
+      "GET /api/settings/custom-fields": [],
+      "GET /api/documents/d1": draft,
+      "GET /api/contacts/c1": { id: "c1", name: "Acme" },
+      "GET /api/documents/number-preview": { number: "20260009", source: "global" },
+      "POST /api/documents/compute": { lines: [], totals: totals() },
+      "PUT /api/documents/d1": (body: unknown) => {
+        bodies.push(body as Record<string, unknown>);
+        return answer;
+      },
+    });
+    const { w } = await mountAt("/invoices/d1/edit");
+    expect((w.find("#doc-number").element as HTMLInputElement).value).toBe("20260001");
+    await w.find("form").trigger("submit");
+    await flushPromises();
+    expect("number" in bodies[0]!).toBe(false);
+
+    const { w: w2 } = await mountAt("/invoices/d1/edit");
+    answer = reply(422, { code: "validation", fields: { number: "taken" } });
+    await w2.find("#doc-number").setValue("20260003");
+    await w2.find("form").trigger("submit");
+    await flushPromises();
+    expect(bodies[1]).toMatchObject({ number: "20260003" });
+    expect(w2.find("#doc-number-error").text()).toBe("This value is already taken.");
+
+    answer = draft;
+    await w2.find('[data-test="number-from-sequence"]').trigger("click");
+    expect((w2.find("#doc-number").element as HTMLInputElement).value).toBe("");
+    await w2.find("form").trigger("submit");
+    await flushPromises();
+    expect(bodies[2]).toMatchObject({ number: null });
   });
 });

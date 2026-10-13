@@ -35,6 +35,7 @@ DocumentInput {
   bankAccountId: uuid|null,             // must match currency; required at issue for paymentMethod bank_transfer
   paymentMethod: "bank_transfer" | "cash" | "card" | "other",
   variableSymbol: string|null /* digits <=10; null → derived from number at issue */,
+  number?: string|null /* native: omitted = keep, null/"" = none (allocate at issue), string = manual (numbering.md) */,
   constantSymbol: string|null /* digits <=4 */,
   orderRef: string|null /* <=100 */, headerNote: string|null, footerNote: string|null /* <=2000, printed */,
   internalNote: string|null /* <=2000, never printed */,
@@ -49,7 +50,7 @@ Totals {
 }
 
 Document = DocumentInput + {
-  id, number: string|null, status, paymentState, overdue, sentAt: datetime|null, cancelledAt: datetime|null,
+  id, number: string|null, previousNumber: string|null /* replaced at a re-issue */, status, paymentState, overdue, sentAt: datetime|null, cancelledAt: datetime|null,
   cancelReason: string|null, exchangeRateDate: date|null, exchangeRateSource: "cnb"|"manual"|null,
   supplier: PartySnapshot|null, customer: PartySnapshot|null,  // filled at issue; drafts show null
   bankSnapshot: { accountNumber, iban, bic }|null,             // filled at issue
@@ -103,7 +104,7 @@ Payment { id, date, amount: string /* >0, doc currency */, note: string|null, cr
   `dueDate >= issueDate`; `taxPointDate` required for invoice; bank account required for bank_transfer and must match
   currency; foreign currency → rate = manual `exchangeRate` or ČNB for `taxPointDate` (ČNB failure with no manual rate →
   422 `{"fields":{"exchangeRate":"required"}}`). In one transaction: allocate number from the doc type's series for the
-  **issueDate year**, store `number`, `numberYear`, `numberSeq`; snapshot supplier (company), customer (contact), bank;
+  **issueDate year** (the customer's client sequence or the global one; a manual number is kept — [numbering.md](numbering.md)), store `number`, `numberYear`, `numberSeq`; snapshot supplier (company), customer (contact), bank;
   `variableSymbol` = digits of number (last 10) if null; recompute + store totals; status `issued`. The PDF is
   rendered **before** that transaction (from a rolled-back dry run of it) and recorded in its commit — see
   [pdf.md, Archive](pdf.md#archive).
@@ -127,9 +128,9 @@ any list for a past date. A today-or-later request answered with an older list (
 stored; that list is reused from memory for at most **60 s** (`src/cnb/recent.rs`), so after publication a stale rate
 is served for a minute at most. Tests use a local mock server with fixture text — never the real ČNB.
 
-## Number-series counter guard (finishes the 1a review item)
-`PUT /api/settings/number-series/{docType}/counters/{year}` with `lastNumber` lower than the highest `numberSeq` of a
-non-imported document of that docType and `numberYear` → 422 `{"fields":{"lastNumber":"below_issued"}}`.
+## Number-series counter guard (removed)
+Replaced by the per-client sequences decision ([numbering.md](numbering.md)): a counter `PUT` accepts any value ≥ 0
+and allocation takes the next free number after the counter, so a low counter fills gaps and never repeats a number.
 
 ## Unlock
 User decision overriding "issued documents are locked" ([plan.md](../plan.md)).
@@ -146,14 +147,14 @@ User decision overriding "issued documents are locked" ([plan.md](../plan.md)).
   / `customer` / `bankSnapshot`) and a ČNB rate (re-resolved at re-issue; a manual or copied rate stays); an imported
   one keeps its snapshots, rate and totals. Returns the Document.
 - The draft is edited with the normal `PUT` (all validations; `docType` cannot change → `docType: invalid`). A native
-  draft's `number` may be sent back unchanged or omitted (anything else → `number: invalid`); an imported one's stays
-  editable, as on import.
-- Re-issue (normal `issue`): a draft that already has a number reuses `number`, `numberYear` and the sequence, also
+  draft's `number` omitted keeps it, a string renumbers it, `null` / `""` clears it to allocate afresh at re-issue
+  ([numbering.md](numbering.md): `previousNumber`, variable symbol); an imported one's stays editable, as on import.
+- Re-issue (normal `issue`): a draft that kept its number reuses `number`, `numberYear` and the sequence, also
   after a date change — it never allocates a second number; snapshots, rate, totals and the PDF are done as in any
   issue (imported: no render). An imported draft not edited since the unlock (no document `PUT`; metadata, notes and
   the original do not count) keeps its lines, snapshots, rate and totals as entered. The number stays
-  **reserved** while the draft exists: the counter is not moved back, the counter guard counts the draft
-  (`below_issued`), and the unique number index still holds it.
+  **reserved** while the draft holds it: the counter is not moved back, allocation skips it, and the unique number
+  index still holds it.
 - Re-issue re-checks, in the issue transaction under the row lock, what other documents rely on (409, nothing issued):
   `exceeds_original` — its issued credit notes exceed the new item bases (plus issued debit notes) for some rate (an
   imported DDPP: its issued corrections exceed the new recap); `related_in_use` — `contactId`, `currency` or `vatMode`
@@ -187,7 +188,7 @@ Field errors
 - Subtotal refs are invalid when empty, out of range, self-referencing, duplicated, pointing at a `text` line, cyclic,
   or mixing VAT rates, or when nested subtotals sum beyond the representable range.
 - Line rules (non-payer rates, subtotal refs) run only after all field-level checks pass.
-- New reason code `below_issued` (counter guard).
+- Reason code `below_issued` (counter guard) — removed with the guard ([numbering.md](numbering.md)).
 
 Documents
 - `docType` / `direction` may be omitted (→ `invoice` / `issued`); anything else → `docType: invalid`.
@@ -251,13 +252,13 @@ List
 
 Number series
 - `allocate_number(&txn, DocType, year) -> Result<(String, i32), AppError>` (number and sequence).
-- The counter guard counts every non-imported document of that docType and `numberYear` with a number (cancelled
-  and unlocked drafts included — their numbers stay used). The counter `PUT` locks the counter row (creating it if
-  missing) before checking, so it waits for an issue in flight and sees its number.
+- Allocation steps over every number held in the docType's unique-index scope (cancelled, imported and drafts
+  holding a number included — their numbers stay used); see [numbering.md](numbering.md).
 
 Unlock (clarification)
 - Added after 4e on the user's decision: issued documents are no longer strictly immutable — see [Unlock](#unlock).
-  `issue` on a numbered draft keeps the number instead of allocating; `PUT` of a native draft accepts its kept number.
+  `issue` on a draft that kept its number reuses it instead of allocating; since the client sequences a native draft
+  may carry any manual number ([numbering.md](numbering.md)).
   New code `related_in_use` (409).
 - The credit cap counts every issued credit note linked to the original, imported ones included, whatever their
   currency (as at a credit-note issue): an imported note is not bound to the original's header.

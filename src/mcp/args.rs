@@ -17,6 +17,30 @@ pub fn input<T: JsonSchema + 'static>() -> Arc<JsonObject> {
     rmcp::handler::server::common::schema_for_type::<T>()
 }
 
+/// The input schema of a draft tool: `T` without `number` — an AI client
+/// never numbers or renumbers a document (`docs/api/mcp.md`).
+pub fn draft_input<T: JsonSchema + 'static>() -> Arc<JsonObject> {
+    let mut schema = (*input::<T>()).clone();
+    strip_number(&mut schema);
+    Arc::new(schema)
+}
+
+fn strip_number(schema: &mut JsonObject) {
+    if let Some(Value::Object(props)) = schema.get_mut("properties") {
+        props.remove("number");
+    }
+    if let Some(Value::Array(required)) = schema.get_mut("required") {
+        required.retain(|r| r != "number");
+    }
+    for key in ["allOf", "anyOf", "oneOf"] {
+        if let Some(Value::Array(parts)) = schema.get_mut(key) {
+            for part in parts.iter_mut().filter_map(Value::as_object_mut) {
+                strip_number(part);
+            }
+        }
+    }
+}
+
 /// `args` as `T`; the first failing field → `fields.<path>` = `required`
 /// (missing) or `invalid` (wrong type / format). Paths use the REST form
 /// `lines.0.quantity`.

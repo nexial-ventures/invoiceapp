@@ -39,7 +39,10 @@ pub async fn unlock(
                 let native = !doc.imported;
                 let cnb_rate = native && doc.exchange_rate_source.as_deref() == Some("cnb");
                 let now: DateTime<FixedOffset> = chrono::Utc::now().into();
+                // Re-issue tells an edited number from the kept one by it.
+                let unlocked_number = doc.number.clone().filter(|_| native);
                 let mut row: document::ActiveModel = doc.into();
+                row.unlocked_number = Set(unlocked_number);
                 row.status = Set(Status::Draft);
                 row.unlocked_at = Set(Some(now));
                 row.updated_at = Set(now);

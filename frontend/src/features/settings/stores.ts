@@ -92,11 +92,15 @@ export const useNumberSeriesStore = defineStore("settings/numberSeries", () => {
     replace(await numberSeriesApi.updatePattern(docType, pattern));
   }
 
+  async function saveClientPattern(docType: DocType, clientPattern: string | null): Promise<void> {
+    replace(await numberSeriesApi.updateClientPattern(docType, clientPattern));
+  }
+
   async function setCounter(docType: DocType, year: number, lastNumber: number): Promise<void> {
     replace(await numberSeriesApi.setCounter(docType, year, lastNumber));
   }
 
-  return { series, load, savePattern, setCounter };
+  return { series, load, savePattern, saveClientPattern, setCounter };
 });
 
 /**

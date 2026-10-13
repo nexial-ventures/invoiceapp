@@ -11,7 +11,17 @@ use crate::document::line::Direction;
 // Stored as `text` (`documents.doc_type`, `number_series.doc_type`, …); a
 // doc comment here would land in the OpenAPI schema.
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema, EnumIter, DeriveActiveEnum,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    ToSchema,
+    EnumIter,
+    DeriveActiveEnum,
 )]
 #[serde(rename_all = "snake_case")]
 #[sea_orm(rs_type = "String", db_type = "Text", rename_all = "snake_case")]

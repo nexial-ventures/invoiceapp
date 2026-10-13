@@ -102,8 +102,9 @@ async fn import_rules() {
     let mut b = imported(&base, "invoice", "");
     let (_, e) = post(b.clone()).await;
     assert_eq!(e["fields"]["number"], "required");
+    // A native draft takes a manual number, from the pattern alphabet only.
     b["imported"] = json!(false);
-    b["number"] = json!("X-1");
+    b["number"] = json!("X 1");
     let (_, e) = post(b).await;
     assert_eq!(e["fields"]["number"], "invalid");
     // Native drafts: explicit null relatedDocumentId / number are fine.
@@ -214,28 +215,15 @@ async fn related_documents_and_proforma_payments() {
 }
 
 #[tokio::test]
-async fn native_issue_colliding_with_imported_number() {
+async fn native_issue_skips_an_imported_number() {
     let db = TestDb::new().await;
     let env = PdfEnv::new();
     let app = env.router(db.conn.clone());
     let base = issuable(&app).await;
     let imp = create_doc(&app, imported(&base, "invoice", "20260001")).await;
     issue(&app, &id(&imp)).await;
+    // The next free number after the counter: the imported one is held.
     let native = create_doc(&app, base.clone()).await;
-    let (status, e) = issue(&app, &id(&native)).await;
-    assert_eq!(
-        (status, &e["code"]),
-        (StatusCode::CONFLICT, &json!("number_taken"))
-    );
-    // Nothing used: the counter rolled back with the issue.
-    let (status, _) = call(
-        &app,
-        Method::PUT,
-        "/api/settings/number-series/invoice/counters/2026",
-        Some(json!({ "lastNumber": 1 })),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK);
     let (status, doc) = issue(&app, &id(&native)).await;
     assert_eq!(
         (status, &doc["number"]),

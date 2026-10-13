@@ -18,6 +18,12 @@ pub struct Model {
     pub number: Option<String>,
     pub number_year: Option<i32>,
     pub number_seq: Option<i32>,
+    /// The customer code the number belongs to (`None`: the global series).
+    pub number_code: Option<String>,
+    /// The number an unlocked draft replaced at its re-issue.
+    pub previous_number: Option<String>,
+    /// A native document's number at its latest unlock (cleared at re-issue).
+    pub unlocked_number: Option<String>,
     pub imported: bool,
     pub contact_id: Option<Uuid>,
     pub issue_date: Date,

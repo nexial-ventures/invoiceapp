@@ -34,7 +34,7 @@ pub struct Existing {
     pub vat_mode: VatMode,
     /// A correction keeps its original's rate whatever the request says.
     pub exchange_rate: Option<Decimal>,
-    /// The number an unlocked native draft keeps (`None` for a fresh draft).
+    /// The draft's stored number (kept when a `PUT` omits `number`).
     pub number: Option<String>,
 }
 
@@ -86,7 +86,8 @@ pub struct DocumentData {
     pub rounding_mode: RoundingMode,
     pub lines: Vec<LineData>,
     pub imported: bool,
-    /// Imported documents: their own number.
+    /// Imported documents: their own number; native drafts: a manual number
+    /// (`None` = allocate at issue).
     pub number: Option<String>,
     pub meta: Meta,
 }

@@ -3,12 +3,13 @@
 
 use anyhow::Context as _;
 use bytes::Bytes;
-use chrono::Datelike;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, DatabaseTransaction, Set, TransactionTrait};
 use uuid::Uuid;
 
-use super::issue::{Prepared, customer, json, supplier, variable_symbol};
-use super::{advance_sources, credit, ddpp_correction, lines, query, reissue, unlock, write};
+use super::issue::{Prepared, customer, json, supplier};
+use super::{
+    advance_sources, credit, ddpp_correction, lines, numbering, query, reissue, unlock, write,
+};
 use crate::document::advance;
 use crate::document::doc_type::DocType;
 use crate::document::entity::document;
@@ -17,7 +18,6 @@ use crate::document::snapshot::BankSnapshot;
 use crate::error::{AppError, number_violation};
 use crate::pdf::payload::{self, Payload};
 use crate::pdf::{archive, source};
-use crate::settings::repo::number_series;
 use crate::space::SpaceId;
 
 /// The issued document's PDF payload as the dry run built it.
@@ -155,31 +155,24 @@ pub(super) async fn apply(
     if recheck {
         reissue::check_corrections(txn, space, &doc, &totals).await?;
     }
-    let issue_year = doc.issue_date.year();
-    let (number, number_year, seq) = match numbering(
-        doc.number.as_deref(),
-        doc.number_year,
-        doc.number_seq,
-        doc.imported,
-        issue_year,
-    )? {
-        Numbering::Keep { number, year, seq } => (number, year, seq),
-        Numbering::Allocate => {
-            let (n, seq) =
-                number_series::allocate_number(txn, space, p.doc_type, issue_year).await?;
-            (n, issue_year, Some(seq))
-        }
-    };
+    let numbered = numbering::at_issue(txn, space, &doc, p.customer.as_ref()).await?;
     let mut row: document::ActiveModel = doc.clone().into();
     row.status = Set(Status::Issued);
-    row.variable_symbol = Set(Some(
-        doc.variable_symbol
-            .clone()
-            .unwrap_or_else(|| variable_symbol(&number)),
-    ));
-    row.number = Set(Some(number));
-    row.number_year = Set(Some(number_year));
-    row.number_seq = Set(seq);
+    // Only a native draft has an unlock number; an import keeps its symbol.
+    let (replaced, vs) = numbering::reissue_symbols(
+        doc.unlocked_number.as_deref(),
+        &numbered.number,
+        doc.variable_symbol.as_deref(),
+    );
+    row.variable_symbol = Set(Some(vs));
+    if replaced.is_some() {
+        row.previous_number = Set(replaced);
+    }
+    row.unlocked_number = Set(None);
+    row.number = Set(Some(numbered.number.clone()));
+    row.number_year = Set(Some(numbered.year));
+    row.number_seq = Set(numbered.seq);
+    row.number_code = Set(numbered.code.clone());
     if !keep_entered {
         row.exchange_rate = Set(p.rate.rate);
         row.exchange_rate_date = Set(p.rate.date);
@@ -204,9 +197,13 @@ pub(super) async fn apply(
         write::apply_totals(&mut row, &totals);
     }
     row.updated_at = Set(chrono::Utc::now().into());
-    row.update(txn)
-        .await
-        .map_err(|e| number_violation(e, || AppError::NumberTaken))?;
+    // A manual number is the user's to change; an allocated one lost a race.
+    row.update(txn).await.map_err(|e| {
+        number_violation(e, || match numbered.manual {
+            true => AppError::field("number", "taken"),
+            false => AppError::NumberTaken,
+        })
+    })?;
     if !keep_entered {
         if !advance::referenced_ids(&p.lines).is_empty() {
             lines::replace(txn, id, &p.lines).await?;
@@ -218,73 +215,4 @@ pub(super) async fn apply(
         reissue::check_as_debit_note(txn, space, &doc).await?;
     }
     Ok(())
-}
-
-/// What an issue does about the document's number.
-#[derive(Debug, PartialEq, Eq)]
-enum Numbering {
-    Keep {
-        number: String,
-        year: i32,
-        seq: Option<i32>,
-    },
-    Allocate,
-}
-
-/// An imported document keeps its own number and never moves the counter.
-/// A native draft that already has a number was unlocked: it keeps that
-/// number, year and sequence whatever was edited since (its number stays
-/// reserved — the counter guard counts it), so a re-issue never takes a
-/// second one. Only a never-issued native draft allocates.
-fn numbering(
-    number: Option<&str>,
-    number_year: Option<i32>,
-    number_seq: Option<i32>,
-    imported: bool,
-    issue_year: i32,
-) -> Result<Numbering, AppError> {
-    match (number, imported) {
-        (Some(n), _) => Ok(Numbering::Keep {
-            number: n.to_string(),
-            year: number_year.unwrap_or(issue_year),
-            seq: if imported { None } else { number_seq },
-        }),
-        (None, true) => Err(AppError::field("number", "required")),
-        (None, false) => Ok(Numbering::Allocate),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn keep(number: &str, year: i32, seq: Option<i32>) -> Numbering {
-        Numbering::Keep {
-            number: number.into(),
-            year,
-            seq,
-        }
-    }
-
-    #[test]
-    fn fresh_native_draft_allocates() {
-        let n = numbering(None, None, None, false, 2026).expect("numbering");
-        assert_eq!(n, Numbering::Allocate);
-    }
-
-    #[test]
-    fn unlocked_native_draft_keeps_number_year_and_seq() {
-        // Re-dated into another year: the number still belongs to 2025.
-        let n = numbering(Some("20250007"), Some(2025), Some(7), false, 2026).expect("numbering");
-        assert_eq!(n, keep("20250007", 2025, Some(7)));
-    }
-
-    #[test]
-    fn imported_keeps_its_number_without_a_sequence() {
-        let first = numbering(Some("EXT-1"), None, None, true, 2026).expect("numbering");
-        assert_eq!(first, keep("EXT-1", 2026, None));
-        let again = numbering(Some("EXT-1"), Some(2025), None, true, 2026).expect("numbering");
-        assert_eq!(again, keep("EXT-1", 2025, None));
-        assert!(numbering(None, None, None, true, 2026).is_err());
-    }
 }

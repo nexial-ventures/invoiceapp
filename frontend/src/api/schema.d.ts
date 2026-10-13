@@ -474,6 +474,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/contacts/{id}/number-counters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/contacts/{id}/number-counters/{docType}/{year}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/context": {
         parameters: {
             query?: never;
@@ -531,6 +563,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["bulk"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/documents/number-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1486,6 +1534,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/number-series/{docType}/client-pattern": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["put_client_pattern"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/number-series/{docType}/counters/{year}": {
         parameters: {
             query?: never;
@@ -1494,6 +1558,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
+        /** Any value >= 0: allocation skips numbers already held anyway. */
         put: operations["put_counter"];
         post?: never;
         delete?: never;
@@ -1870,6 +1935,10 @@ export interface components {
             /** @default  */
             newPassword: string;
         };
+        ClientPatternInput: {
+            /** @description Empty / `null` clears it. */
+            clientPattern?: string | null;
+        };
         CodeInput: {
             /**
              * @description TOTP code or recovery code.
@@ -1991,6 +2060,8 @@ export interface components {
             id: string;
             name: string;
             note?: string | null;
+            /** @description The customer's `{C}` in client number patterns. */
+            numberCode?: string | null;
             phone?: string | null;
             street: string;
             /** Format: date-time */
@@ -2028,6 +2099,12 @@ export interface components {
             name: string;
             /** @default null */
             note: string | null;
+            /**
+             * @description `[A-Za-z0-9/_-]{1,10}`, stored as typed, unique per space
+             *     case-insensitively; empty / `null` = none.
+             * @default null
+             */
+            numberCode: string | null;
             /** @default null */
             phone: string | null;
             /** @default  */
@@ -2039,6 +2116,19 @@ export interface components {
             items: components["schemas"]["Contact"][];
             /** Format: int64 */
             total: number;
+        };
+        /** @description A customer's client sequence in one issued series. */
+        ContactNumberSeries: {
+            /** @description `null` only in a `PUT` answer for a series without a client pattern. */
+            clientPattern?: string | null;
+            /** @description Newest year first. */
+            counters: components["schemas"]["Counter"][];
+            docType: components["schemas"]["DocType"];
+            /**
+             * @description The customer's next number in the current year; `null` without a
+             *     number code (or without a client pattern).
+             */
+            nextNumberPreview?: string | null;
         };
         Context: {
             baseUrl: string;
@@ -2287,6 +2377,11 @@ export interface components {
             paymentMethod: string;
             paymentState?: null | components["schemas"]["PaymentState"];
             pdf?: null | components["schemas"]["PdfArchive"];
+            /**
+             * @description The number this document replaced when it was re-issued under
+             *     another one after an unlock.
+             */
+            previousNumber?: string | null;
             /** Format: date */
             receivedDate?: string | null;
             /**
@@ -2412,7 +2507,10 @@ export interface components {
             /** @default null */
             locale: string | null;
             /**
-             * @description Imported documents only (required there, <= 40, unique per type).
+             * @description Imported: required, <= 40, unique per type. Native draft: optional
+             *     manual number (`[A-Za-z0-9/_-]`, <= 50, unique per type → `number:
+             *     taken`); `null` / `""` = none (allocate at issue); **omitted on
+             *     `PUT` = keep the draft's current number** (an unlocked one's too).
              * @default null
              */
             number: string | null;
@@ -2814,14 +2912,31 @@ export interface components {
             /** @description The user's spaces that require TOTP, by name. */
             requiredBy: components["schemas"]["SpaceRef"][];
         };
+        NumberPreview: {
+            number: string;
+            source: components["schemas"]["NumberSource"];
+        };
         NumberSeries: {
+            /**
+             * @description Issued series only: the pattern for customers with a number code
+             *     (exactly one `{C}`); `null` = everyone uses `pattern`.
+             */
+            clientPattern?: string | null;
             /** @description Newest year first. */
             counters: components["schemas"]["Counter"][];
             docType: components["schemas"]["DocType"];
-            /** @description The number the next allocation in the current year would get. */
+            /**
+             * @description The number the next allocation of the global series in the current
+             *     year would get (past the counter and every number held).
+             */
             nextNumberPreview: string;
             pattern: string;
         };
+        /**
+         * @description Which counter numbers a document.
+         * @enum {string}
+         */
+        NumberSource: "client" | "global";
         /** @description The `options` part of `confirm` (a text field holding JSON). */
         OptionsInput: {
             /**
@@ -4924,6 +5039,80 @@ export interface operations {
             };
         };
     };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Issued series with a client pattern */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactNumberSeries"][];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                docType: components["schemas"]["DocType"];
+                year: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CounterInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactNumberSeries"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `year` / `lastNumber` out of range, `docType: not_issued` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     context: {
         parameters: {
             query?: never;
@@ -5116,6 +5305,42 @@ export interface operations {
             };
             /** @description `storage_unavailable` (the export stops at the first document it hits) */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get: {
+        parameters: {
+            query?: {
+                /** @description An issued document type; default `invoice`. */
+                docType?: string;
+                /** @description The customer: their number code picks the client sequence. */
+                contactId?: string;
+                /** @description Its year picks the counter; default today. */
+                issueDate?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The number an issue would allocate now (no counter moves) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NumberPreview"];
+                };
+            };
+            /** @description `docType` / `contactId`: `invalid` */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8361,6 +8586,48 @@ export interface operations {
                 };
             };
             /** @description `pattern`: `invalid_pattern` / `duplicate` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put_client_pattern: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                docType: components["schemas"]["DocType"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientPatternInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NumberSeries"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `clientPattern`: `invalid_pattern` / `not_issued` / `duplicate` */
             422: {
                 headers: {
                     [name: string]: unknown;

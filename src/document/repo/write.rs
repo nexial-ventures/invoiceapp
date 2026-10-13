@@ -56,9 +56,26 @@ fn rate_source(d: &DocumentData) -> Option<String> {
     d.exchange_rate.map(|_| source.to_string())
 }
 
-/// An imported draft's number already used by another issued document.
-fn duplicate_number(e: sea_orm::DbErr) -> AppError {
-    number_violation(e, || AppError::field("number", "duplicate"))
+/// A draft's number already used by another document of its type
+/// (imported: `duplicate`, as on import; native manual number: `taken`).
+fn duplicate_number(e: sea_orm::DbErr, imported: bool) -> AppError {
+    let reason = if imported { "duplicate" } else { "taken" };
+    number_violation(e, || AppError::field("number", reason))
+}
+
+/// `(number_year, number_seq, number_code)` a draft save keeps: what is
+/// stored while the number stays (an import's, an unlocked draft's kept
+/// number); a new manual number is placed at issue.
+fn placement(
+    data: &DocumentData,
+    stored: Option<&crate::document::entity::document::Model>,
+) -> (Option<i32>, Option<i32>, Option<String>) {
+    match stored {
+        Some(d) if data.imported || d.number == data.number => {
+            (d.number_year, d.number_seq, d.number_code.clone())
+        }
+        _ => (None, None, None),
+    }
 }
 
 pub fn apply_totals(row: &mut ActiveModel, t: &Totals) {
@@ -91,6 +108,7 @@ pub async fn create_in(
     let id = Uuid::new_v4();
     let now = chrono::Utc::now().into();
     advance_sources::lock_and_recheck(txn, space, id, &data.lines).await?;
+    let (number_year, number_seq, number_code) = placement(&data, None);
     let d = &data;
     let row = NewDocument {
         id,
@@ -99,8 +117,9 @@ pub async fn create_in(
         doc_type: d.doc_type,
         status: Status::Draft,
         number: d.number.clone(),
-        number_year: None,
-        number_seq: None,
+        number_year,
+        number_seq,
+        number_code,
         imported: d.imported,
         contact_id: d.contact_id,
         issue_date: d.issue_date,
@@ -141,7 +160,9 @@ pub async fn create_in(
         created_at: now,
         updated_at: now,
     };
-    insert(txn, row).await.map_err(duplicate_number)?;
+    insert(txn, row)
+        .await
+        .map_err(|e| duplicate_number(e, data.imported))?;
     lines::replace(txn, id, &data.lines).await?;
     lines::replace_recap(txn, id, &totals).await?;
     Ok(id)
@@ -170,14 +191,20 @@ async fn update_in(
     let doc = locked_draft(txn, space, id).await?;
     advance_sources::lock_and_recheck(txn, space, id, &data.lines).await?;
     let unlocked = doc.unlocked_at.is_some();
+    let (number_year, number_seq, number_code) = placement(&data, Some(&doc));
     let mut row: ActiveModel = doc.into();
     if unlocked {
         row.edited_since_unlock = Set(true);
     }
     apply(&mut row, &data);
+    row.number_year = Set(number_year);
+    row.number_seq = Set(number_seq);
+    row.number_code = Set(number_code);
     apply_totals(&mut row, &totals);
     row.updated_at = Set(chrono::Utc::now().into());
-    row.update(txn).await.map_err(duplicate_number)?;
+    row.update(txn)
+        .await
+        .map_err(|e| duplicate_number(e, data.imported))?;
     lines::replace(txn, id, &data.lines).await?;
     lines::replace_recap(txn, id, &totals).await?;
     Ok(())

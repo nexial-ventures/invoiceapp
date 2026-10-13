@@ -21,7 +21,7 @@ no OAuth, no stock/task/cost-center links). Module layout follows the infra
 | Document types | Invoice (tax document), credit note and debit note (reference the original), simplified tax document, proforma; for VAT payers a tax document for a received advance payment (DDPP) after the proforma is paid (and its correction), and "issue final invoice from proforma" deducting the advance and its VAT. |
 | VAT | Rate per line, VAT computed from the per-rate recap (§37 ZDPH) rounded to 0.01. Modes: standard, reverse charge, exempt. Optional rounding of the payable total to whole CZK (rounding line). Foreign-currency invoices also show VAT in CZK. |
 | Exchange rate | ČNB daily rate at the tax point date (received invoices: date of receipt), stored on the invoice, manually overridable; if ČNB is unreachable the user must enter it. |
-| Numbering | Configurable pattern per document type, e.g. `{YYYY}{NNNN}`, yearly reset, number assigned at issue (drafts have none, except an unlocked one: it keeps its number, reserved, and re-issue reuses it). Counter is manually settable in Settings. Imported invoices keep their own number and do **not** move the counter. |
+| Numbering | Configurable pattern per document type, e.g. `{YYYY}{NNNN}`, yearly reset, number assigned at issue (an unlocked draft keeps its number, reserved, and re-issue reuses it). Counter is manually settable in Settings (any value; allocation takes the next free number after it). Imported invoices keep their own number and do **not** move the counter. **Since the client sequences:** a customer with a number code gets its own sequence from the series' client pattern (`{C}`), and a native draft may carry a manual number — see the decisions below and [api/numbering.md](api/numbering.md). |
 | Lifecycle | `draft → issued → sent → paid`, `cancelled`; an admin can unlock `issued → draft` (reason required, number kept). On issue the invoice is locked, supplier/customer snapshots are stored and the PDF is rendered and archived; issuing fails if mdcast is down. "Overdue" is derived, never stored. Payments: date + amount. |
 | PDF | mdcast `/v1/render/template` (typst + JSON data). Default design (minimalist, Inter) embedded in the binary; storage keys `design/…` override it file by file (`invoice.typ`, fonts, logo, signature). Preview of a sample invoice in Settings → Design. Invoice language cs/en per document. SPAYD QR payment code. Details: [api/pdf.md](api/pdf.md). |
 | Received invoices | Metadata entered manually + original PDF upload. |
@@ -60,7 +60,7 @@ Document decisions (1b/1c):
 - Issued documents are locked: only payments, mark-sent, cancel, credit note and the internal note change afterwards. Drafts can be deleted.
   **Exception (user decision, overrides the lock):** an admin / owner may unlock an issued document (not a native
   DDPP) back to a draft (`POST …/unlock`, required reason; who / when / why kept). The draft is editable (not its type)
-  and keeps its number (reserved: the counter guard counts it, re-issue reuses it); payments, e-mails, `sentAt` and
+  and keeps its number (reserved: allocation skips it, re-issue reuses it unless the user renumbers it); payments, e-mails, `sentAt` and
   referencing documents stay; the rendered PDF is deleted and rendered again at re-issue. The re-issue is refused
   when it would break its corrections or a deduction of it; deleting such a draft cascades its payments but is refused
   while live documents refer to it. See [api/documents.md, Unlock](api/documents.md#unlock).
@@ -70,7 +70,25 @@ Document decisions (1b/1c):
 - Foreign-currency proforma payments take an optional manual rate; without it the ČNB rate for the payment date is used, and if ČNB is down the payment is rejected (422) so no DDPP is half-created.
 - Credit notes: only for an issued (not cancelled) invoice, correction reason required, tax point = correction date, exchange rate copied from the original invoice, and all non-cancelled credit notes together may not exceed the original's base per VAT rate.
 - Catalog items carry name, unit, price, currency and VAT rate; inserting into a document in another currency leaves the price empty (no conversion). Catalog groups = name + member items with quantities; inserting adds the members plus a collapsed subtotal.
-- Setting a number-series counter below the highest number already issued from that series/year is rejected.
+- ~~Setting a number-series counter below the highest number already issued from that series/year is rejected.~~
+  Reversed by the client-sequence decisions below: any counter value is accepted.
+
+Numbering decisions (per-client sequences, [api/numbering.md](api/numbering.md)) — principle: not too restrictive,
+small companies make mistakes and must be able to fix them; safety comes from the unique number index and from
+allocation skipping held numbers, not from extra 422 guards:
+- Client sequences: a contact's `numberCode` (`[A-Za-z0-9/_-]{1,10}`, unique per space case-insensitively, free to
+  change or clear) + an issued series' `clientPattern` (exactly one `{C}`) → the customer's own counter per series
+  and year; otherwise the global series. Client patterns are unique per space like patterns.
+- Allocation = the **next free number after the counter**: counter + 1, stepping over every number already held in
+  the series (native, drafts, imported; case-insensitive), then the counter is set to it. Only an allocation moves a
+  counter: a typo manual number does not, a lowered counter fills gaps, a renamed code continues, a reused code skips
+  old numbers, client numbers never touch the global counter.
+- Manual number: a native draft may carry its own number (fills gaps, fixes mistakes); unique like any number
+  (`number: taken`), read back through the patterns to store year / sequence / code, never moves a counter.
+- No `below_issued`: counter `PUT`s accept any value ≥ 0.
+- An unlocked draft keeps its number unless edited or cleared; a re-issue under another number records the old one
+  in `previousNumber` and re-derives a derived variable symbol.
+- Variable symbol: `ACME-2026001` and `BETA-2026001` both derive `2026001` — accepted, the symbol is editable.
 
 PDF decisions (1d):
 - Drafts can be downloaded as a live render with a "NÁVRH / DRAFT" watermark (no QR, never stored).

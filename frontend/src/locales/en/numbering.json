@@ -1,0 +1,28 @@
+{
+  "counterHint": "A lower value is allowed: numbers already issued are skipped.",
+  "clientPattern": {
+    "label": "Client pattern",
+    "hint": "E.g. {example} → {result}, the token is replaced by the customer's number code. Empty = customers use the global series.",
+    "preview": "Preview for customer {code}",
+    "help": "the customer's number code (client patterns only; set on the contact)"
+  },
+  "contact": {
+    "title": "Numbering",
+    "numberCode": "Number code",
+    "numberCodeHint": "Set it to give this customer its own sequence in series with a client pattern (up to 10 characters: letters, digits, / _ -).",
+    "countersTitle": "Customer number sequences",
+    "nextNumber": "Next number",
+    "noClientSeries": "No series has a client pattern yet (Settings → Number series).",
+    "noCode": "Without a number code this customer uses the global series."
+  },
+  "document": {
+    "fromSequence": "Assign new number from sequence",
+    "willIssue": "Will be issued as {number} ({source}) — expected, final at issue.",
+    "source": {
+      "client": "client series",
+      "global": "global series"
+    },
+    "manualHint": "The document is issued under this number; no other document of this type may have it.",
+    "emptyHint": "The number is assigned from the sequence at issue."
+  }
+}
