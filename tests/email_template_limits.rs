@@ -107,10 +107,16 @@ async fn template_checks_per_space_and_hour() {
     );
 }
 
+/// The stand-in really is slow: a 1 ms timeout against the real renderer
+/// raced it (a late first poll found the child already done).
+#[cfg(unix)]
 #[tokio::test]
 async fn a_slow_child_is_killed() {
-    let sandbox =
-        TemplateSandbox::new(env!("CARGO_BIN_EXE_invoice")).with_timeout(Duration::from_millis(1));
+    let slow = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/sandbox/slow-renderer"
+    );
+    let sandbox = TemplateSandbox::new(slow).with_timeout(Duration::from_millis(200));
     let t = Template {
         subject: "ok".into(),
         body: "x".into(),
