@@ -18,6 +18,8 @@ const STUB_ROUTES = [
   { path: "/tokens", name: "tokens" },
   { path: "/invoices", name: "invoices" },
   { path: "/invoices/:id/edit", name: "invoice-edit" },
+  { path: "/invoices/:id", name: "invoice-detail" },
+  { path: "/received/:id", name: "received-detail" },
 ] as const;
 
 export interface MountOptions {

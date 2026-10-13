@@ -9,7 +9,7 @@ use crate::document::doc_type::DocType;
 use crate::document::entity::payment;
 use crate::document::line::{PaymentState, Status};
 use crate::document::state::document_payment_state;
-use crate::export::source::{Kind, Source, czk_recap, party};
+use crate::export::source::{Kind, Source, czk_recap, czk_total, party};
 
 /// The date of the payment that made the document fully paid (`paid` /
 /// `overpaid`); `None` otherwise, also when it is settled without any
@@ -69,7 +69,7 @@ pub fn out_row(s: &Source) -> anyhow::Result<OutRow> {
         recap,
         rounding: doc.rounding,
         total,
-        total_czk: if is_czk { Some(total) } else { doc.total_czk },
+        total_czk: czk_total(&doc.currency, doc.total, doc.rounding, doc.total_czk),
         paid_date: paid_date(doc.doc_type, doc.status, doc.paid, doc.payable, s.payments),
         variable_symbol: doc.variable_symbol.clone(),
         vat_deductible: (!issued).then_some(doc.vat_deductible),

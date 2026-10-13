@@ -84,8 +84,17 @@ pub fn czk_recap(
     doc: &document::Model,
     recap: &[vat_recap::Model],
 ) -> anyhow::Result<Vec<(Decimal, Decimal, Decimal)>> {
-    let is_czk = is_local(&doc.currency);
-    let rate = (!is_czk).then_some(doc.exchange_rate).flatten();
+    czk_recap_of(&doc.currency, doc.exchange_rate, recap)
+}
+
+/// [`czk_recap`] of a document given by its currency and rate.
+pub fn czk_recap_of(
+    currency: &str,
+    exchange_rate: Option<Decimal>,
+    recap: &[vat_recap::Model],
+) -> anyhow::Result<Vec<(Decimal, Decimal, Decimal)>> {
+    let is_czk = is_local(currency);
+    let rate = (!is_czk).then_some(exchange_rate).flatten();
     recap
         .iter()
         .map(|r| match is_czk {
@@ -98,4 +107,27 @@ pub fn czk_recap(
         })
         .collect::<Option<Vec<_>>>()
         .context("foreign recap without a CZK amount or an exchange rate")
+}
+
+/// The document total (`total + rounding`, = the payable as computed) in
+/// CZK: a CZK document's as is, a foreign one's stored `total_czk`.
+pub fn czk_total(
+    currency: &str,
+    total: Decimal,
+    rounding: Decimal,
+    total_czk: Option<Decimal>,
+) -> Option<Decimal> {
+    match is_local(currency) {
+        true => Some(total + rounding),
+        false => total_czk,
+    }
+}
+
+/// An amount of a document in CZK: as is in CZK, else × its rate (2 dp);
+/// `None` for a foreign document without a rate.
+pub fn to_czk(amount: Decimal, currency: &str, exchange_rate: Option<Decimal>) -> Option<Decimal> {
+    match is_local(currency) {
+        true => Some(amount),
+        false => czk(None, amount, exchange_rate),
+    }
 }

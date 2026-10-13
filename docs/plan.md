@@ -224,6 +224,20 @@ defaults; #3 comments) → 4f per-space design versions / preview (rest of #10).
   sessions, tokens, CSRF, rate limits) and `src/space/` (`SpaceId`, roles, per-space seeds), storage scoped to
   `spaces/{id}/`; details in the Clarifications of [spaces.md](api/spaces.md) and [auth.md](api/auth.md).
 
+### Overview (#54)
+
+Grill decisions: the space's `/` is an overview (instead of the redirect to the invoice list), first nav item, every
+role. Period selector month / quarter / year with prev / next + custom from–to, default the current month, kept in
+the URL, at most 366 days. Period basis and document set = the accountant export (tax date
+`COALESCE(tax_point_date, received_date)`, status `issued`, no proformas; DDPPs and corrections count, credit notes
+negative, CZK). Amount basis: VAT payer → base, non-payer → total; tiles show base / VAT / total as secondary lines.
+Blocks: income / expense totals + difference; VAT per rate (output, deductible input, liability / refund; non-deductible
+received VAT informative, its total counts as expense; reverse-charge bases in their own rows; hidden for a
+non-payer); receivables / payables as of today with the top overdue documents and unpaid proformas as expected
+advances; a monthly SVG chart (the period's months, a period under 2 months → the trailing 12 with the selection
+highlighted); categories per direction with an uncategorized bucket. No comparison with a previous period in v1.
+Contract: [`docs/api/overview.md`](api/overview.md).
+
 ## Out of scope (for now)
 Deployment manifests, VAT return / control statement XML (EPO), automatic payment
 reminders, multiple own companies per space (one space = one company; several companies = several spaces), Pohoda/Money S3 import.

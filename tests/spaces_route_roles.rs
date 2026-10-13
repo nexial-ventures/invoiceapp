@@ -183,6 +183,7 @@ const ROUTES: &[(&str, &str, Access)] = &[
     ("POST", "/api/import/csv/confirm", Space(Mem)),
     ("GET", "/api/export/csv", Space(Acc)),
     ("GET", "/api/export/accountant", Space(Acc)),
+    ("GET", "/api/overview", Space(Acc)),
     ("GET", "/api/pdf/preview", Space(Acc)),
     ("GET", "/api/pdf/design", Space(Acc)),
     ("GET", "/api/pdf/design/file", Space(Admin)),

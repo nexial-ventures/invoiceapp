@@ -27,10 +27,10 @@ describe("AppHeader", () => {
   const mountAs = (role: Role | null) => mountView(AppHeader, { path: "/invoices", role });
 
   it.each<[Role, string[]]>([
-    ["accountant", ["nav-invoices", "nav-received", "nav-contacts", "nav-catalog"]],
-    ["member", ["nav-invoices", "nav-received", "nav-contacts", "nav-catalog"]],
-    ["admin", ["nav-invoices", "nav-received", "nav-contacts", "nav-catalog", "nav-settings"]],
-    ["owner", ["nav-invoices", "nav-received", "nav-contacts", "nav-catalog", "nav-settings"]],
+    ["accountant", ["nav-overview", "nav-invoices", "nav-received", "nav-contacts", "nav-catalog"]],
+    ["member", ["nav-overview", "nav-invoices", "nav-received", "nav-contacts", "nav-catalog"]],
+    ["admin", ["nav-overview", "nav-invoices", "nav-received", "nav-contacts", "nav-catalog", "nav-settings"]],
+    ["owner", ["nav-overview", "nav-invoices", "nav-received", "nav-contacts", "nav-catalog", "nav-settings"]],
   ])("shows %s the links the role may open", async (role, links) => {
     mockFetchRoutes({});
     const { w } = await mountAs(role);

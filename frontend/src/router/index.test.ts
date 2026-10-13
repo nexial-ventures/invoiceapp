@@ -57,16 +57,17 @@ describe("router (space host)", () => {
     const fetch = me("member");
     const router = boot(spaceBoot);
     await router.push("/login");
-    expect(router.currentRoute.value.name).toBe("invoices");
+    expect(router.currentRoute.value.name).toBe("home");
     await router.push("/contacts");
     expect(fetch).toHaveBeenCalledOnce();
   });
 
-  it("redirects unknown paths to the invoice list", async () => {
+  it("redirects unknown paths to the overview", async () => {
     me("owner");
     const router = boot(spaceBoot);
     await router.push("/nope/deep");
-    expect(router.currentRoute.value.name).toBe("invoices");
+    expect(router.currentRoute.value.name).toBe("home");
+    expect(router.currentRoute.value.matched[0]?.path).toBe("/");
   });
 
   it("hides write routes from an accountant and settings from a member", async () => {
@@ -74,7 +75,7 @@ describe("router (space host)", () => {
     let router = boot(spaceBoot);
     for (const path of ["/invoices/new", "/invoices/d1/edit", "/received/new", "/contacts/new", "/import/csv", "/import/isdoc", "/settings/company"]) {
       await router.push(path);
-      expect(router.currentRoute.value.name, path).toBe("invoices");
+      expect(router.currentRoute.value.name, path).toBe("home");
     }
     await router.push("/invoices/d1");
     expect(router.currentRoute.value.name).toBe("invoice-detail");
@@ -87,9 +88,9 @@ describe("router (space host)", () => {
     await router.push("/invoices/new");
     expect(router.currentRoute.value.name).toBe("invoice-new");
     await router.push("/settings/space");
-    expect(router.currentRoute.value.name).toBe("invoices");
+    expect(router.currentRoute.value.name).toBe("home");
     await router.push("/settings/members");
-    expect(router.currentRoute.value.name).toBe("invoices");
+    expect(router.currentRoute.value.name).toBe("home");
   });
 
   it("resolves feature routes for an admin and redirects /settings to the company tab", async () => {

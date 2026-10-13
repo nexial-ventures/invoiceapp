@@ -4,7 +4,12 @@ import { accountRoutes } from "./authRoutes";
 /** The app on a space host: every business view of phases 1–3 + login, account and API tokens. */
 export const spaceRoutes: RouteRecordRaw[] = [
   ...accountRoutes,
-  { path: "/", name: "home", redirect: { name: "invoices" } },
+  // The space's landing page: the period overview (every role).
+  {
+    path: "/",
+    name: "home",
+    component: () => import("@/features/overview/views/OverviewView.vue"),
+  },
   {
     // Reached from the invitation e-mail, signed out or as anyone: the page signs the invitee in.
     path: "/invite",

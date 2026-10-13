@@ -27,3 +27,11 @@ export function formatDate(date: string | null | undefined, locale: string): str
   if (Number.isNaN(d.getTime())) return date;
   return new Intl.DateTimeFormat(tag(locale), date.length === 10 ? { dateStyle: "medium" } : { dateStyle: "medium", timeStyle: "short" }).format(d);
 }
+
+/** A `YYYY-MM` month as "Jan 26" (`short`) or "January 2026" (`long`). */
+export function formatMonth(month: string, locale: string, style: "short" | "long" = "long"): string {
+  const [y, m] = month.split("-").map(Number);
+  if (!y || !m) return month;
+  const options: Intl.DateTimeFormatOptions = style === "short" ? { month: "short", year: "2-digit" } : { month: "long", year: "numeric" };
+  return new Intl.DateTimeFormat(tag(locale), options).format(new Date(y, m - 1, 1));
+}

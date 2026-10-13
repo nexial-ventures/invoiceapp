@@ -15,6 +15,7 @@ use utoipa::IntoParams;
 use uuid::Uuid;
 
 use super::load;
+use super::period::{self, TAX_DATE};
 use crate::accounting::export::{self as accounting_export, Format as AccountantFormat};
 use crate::accounting::settings::Program;
 use crate::app::AppState;
@@ -34,13 +35,6 @@ use crate::time::today;
 
 /// Most documents one export may hold.
 pub const MAX_ROWS: u64 = 10_000;
-
-/// Longest accountant period, `to − from` in days.
-pub const MAX_PERIOD_DAYS: i64 = 366;
-
-/// The tax date of a document: DUZP, for a received one without it the
-/// received date (issued documents have none).
-const TAX_DATE: &str = "COALESCE(tax_point_date, received_date)";
 
 /// The ids of the matching issued (non-draft, non-cancelled) documents in
 /// export order; more than [`MAX_ROWS`] → `filter: too_many`.
@@ -189,13 +183,7 @@ pub struct Accountant {
 impl AccountantQuery {
     pub fn check(&self) -> Result<Accountant, AppError> {
         let mut e = FieldErrors::new();
-        let date = |s: &Option<String>| {
-            s.as_deref()
-                .and_then(|s| NaiveDate::parse_from_str(s.trim(), "%Y-%m-%d").ok())
-                .ok_or("invalid")
-        };
-        let from = e.check("from", date(&self.from));
-        let to = e.check("to", date(&self.to));
+        let period = period::check(&mut e, self.from.as_deref(), self.to.as_deref());
         let direction = e.check(
             "direction",
             match self.direction.as_deref().map(str::trim) {
@@ -207,15 +195,9 @@ impl AccountantQuery {
             "format",
             AccountantFormat::parse(self.format.as_deref()).ok_or("invalid"),
         );
-        if let (Some(f), Some(t)) = (from, to)
-            && (t < f || (t - f).num_days() > MAX_PERIOD_DAYS)
-        {
-            e.add("from", "invalid");
-            e.add("to", "invalid");
-        }
         e.into_result()?;
-        match (from, to, direction, format) {
-            (Some(from), Some(to), Some(direction), Some(format)) => Ok(Accountant {
+        match (period, direction, format) {
+            (Some((from, to)), Some(direction), Some(format)) => Ok(Accountant {
                 from,
                 to,
                 direction,
@@ -249,10 +231,7 @@ pub async fn accountant(
     let a = q.check()?;
     let mut select = Entity::find()
         .filter(Column::DocType.ne(DocType::Proforma))
-        .filter(Expr::cust_with_values(
-            format!("{TAX_DATE} BETWEEN $1 AND $2"),
-            [a.from, a.to],
-        ));
+        .filter(period::tax_date_between(a.from, a.to));
     if let Some(d) = a.direction {
         select = select.filter(Column::Direction.eq(d));
     }

@@ -49,9 +49,22 @@ pub fn cut(s: &str, max: usize) -> String {
 /// The number the file names a document by (issued: ours, received: the
 /// supplier's, else our internal one), for messages and descriptions.
 pub fn shown_number(doc: &document::Model) -> Option<&str> {
-    match doc.direction {
-        Direction::Issued => doc.number.as_deref(),
-        _ => doc.supplier_number.as_deref().or(doc.number.as_deref()),
+    shown_number_of(
+        doc.direction,
+        doc.number.as_deref(),
+        doc.supplier_number.as_deref(),
+    )
+}
+
+/// [`shown_number`] from the direction and both numbers.
+pub fn shown_number_of<'a>(
+    direction: Direction,
+    number: Option<&'a str>,
+    supplier_number: Option<&'a str>,
+) -> Option<&'a str> {
+    match direction {
+        Direction::Issued => number,
+        _ => supplier_number.or(number),
     }
 }
 

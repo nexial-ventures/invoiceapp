@@ -1070,6 +1070,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["overview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pdf/design": {
         parameters: {
             query?: never;
@@ -2832,6 +2848,136 @@ export interface components {
             size: number;
             /** Format: date-time */
             uploadedAt: string;
+        };
+        Overview: {
+            categories: components["schemas"]["OverviewCategories"];
+            /** @description `income.amount − expense.amount`. */
+            difference: string;
+            /** @description Received documents of the period. */
+            expense: components["schemas"]["OverviewTotals"];
+            /** Format: date */
+            from: string;
+            /** @description Issued documents of the period. */
+            income: components["schemas"]["OverviewTotals"];
+            months: components["schemas"]["OverviewMonth"][];
+            /** @description Received documents we owe, as of `today`. */
+            payables: components["schemas"]["OverviewOpen"];
+            /** @description Issued documents owed to us, as of `today`. */
+            receivables: components["schemas"]["OverviewOpen"];
+            /** Format: date */
+            to: string;
+            /**
+             * Format: date
+             * @description The day receivables / payables are counted at (Europe/Prague).
+             */
+            today: string;
+            vat: components["schemas"]["OverviewVat"];
+            /**
+             * @description The company is a VAT payer: `amount` is the base (excl. VAT), else the
+             *     total; `false` → the client hides `vat`.
+             */
+            vatPayer: boolean;
+        };
+        OverviewAdvances: {
+            amount: string;
+            /** Format: int32 */
+            count: number;
+        };
+        OverviewCategories: {
+            expense: components["schemas"]["OverviewCategoryAmount"][];
+            income: components["schemas"]["OverviewCategoryAmount"][];
+        };
+        OverviewCategoryAmount: {
+            amount: string;
+            /** Format: int32 */
+            count: number;
+            /**
+             * Format: uuid
+             * @description `null` = uncategorized.
+             */
+            id?: string | null;
+            name?: string | null;
+        };
+        OverviewMonth: {
+            expense: string;
+            /** @description The month overlaps the selected period. */
+            inPeriod: boolean;
+            income: string;
+            /** @description `YYYY-MM`. */
+            month: string;
+        };
+        OverviewOpen: {
+            /** @description Unpaid, unsettled proformas: expected advances. */
+            advances: components["schemas"]["OverviewAdvances"];
+            /** @description Σ `payable − paid`. */
+            amount: string;
+            /**
+             * Format: int32
+             * @description Unpaid or partially paid tax documents (no proformas, no DDPPs).
+             */
+            count: number;
+            overdueAmount: string;
+            /**
+             * Format: int32
+             * @description Of those, due before `today`.
+             */
+            overdueCount: number;
+            /** @description The longest overdue (earliest due date first), at most 5. */
+            topOverdue: components["schemas"]["OverviewOpenDoc"][];
+        };
+        OverviewOpenDoc: {
+            counterparty?: string | null;
+            docType: components["schemas"]["DocType"];
+            /** Format: date */
+            dueDate: string;
+            /** Format: uuid */
+            id: string;
+            /** @description Issued: our number; received: the supplier's, else ours. */
+            number?: string | null;
+            /** @description `payable − paid` in CZK. */
+            remaining: string;
+        };
+        OverviewTotals: {
+            /**
+             * @description By the amount basis (`vatPayer`): base, plus the non-deductible VAT of
+             *     received documents; non-payer: total.
+             */
+            amount: string;
+            base: string;
+            /**
+             * Format: int32
+             * @description Documents counted.
+             */
+            count: number;
+            total: string;
+            vat: string;
+        };
+        OverviewVat: {
+            /** @description Received `standard` documents with deductible VAT per rate. */
+            input: components["schemas"]["OverviewVatRow"][];
+            /** @description Σ deductible input VAT. */
+            inputVat: string;
+            /**
+             * @description Received `standard` documents without a VAT deduction (informative;
+             *     their total counts as expense).
+             */
+            nonDeductible: components["schemas"]["OverviewVatRow"];
+            /** @description Issued `standard` documents per rate, highest rate first. */
+            output: components["schemas"]["OverviewVatRow"][];
+            /** @description Σ output VAT. */
+            outputVat: string;
+            /** @description `outputVat − inputVat`: positive = to pay, negative = refund. */
+            result: string;
+            /** @description Bases of issued reverse-charge documents (no VAT computed). */
+            reverseChargeIssued: string;
+            /** @description Bases of received reverse-charge documents (no VAT computed). */
+            reverseChargeReceived: string;
+        };
+        OverviewVatRow: {
+            base: string;
+            /** @description Percent; `0` in `nonDeductible` (it spans rates). */
+            rate: string;
+            vat: string;
         };
         /** @description Party data frozen at issue. */
         PartySnapshot: {
@@ -6838,6 +6984,40 @@ export interface operations {
             };
             /** @description `last_owner` */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    overview: {
+        parameters: {
+            query?: {
+                /** @description `YYYY-MM-DD`, inclusive. */
+                from?: string;
+                /** @description `YYYY-MM-DD`, inclusive; `from ≤ to ≤ from + 366 days`. */
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The period's income / expense, VAT per rate, monthly series and categories (issued-status, non-proforma documents by tax date, in CZK) and today's receivables / payables */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Overview"];
+                };
+            };
+            /** @description `from` / `to`: `invalid` (missing, not `YYYY-MM-DD`, `to < from` or more than 366 days apart) */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
