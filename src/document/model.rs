@@ -34,6 +34,8 @@ pub struct Existing {
     pub vat_mode: VatMode,
     /// A correction keeps its original's rate whatever the request says.
     pub exchange_rate: Option<Decimal>,
+    /// The number an unlocked native draft keeps (`None` for a fresh draft).
+    pub number: Option<String>,
 }
 
 impl Existing {

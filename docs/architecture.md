@@ -70,7 +70,7 @@ error files. Every repo takes the `SpaceId` of the request's role extractor ([ap
 | `contact/`, `ares/`, `cnb/` | address book; `AresClient` → `AresSubject`; `CnbClient` + `denni_kurz.txt` parser behind the `exchange_rates` cache | [api/settings-contacts.md](api/settings-contacts.md), [api/documents.md](api/documents.md) |
 | `catalog/` | catalog items and groups (ordered members, one VAT rate) | [api/advances-credit-catalog.md](api/advances-credit-catalog.md) |
 | `document/` (pure) | `line.rs` (enums as string `ActiveEnum`s), `doc_type.rs` (`DocType` = series key), `compute.rs`, `rounding.rs`, `advance.rs`, `ddpp.rs`, `credit.rs`, `correction.rs`, `defaults.rs`, `received.rs`, `snapshot.rs`, `model.rs`, `meta.rs` | [api/documents.md](api/documents.md), [api/doc-types.md](api/doc-types.md), [api/defaults.md](api/defaults.md) |
-| `document/` (I/O) | `service.rs` = operations shared by REST and MCP; `wire/` = DTOs + request validation (no DB); `repo/` = DB (insert, issue, payments, DDPP, settle, credit, corrections, query); `handlers/` = axum only | [api/advances-credit-catalog.md](api/advances-credit-catalog.md), [api/received-import.md](api/received-import.md) |
+| `document/` (I/O) | `service.rs` = operations shared by REST and MCP; `wire/` = DTOs + request validation (no DB); `repo/` = DB (insert, issue, lifecycle incl. unlock `issued → draft` (admin+, number kept), payments, DDPP, settle, credit, corrections, query); `handlers/` = axum only | [api/advances-credit-catalog.md](api/advances-credit-catalog.md), [api/received-import.md](api/received-import.md) |
 | `pdf/` | `PdfRoot` (in `AppState`) → `space(id)` = `PdfService` (scoped storage, `render`); `limits.rs` (`RenderLimits`: instance-wide mdcast slots, per-space preview limits); `client.rs` (mdcast errors), `design.rs` + `design_cache.rs` (embedded ∪ stored design, cached), pure `format` / `labels` / `reference` / `payload` / `amounts` / `spayd`; `source.rs`, `archive.rs`, `preview.rs`, `handlers.rs` | [api/pdf.md](api/pdf.md) |
 | `pdf/editor/` | per-space design editor: draft, activation / restore / reset, versions, usage under the space quota, `design_drafts` row lock | [api/design.md](api/design.md) |
 | `import/` | bulk import pipeline shared by ISDOC and CSV / XLSX: `model.rs` (`Plan`), `lookup.rs` / `batch.rs` (per entry / one query per kind over the batch), `check.rs`, `category.rs`, `store.rs` (one entry per transaction), `form.rs`, `wire.rs` | [api/isdoc.md](api/isdoc.md), [api/csv.md](api/csv.md) |
@@ -89,6 +89,7 @@ error files. Every repo takes the `SpaceId` of the request's role extractor ([ap
   space tables ([api/spaces.md](api/spaces.md#data-scoping)).
 - Multi-row writes run in `db.transaction(|txn| …)`. `allocate_number` is an atomic upsert on
   `number_series_counters` and must run inside the transaction that stores the numbered document.
+  An unlocked draft keeps its number; its re-issue reuses it (`issue_apply::numbering`) and never allocates.
 - Totals are recomputed by `compute.rs` on every save and at issue and stored; reads return stored values. Money
   arithmetic is checked; an overflow is a 422.
   Received recaps and DDPP recaps are stored as entered / computed, never recomputed.
@@ -213,6 +214,8 @@ routed to the row).
   `pdf_unavailable` / `pdf_render_failed` / `storage_unavailable` to "not issued" + detail; simplified documents over
   10 000 CZK only warn. Manual import: `?imported=1`, own number, only imports send `relatedDocumentId`;
   `RelatedDocumentPicker` offers issued targets only, first 50. Lists show an "Importovaný" badge and a "bez PDF" hint.
+  Unlock (admin+): `UnlockPanel` asks a required reason and warns about sent / paid / referenced documents;
+  `UnlockedBanner` shows when / who / why on the draft and, as a note, after re-issue.
 - **received** (no draft): VAT suggested as round2(base × rate) until typed; `receivedDate` follows tax point ?? issue
   date and `payable` follows the total until edited; `vatDeductible` resets on a VAT-mode change. A received document
   opened under `/invoices/…` redirects to `/received/…` and vice versa. `OriginalPdfPanel` (received + imported):

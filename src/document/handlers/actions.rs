@@ -4,13 +4,13 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use uuid::Uuid;
 
-use super::dto::{CancelInput, CreditNoteInput, InternalNoteInput, MarkSentInput};
+use super::dto::{CancelInput, CreditNoteInput, InternalNoteInput, MarkSentInput, UnlockInput};
 use crate::app::AppState;
-use crate::auth::Write;
+use crate::auth::{Manage, Write};
 use crate::document::meta::MetadataInput;
 use crate::document::repo::{
     credit as credit_repo, issue as issue_repo, lifecycle, meta as meta_repo, query,
-    settle as settle_repo,
+    settle as settle_repo, unlock as unlock_repo,
 };
 use crate::document::service::{fetch, mark_sent_at};
 use crate::document::wire::dto::Document;
@@ -28,7 +28,7 @@ use crate::validation as v;
     responses(
         (status = 200, body = Document),
         (status = 404, body = ErrorBody),
-        (status = 409, description = "`invalid_state` (not a draft)", body = ErrorBody),
+        (status = 409, description = "`invalid_state` (not a draft, or a correction whose original is gone); re-issue of an unlocked draft: `exceeds_original`, `related_in_use`, `advance_settled` / `advance_in_use`", body = ErrorBody),
         (status = 422, description = "Not issuable (contactId, lines, dueDate, taxPointDate, bankAccountId, exchangeRate, correctionReason, lines.N.advanceDocumentId, lines: exceeds_original)", body = ErrorBody),
         (status = 502, description = "`pdf_render_failed` (+ `detail`); nothing issued", body = ErrorBody),
         (status = 503, description = "`pdf_unavailable` or `storage_unavailable`; nothing issued", body = ErrorBody),
@@ -245,4 +245,41 @@ fn correction_reason(body: &Bytes) -> Result<Option<String>, AppError> {
     let input: CreditNoteInput = optional_json(body)?;
     v::opt_text(input.correction_reason.as_deref(), 500)
         .map_err(|r| AppError::field("correctionReason", r))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/documents/{id}/unlock",
+    tag = "documents",
+    security(("cookie" = []), ("bearer" = [])),
+    params(("id" = Uuid, Path)),
+    request_body = UnlockInput,
+    responses(
+        (status = 200, description = "The draft, number kept", body = Document),
+        (status = 404, body = ErrorBody),
+        (status = 409, description = "`invalid_state` (not an issued document of ours, or a native DDPP)", body = ErrorBody),
+        (status = 422, description = "`reason`: `required` / `too_long`", body = ErrorBody),
+    )
+)]
+pub async fn unlock(
+    State(state): State<AppState>,
+    access: Manage,
+    ApiPath(id): ApiPath<Uuid>,
+    body: Bytes,
+) -> Result<Json<Document>, AppError> {
+    let input: UnlockInput = optional_json(&body)?;
+    let reason = v::required_text(input.reason.as_deref().unwrap_or_default(), 2000)
+        .map_err(|r| AppError::field("reason", r))?;
+    let space = access.space();
+    let pdf = state.pdf.space(space)?;
+    let by = unlock_repo::Unlock {
+        user: access.scope.user_id,
+        reason,
+    };
+    let archive = unlock_repo::unlock(&state.db, space, id, by).await?;
+    // After the commit, best effort: the orphan sweep removes what is left.
+    if let Some(rel) = archive {
+        pdf.storage().remove(&rel).await;
+    }
+    Ok(Json(fetch(&state, space, id).await?))
 }

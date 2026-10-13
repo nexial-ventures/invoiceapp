@@ -47,5 +47,6 @@
   "emailRateLimited": "The e-mail limit (per hour or per day, for this space or for you) is used up. Try again later.",
   "emailRateLimitedWait": "The e-mail limit (per hour or per day, for this space or for you) is used up. Try again in {wait}.",
   "waitMinutes": "{n} min",
-  "waitHours": "{n} h"
+  "waitHours": "{n} h",
+  "relatedInUse": "Other documents refer to this one (corrections, a final invoice); this would break them."
 }

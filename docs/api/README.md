@@ -16,7 +16,7 @@ number (taken by its shortest text, then validated like the string) — see `src
 - ARES: 404 `{"code":"ares_not_found"}`, 502 `{"code":"ares_unavailable"}`, 422 `{"code":"validation","fields":{"ico":"invalid_ico"}}`.
 
 
-Later phases add more codes (`document_locked`, `invalid_state`, `cnb_unavailable`, `advance_settled`, `smtp_failed`, `template_invalid`, …) — see each part.
+Later phases add more codes (`document_locked`, `invalid_state`, `cnb_unavailable`, `advance_settled`, `related_in_use`, `smtp_failed`, `template_invalid`, …) — see each part.
 422 field keys for list items use the 0-based array index: `lines.0.unitPrice`, `members.2.itemId`.
 
 ## Conventions

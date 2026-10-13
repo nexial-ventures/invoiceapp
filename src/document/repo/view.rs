@@ -4,11 +4,12 @@ use std::collections::HashMap;
 
 use anyhow::Context as _;
 use chrono::NaiveDate;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use serde::de::DeserializeOwned;
 use uuid::Uuid;
 
 use super::query::Full;
+use crate::auth::entity::user;
 use crate::contact::entity::contact;
 use crate::currency::is_local;
 use crate::document::compute::{self, Params, RecapRow, round2};
@@ -20,6 +21,7 @@ use crate::document::snapshot::{BankSnapshot, PartySnapshot, Totals};
 use crate::document::state;
 use crate::document::wire::dto::{self, Document, DocumentSummary, RelatedDocument, lines_out};
 use crate::error::AppError;
+use crate::pdf::editor::UserRef;
 
 fn snapshot<T: DeserializeOwned>(v: &Option<serde_json::Value>) -> Result<Option<T>, AppError> {
     Ok(v.clone()
@@ -113,6 +115,7 @@ pub fn document(full: Full, today: NaiveDate) -> Result<Document, AppError> {
     });
     let related_documents: Vec<_> = full.related.iter().map(related).collect();
     let parent = full.parent.as_ref().map(related);
+    let unlocked_by = full.unlocked_by;
     let d = full.doc;
     let settled = (d.doc_type == DocType::Proforma).then(|| {
         related_documents
@@ -192,6 +195,9 @@ pub fn document(full: Full, today: NaiveDate) -> Result<Document, AppError> {
         sent_at: d.sent_at,
         cancelled_at: d.cancelled_at,
         cancel_reason: d.cancel_reason,
+        unlocked_at: d.unlocked_at,
+        unlocked_by,
+        unlock_reason: d.unlock_reason,
         paid: round2(d.paid),
         created_at: d.created_at,
         updated_at: d.updated_at,
@@ -230,6 +236,7 @@ pub async fn summaries(
             .map(|c| (c.id, c.name))
             .collect()
     };
+    let users = user_refs(db, docs.iter().filter_map(|d| d.unlocked_by)).await?;
     docs.into_iter()
         .map(|d| {
             let (status, overdue) = derived(&d, today);
@@ -260,7 +267,34 @@ pub async fn summaries(
                 has_pdf: d.pdf_path.is_some() || d.original_path.is_some(),
                 supplier_number: d.supplier_number,
                 category_id: d.category_id,
+                unlocked_at: d.unlocked_at,
+                unlocked_by: d.unlocked_by.and_then(|u| users.get(&u).cloned()),
+                unlock_reason: d.unlock_reason,
             })
         })
         .collect()
+}
+
+/// The users of `ids` as "who" references (deleted accounts are missing).
+pub async fn user_refs<C: ConnectionTrait>(
+    db: &C,
+    ids: impl IntoIterator<Item = Uuid>,
+) -> Result<HashMap<Uuid, UserRef>, AppError> {
+    let ids: Vec<Uuid> = ids.into_iter().collect();
+    if ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+    Ok(user::Entity::find()
+        .filter(user::Column::Id.is_in(ids))
+        .all(db)
+        .await?
+        .into_iter()
+        .map(|u| {
+            let who = UserRef {
+                email: u.email,
+                display_name: u.display_name,
+            };
+            (u.id, who)
+        })
+        .collect())
 }

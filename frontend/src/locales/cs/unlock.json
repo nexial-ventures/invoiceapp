@@ -1,0 +1,23 @@
+{
+  "action": "Odemknout",
+  "title": "Odemknout doklad {number} k úpravám",
+  "intro": "Doklad se vrátí do konceptu a lze ho celý upravit. Číslo si ponechá; nové vystavení vykreslí a archivuje nové PDF a současné se smaže.",
+  "warnSent": "Doklad už byl odeslán: zákazník má původní verzi.",
+  "warnPayments": "Jsou k němu zapsané platby ({paid}); zůstanou a po novém vystavení se opět započítají.",
+  "warnRelated": "Odkazují na něj jiné doklady (dobropisy, zálohové doklady, konečná faktura); zůstanou propojené.",
+  "reason": "Důvod",
+  "reasonPlaceholder": "Proč je potřeba vystavený doklad změnit",
+  "reasonRequired": "Vyplňte důvod.",
+  "confirm": "Odemknout",
+  "bannerTitle": "Odemčený vystavený doklad",
+  "banner": "Odemčeno {when}, {who}: {reason}",
+  "unknownUser": "smazaný uživatel",
+  "keptNumber": "Ponechává si číslo {number}: nové vystavení nové číslo nebere.",
+  "confirmDelete": "Tento koncept byl vystaven jako {number}. Smazáním se smažou i jeho platby a historie e-mailů a číslo se znovu nepoužije. Opravdu smazat?",
+  "issueExceeds": "Nelze vystavit: vystavené dobropisy by v některé sazbě DPH přesáhly opravovaný doklad (navýšený o vrubopisy). Nejprve je stornujte nebo upravte.",
+  "issueRelated": "Nelze vystavit: opravné doklady byly vystaveny na původního odběratele, měnu a režim DPH. Vraťte je, nebo opravné doklady nejprve stornujte či smažte.",
+  "issueAdvance": "Nelze vystavit: faktura odečítá tento doklad v podobě, v jaké byl vystaven (částky, měna, odběratel). Vraťte změny, nebo tu fakturu nejprve stornujte či smažte.",
+  "deleteExceeds": "Nelze smazat: bez tohoto vrubopisu by vystavené dobropisy v některé sazbě DPH přesáhly původní doklad. Nejprve je stornujte nebo upravte.",
+  "deleteRelated": "Nelze smazat: odkazují na něj jiné doklady (dobropisy, zálohové doklady, konečná faktura). Nejprve je stornujte či smažte.",
+  "deleteAdvance": "Nelze smazat: tento doklad odečítá faktura (počítá se i stornovaná). Je-li ta faktura koncept, nejprve ji smažte; jinak musí doklad zůstat."
+}

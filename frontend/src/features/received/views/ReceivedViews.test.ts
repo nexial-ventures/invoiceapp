@@ -32,6 +32,9 @@ const summary = (overrides: Partial<DocumentSummary> = {}): DocumentSummary => (
   categoryId: "k1",
   hasPdf: false,
   imported: false,
+  unlockedAt: null,
+  unlockedBy: null,
+  unlockReason: null,
   ...overrides,
 });
 

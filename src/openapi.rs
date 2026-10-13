@@ -78,6 +78,7 @@ use utoipa::{Modify, OpenApi};
         crate::document::handlers::documents::compute,
         crate::document::handlers::actions::issue,
         crate::document::handlers::actions::cancel,
+        crate::document::handlers::actions::unlock,
         crate::document::handlers::actions::mark_sent,
         crate::document::handlers::actions::internal_note,
         crate::document::handlers::actions::metadata,

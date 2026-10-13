@@ -144,6 +144,12 @@ export const useDocumentStore = defineStore("documents/current", () => {
     doc.value = await documentsApi.markSent(id());
   }
 
+  /** Back to a draft: payments stay on the server but are not listed for drafts. */
+  async function unlock(reason: string): Promise<void> {
+    doc.value = await documentsApi.unlock(id(), reason);
+    payments.value = [];
+  }
+
   async function setMetadata(input: MetadataInput): Promise<void> {
     doc.value = await documentsApi.setMetadata(id(), input);
   }
@@ -194,6 +200,7 @@ export const useDocumentStore = defineStore("documents/current", () => {
     issue,
     cancel,
     markSent,
+    unlock,
     setMetadata,
     uploadOriginal,
     removeOriginal,

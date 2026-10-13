@@ -27,7 +27,8 @@ pub fn flag(requested: Option<bool>, existing: Option<&Existing>, e: &mut FieldE
 }
 
 /// `(number, relatedDocumentId)`. Imported: `number` required, the link
-/// checked, no `advance` lines. Native: no `number`; the link is the one the
+/// checked, no `advance` lines. Native: no `number` (an unlocked draft keeps
+/// its own; sending it back unchanged is fine); the link is the one the
 /// server set (settlement / credit note) — a request value is ignored.
 pub fn fields(
     imported: bool,
@@ -39,10 +40,12 @@ pub fn fields(
     let existing = ctx.existing.as_ref();
     let number = input.number.as_deref();
     if !imported {
-        if v::opt_text(number, MAX_NUMBER).ok().flatten().is_some() {
+        let kept = existing.and_then(|x| x.number.clone());
+        let sent = v::opt_text(number, MAX_NUMBER).ok().flatten();
+        if sent.is_some() && sent != kept {
             e.add("number", "invalid");
         }
-        return (None, existing.and_then(|x| x.related_document_id));
+        return (kept, existing.and_then(|x| x.related_document_id));
     }
     for (i, l) in input.lines.iter().enumerate() {
         if l.kind == "advance" {

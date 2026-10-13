@@ -10,6 +10,8 @@ creating any other combination → 422 `{"fields":{"docType":"invalid"}}`.
   compares the sum of payments with `totals.payable`.
 - `overdue` (derived): `status = issued` and `paymentState ∈ {unpaid, partial}` and `dueDate < today`.
 - `sentAt` (stored, nullable): set by mark-sent.
+- Transitions: `draft → issued` (issue), `issued → cancelled` (cancel), `issued → draft` (unlock, admin+, see
+  [Unlock](#unlock)); drafts can be deleted.
 
 ## Wire types
 ```
@@ -52,12 +54,14 @@ Document = DocumentInput + {
   supplier: PartySnapshot|null, customer: PartySnapshot|null,  // filled at issue; drafts show null
   bankSnapshot: { accountNumber, iban, bic }|null,             // filled at issue
   lines: DocumentLine[] (with position/base), totals: Totals, paid: string /* sum of payments */,
+  unlockedAt: datetime|null, unlockedBy: { email, displayName }|null, unlockReason: string|null, // latest unlock
   createdAt, updatedAt
 }
 PartySnapshot { name, ico, dic, street, city, zip, country, registration|null, vatPayer: boolean|null }
 
 DocumentSummary { id, docType, direction, number, status, paymentState, overdue, contactId, customerName /* snapshot or
-  live contact name for drafts */, issueDate, dueDate, currency, payable, paid, sentAt }
+  live contact name for drafts */, issueDate, dueDate, currency, payable, paid, sentAt,
+  unlockedAt, unlockedBy, unlockReason }
 
 Payment { id, date, amount: string /* >0, doc currency */, note: string|null, createdAt }
 ```
@@ -104,6 +108,8 @@ Payment { id, date, amount: string /* >0, doc currency */, note: string|null, cr
   rendered **before** that transaction (from a rolled-back dry run of it) and recorded in its commit — see
   [pdf.md, Archive](pdf.md#archive).
 - `POST /api/documents/{id}/cancel` body `{ reason?: string }` → issued only (else 409 `invalid_state`); payments stay.
+- `POST /api/documents/{id}/unlock` body `{ reason: string }` → Document (the draft); **Manage** role. See
+  [Unlock](#unlock).
 - `POST /api/documents/{id}/mark-sent` body `{ sentAt?: datetime }` → issued only; idempotent (overwrites).
 - `PUT /api/documents/{id}/internal-note` body `{ internalNote }` → allowed in every status.
 - `GET /api/documents/{id}/payments` → Payment[] (date asc). `POST /api/documents/{id}/payments` → 201 (issued only, else
@@ -124,6 +130,49 @@ is served for a minute at most. Tests use a local mock server with fixture text 
 ## Number-series counter guard (finishes the 1a review item)
 `PUT /api/settings/number-series/{docType}/counters/{year}` with `lastNumber` lower than the highest `numberSeq` of a
 non-imported document of that docType and `numberYear` → 422 `{"fields":{"lastNumber":"below_issued"}}`.
+
+## Unlock
+User decision overriding "issued documents are locked" ([plan.md](../plan.md)).
+`POST /api/documents/{id}/unlock` body `{ reason: string }`, role **Manage** (admin / owner; member → 403 `forbidden`).
+- `reason` trimmed, 1–2000 chars, else 422 `reason: required | too_long` (an empty body → `required`).
+- Any issued document of ours (`direction = issued`, `status = issued`), imported ones included, whatever is attached
+  to it (payments, `sentAt`, credit notes, DDPPs, deductions) — except a native DDPP (its proforma payment owns it).
+  That, a draft, a cancelled or a received document → 409 `invalid_state`. Another space's id → 404.
+- Effect: `status` → `draft`; `unlockedAt` / `unlockedBy` / `unlockReason` record the latest unlock (kept after
+  re-issue; `unlockedBy` is `null` once that account is deleted). Kept: `number`, `numberYear`, the sequence, `sentAt`,
+  `variableSymbol`, payments (`paid`), the e-mail log, every document referencing it. The rendered archive goes (`pdf`
+  → `null`; its storage object is removed after the commit, best effort, else the orphan sweep removes it); an
+  imported document's uploaded **original** is never touched. A native document also drops its snapshots (`supplier`
+  / `customer` / `bankSnapshot`) and a ČNB rate (re-resolved at re-issue; a manual or copied rate stays); an imported
+  one keeps its snapshots, rate and totals. Returns the Document.
+- The draft is edited with the normal `PUT` (all validations; `docType` cannot change → `docType: invalid`). A native
+  draft's `number` may be sent back unchanged or omitted (anything else → `number: invalid`); an imported one's stays
+  editable, as on import.
+- Re-issue (normal `issue`): a draft that already has a number reuses `number`, `numberYear` and the sequence, also
+  after a date change — it never allocates a second number; snapshots, rate, totals and the PDF are done as in any
+  issue (imported: no render). An imported draft not edited since the unlock (no document `PUT`; metadata, notes and
+  the original do not count) keeps its lines, snapshots, rate and totals as entered. The number stays
+  **reserved** while the draft exists: the counter is not moved back, the counter guard counts the draft
+  (`below_issued`), and the unique number index still holds it.
+- Re-issue re-checks, in the issue transaction under the row lock, what other documents rely on (409, nothing issued):
+  `exceeds_original` — its issued credit notes exceed the new item bases (plus issued debit notes) for some rate (an
+  imported DDPP: its issued corrections exceed the new recap); `related_in_use` — `contactId`, `currency` or `vatMode`
+  changed while a non-cancelled native correction (copied from it) exists; `advance_settled` / `advance_in_use` — a
+  non-cancelled issued / draft invoice deducts it and would now deduct something else (amounts, VAT recap, currency,
+  customer). An unlocked **debit note** re-issues only while its original's issued credit notes fit the cap with
+  this note at its new amounts (`exceeds_original`); an unlocked **DDPP correction** only while its DDPP is not
+  deducted (`advance_settled` / `advance_in_use`, as for any correction issue). An unedited import is not re-checked
+  (nothing changed).
+- As a draft it takes no payments (409 `invalid_state` on add / delete) and `paymentState` is `null`. E-mail and ISDOC
+  export never use a draft render: a document unlocked while one is prepared → 409 `invalid_state`, and a render
+  started before the unlock is never archived (`GET …/pdf` → 409; see [pdf.md, Archive](pdf.md#archive)).
+- `DELETE` of an unlocked draft cascades its lines, payments and e-mail log (a DDPP's `paymentId` → `null`). Refused
+  with 409 `related_in_use` while a non-cancelled document links it via `relatedDocumentId` (cancelled ones keep
+  existing with the link `null`), and with 409 `advance_in_use` while any invoice's `advance` line deducts it —
+  cancelled invoices included, because that FK has no ON DELETE action (the line needs its source). An unlocked
+  debit note or DDPP correction is deleted only under the guards of its cancel (`exceeds_original`;
+  `advance_settled` / `advance_in_use`). The number is not reused.
+- REST only; MCP has no unlock tool.
 
 ## Clarifications 1b (as implemented)
 Additive details settled during the Phase 1b backend; nothing above changed.
@@ -203,8 +252,15 @@ List
 Number series
 - `allocate_number(&txn, DocType, year) -> Result<(String, i32), AppError>` (number and sequence).
 - The counter guard counts every non-imported document of that docType and `numberYear` with a number (cancelled
-  included — their numbers stay used). The counter `PUT` locks the counter row (creating it if missing) before
-  checking, so it waits for an issue in flight and sees its number.
+  and unlocked drafts included — their numbers stay used). The counter `PUT` locks the counter row (creating it if
+  missing) before checking, so it waits for an issue in flight and sees its number.
+
+Unlock (clarification)
+- Added after 4e on the user's decision: issued documents are no longer strictly immutable — see [Unlock](#unlock).
+  `issue` on a numbered draft keeps the number instead of allocating; `PUT` of a native draft accepts its kept number.
+  New code `related_in_use` (409).
+- The credit cap counts every issued credit note linked to the original, imported ones included, whatever their
+  currency (as at a credit-note issue): an imported note is not bound to the original's header.
 
 ---
 

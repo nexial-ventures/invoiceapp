@@ -126,7 +126,7 @@ pub async fn update(
     responses(
         (status = 204),
         (status = 404, body = ErrorBody),
-        (status = 409, description = "`document_locked` (an issued document that is not a draft; received documents can always be deleted)", body = ErrorBody),
+        (status = 409, description = "`document_locked` (an issued document that is not a draft; received documents can always be deleted); an unlocked draft: `related_in_use` (a non-cancelled document links it), `advance_in_use` (an invoice deducts it); an unlocked debit note / DDPP correction: the guards of its cancel (`exceeds_original`, `advance_settled` / `advance_in_use`)", body = ErrorBody),
     )
 )]
 pub async fn delete(

@@ -1,4 +1,4 @@
-//! Changes allowed after issue: cancel, mark-sent, internal note.
+//! Changes allowed after issue: cancel, mark-sent, internal note (unlock: `unlock.rs`).
 
 use chrono::{DateTime, FixedOffset};
 use sea_orm::{ActiveModelTrait, DatabaseConnection, DatabaseTransaction, Set, TransactionTrait};
@@ -12,7 +12,7 @@ use crate::document::line::Status;
 use crate::error::AppError;
 use crate::space::SpaceId;
 
-const ISSUED_ONLY: &[Status] = &[Status::Issued];
+pub(super) const ISSUED_ONLY: &[Status] = &[Status::Issued];
 
 /// Lock the row, require one of `statuses` and `allowed`, apply `f`.
 /// Anything else is `invalid_state`.
@@ -36,7 +36,7 @@ async fn on_status(
 
 /// Lock the row; received documents are only recorded (no cancel / mark-sent
 /// / e-mail).
-async fn locked(
+pub(super) async fn locked(
     txn: &DatabaseTransaction,
     space: SpaceId,
     id: Uuid,

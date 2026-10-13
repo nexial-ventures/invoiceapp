@@ -112,4 +112,28 @@ describe("InvoiceEditView", () => {
     expect(body).toMatchObject({ imported: false, number: null, categoryId: null, customFields: {} });
     expect("relatedDocumentId" in body).toBe(false);
   });
+
+  it("an unlocked draft shows the unlock and the number it keeps", async () => {
+    const draft = document({
+      number: "20260001",
+      unlockedAt: "2026-10-12T09:30:00Z",
+      unlockedBy: { email: "admin@example.com", displayName: "" },
+      unlockReason: "Wrong VAT rate",
+    });
+    mockFetchRoutes({
+      "GET /api/settings/company": company,
+      "GET /api/settings/vat-rates": vatRates,
+      "GET /api/settings/bank-accounts": bankAccounts,
+      "GET /api/settings/categories": [],
+      "GET /api/settings/custom-fields": [],
+      "GET /api/documents/d1": draft,
+      "GET /api/contacts/c1": { id: "c1", name: "Acme" },
+      "POST /api/documents/compute": { lines: [], totals: totals() },
+    });
+    const { w } = await mountAt("/invoices/d1/edit");
+    const banner = w.find('[data-test="unlocked-banner"]').text();
+    expect(banner).toContain("admin@example.com");
+    expect(banner).toContain("Wrong VAT rate");
+    expect(w.find('[data-test="kept-number"]').text()).toContain("20260001");
+  });
 });

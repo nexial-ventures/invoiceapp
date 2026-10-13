@@ -116,6 +116,11 @@ pub enum AppError {
     #[error("the advance is deducted by a draft invoice")]
     AdvanceInUse,
 
+    /// Other documents refer to it (corrections, a settled final invoice…)
+    /// and the delete / change would break them.
+    #[error("the document is referenced by other documents")]
+    RelatedInUse,
+
     #[error("the catalog item is the last member of a group")]
     CatalogItemInUse,
 
@@ -261,6 +266,7 @@ impl AppError {
             Self::CnbUnavailable(_) => (StatusCode::BAD_GATEWAY, "cnb_unavailable"),
             Self::AdvanceSettled => (StatusCode::CONFLICT, "advance_settled"),
             Self::AdvanceInUse => (StatusCode::CONFLICT, "advance_in_use"),
+            Self::RelatedInUse => (StatusCode::CONFLICT, "related_in_use"),
             Self::CatalogItemInUse => (StatusCode::CONFLICT, "catalog_item_in_use"),
             Self::CategoryInUse => (StatusCode::CONFLICT, "category_in_use"),
             Self::LastOwner => (StatusCode::CONFLICT, "last_owner"),

@@ -28,6 +28,7 @@ pub fn existing(doc: &document::Model) -> Result<Existing, AppError> {
         currency: doc.currency.clone(),
         locale: doc.locale.clone(),
         exchange_rate: doc.exchange_rate,
+        number: doc.number.clone(),
     })
 }
 

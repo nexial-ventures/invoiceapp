@@ -154,7 +154,7 @@ member management: [members.md](members.md) (4b).
 |---|---|
 | `accountant` | read everything, PDFs, ISDOC / CSV / Pohoda / Money exports; own tokens (role `accountant`) |
 | `member` | + create / change documents, contacts, catalog, payments, imports, e-mails, MCP writes |
-| `admin` | + everything under Settings (company, accounts, VAT, series, categories, custom fields, design, e-mail, accounting), `PUT /api/space`, list / revoke everyone's tokens, members and invitations up to `admin` ([members.md](members.md)) |
+| `admin` | + everything under Settings (company, accounts, VAT, series, categories, custom fields, design, e-mail, accounting), unlocking an issued document ([documents.md](documents.md#unlock)), `PUT /api/space`, list / revoke everyone's tokens, members and invitations up to `admin` ([members.md](members.md)) |
 | `owner` | + `DELETE /api/space`, grant / change / remove `owner` ([members.md](members.md)) |
 
 - Enforcement is per route by an extractor (minimum role); GET / HEAD routes need `accountant`, every mutation needs
@@ -256,7 +256,7 @@ For MCP and scripts. A token belongs to **one user in one space** and works only
   status / templates / history / prefill); every business mutation and read-only POST (`/compute`, imports
   preview, e-mail template preview) `member`; Settings mutations `admin`: company, bank accounts, VAT rates, number
   series, categories, custom fields, accounting, e-mail templates PUT / DELETE and the test e-mail, every 4f design
-  editor route ([design.md](design.md)); `PUT /api/space`
+  editor route ([design.md](design.md)); `POST /api/documents/{id}/unlock` `admin`; `PUT /api/space`
   `admin`; `DELETE /api/space` `owner`. `/api/tokens` (all three) `accountant`: everyone manages own tokens.
 - MCP `tools/list` lists every tool whatever the role; a call below the tool's role is the tool error
   `{"code":"forbidden"}` (read tools `accountant`, write tools `member`).

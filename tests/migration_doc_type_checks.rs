@@ -83,7 +83,9 @@ async fn doc_type_checks_migration() {
     exec(&conn, &series("received_proforma")).await;
 
     // And back down: the legacy value is allowed again.
-    Migrator::down(&conn, Some(1)).await.expect("down");
+    // Down to just before it, whatever was appended since.
+    let after = u32::try_from(Migrator::migrations().len()).expect("count") - BEFORE;
+    Migrator::down(&conn, Some(after)).await.expect("down");
     exec(&conn, &series("order")).await;
 
     conn.close().await.expect("close");

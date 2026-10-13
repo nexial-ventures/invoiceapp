@@ -51,6 +51,8 @@ export const documentsApi = {
   cancel: (id: string, reason: string | null) =>
     request<Document>(`${item(id)}/cancel`, { method: "POST", body: reason ? { reason } : {} }),
   markSent: (id: string) => request<Document>(`${item(id)}/mark-sent`, { method: "POST", body: {} }),
+  /** Issued → draft, number kept (admin+); `reason` required. */
+  unlock: (id: string, reason: string) => request<Document>(`${item(id)}/unlock`, { method: "POST", body: { reason } }),
   /** Category, custom fields and internal note; every status, both directions. */
   setMetadata: (id: string, input: MetadataInput) => request<Document>(`${item(id)}/metadata`, { method: "PUT", body: input }),
   /** Draft final invoice from an issued proforma. */

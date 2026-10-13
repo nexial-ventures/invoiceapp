@@ -29,3 +29,10 @@ pub struct CreditNoteInput {
     /// At most 500 characters; required at issue.
     pub correction_reason: Option<String>,
 }
+
+#[derive(Debug, Clone, Default, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase", default)]
+pub struct UnlockInput {
+    /// Required, 1–2000 characters (trimmed).
+    pub reason: Option<String>,
+}

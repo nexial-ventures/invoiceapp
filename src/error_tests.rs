@@ -76,6 +76,11 @@ fn maps_variants_to_status_and_code() {
             "advance_in_use",
         ),
         (
+            AppError::RelatedInUse,
+            StatusCode::CONFLICT,
+            "related_in_use",
+        ),
+        (
             AppError::CatalogItemInUse,
             StatusCode::CONFLICT,
             "catalog_item_in_use",

@@ -17,6 +17,7 @@ use crate::document::state;
 use crate::document::wire::dto::ListQuery;
 use crate::error::AppError;
 use crate::paging::like_pattern;
+use crate::pdf::editor::UserRef;
 use crate::space::SpaceId;
 
 /// A document with its lines (by position), stored recap rows and the
@@ -30,6 +31,8 @@ pub struct Full {
     pub parent: Option<document::Model>,
     /// Issued DDPP: why it cannot be corrected now.
     pub correction_block: Option<&'static str>,
+    /// Who unlocked it last (`None` also once that account is deleted).
+    pub unlocked_by: Option<UserRef>,
 }
 
 /// The document `id` of `space`; another space's id is not found.
@@ -95,7 +98,12 @@ pub async fn load<C: ConnectionTrait>(db: &C, space: SpaceId, id: Uuid) -> Resul
         None => None,
     };
     let correction_block = super::ddpp_correction::block(db, &doc).await?;
+    let unlocked_by = super::view::user_refs(db, doc.unlocked_by)
+        .await?
+        .into_values()
+        .next();
     Ok(Full {
+        unlocked_by,
         correction_block,
         doc,
         lines,

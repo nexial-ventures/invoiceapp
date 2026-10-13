@@ -17,6 +17,7 @@ use crate::document::model::NewPayment;
 use crate::document::snapshot::{BankSnapshot, PartySnapshot, Totals};
 use crate::error::{AppError, FieldErrors};
 use crate::num_parse::decimal;
+use crate::pdf::editor::UserRef;
 use crate::validation as v;
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -59,6 +60,11 @@ pub struct Document {
     pub sent_at: Option<DateTime<FixedOffset>>,
     pub cancelled_at: Option<DateTime<FixedOffset>>,
     pub cancel_reason: Option<String>,
+    /// The latest unlock back to a draft (kept after re-issue).
+    pub unlocked_at: Option<DateTime<FixedOffset>>,
+    /// `null` also once that account is deleted.
+    pub unlocked_by: Option<UserRef>,
+    pub unlock_reason: Option<String>,
     pub supplier: Option<PartySnapshot>,
     pub customer: Option<PartySnapshot>,
     pub bank_snapshot: Option<BankSnapshot>,
@@ -173,6 +179,9 @@ pub struct DocumentSummary {
     pub category_id: Option<Uuid>,
     /// A rendered archive or an uploaded original exists.
     pub has_pdf: bool,
+    pub unlocked_at: Option<DateTime<FixedOffset>>,
+    pub unlocked_by: Option<UserRef>,
+    pub unlock_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]

@@ -207,6 +207,7 @@ fn existing(doc_type: DocType) -> Existing {
         currency: "EUR".into(),
         locale: "cs".into(),
         exchange_rate: Some("25.5".parse().expect("d")),
+        number: None,
     }
 }
 
